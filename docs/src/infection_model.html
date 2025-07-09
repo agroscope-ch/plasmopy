@@ -1,0 +1,1270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>src.infection_model API documentation</title>
+<meta name="description" content="Script calling the specific infection algorithm submodules and functions." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>src.infection_model</code></h1>
+</header>
+<section id="section-intro">
+<p>Script calling the specific infection algorithm submodules and functions.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;
+Script calling the specific infection algorithm submodules and functions.
+
+&#34;&#34;&#34;
+import sys
+
+import pandas as pd
+from infection_functions import (
+    incubation,
+    oospore_maturation,
+    primary_infection,
+    secondary_infection,
+    sporangia_density,
+    spore_lifespan,
+    sporulation,
+)
+
+# Global variable, defining the number of infection events that we will store and print as output.
+number_of_infection_events = 9
+
+
+&#34;&#34;&#34; Returning list of infection events&#39; datetimes and properties &#34;&#34;&#34;
+
+
+def get_infection_events_dictionary(
+    oospore_maturation_date,
+    oospore_germination_datetime,
+    oospore_dispersion_datetime,
+    oospore_infection_datetime,
+    incubation_days,
+    sporulation_datetimes,
+    sporangia_densities,
+    spore_lifespan_days,
+    secondary_infections_datetimes,
+    # collateral_incubation_days,
+    # collateral_sporulation_datetime,
+    # collateral_sporangia_counts,
+    # collateral_spore_lifespan_days,
+    # collateral_secondary_infections_datetimes
+):
+    &#34;&#34;&#34;
+    Function building a dictionary of infection event datetimes and properties, such as oospore dispersion date and final sporangia densities.
+    Used to print out major information from each InfectionEvent object.
+
+    &#34;&#34;&#34;
+    infection_events = {
+        &#34;oospore_maturation&#34;: oospore_maturation_date,
+        &#34;oospore_germination&#34;: oospore_germination_datetime,
+        &#34;oospore_dispersion&#34;: oospore_dispersion_datetime,
+        &#34;oospore_infection&#34;: oospore_infection_datetime,
+        &#34;incubation_days&#34;: incubation_days,
+        &#34;sporulations&#34;: sporulation_datetimes,
+        &#34;sporangia_densities&#34;: sporangia_densities,
+        &#34;spore_lifespan_days&#34;: spore_lifespan_days,
+        &#34;secondary_infections&#34;: secondary_infections_datetimes,
+        # &#34;collateral_incubation_days&#34;: collateral_incubation_days,
+        # &#34;collateral_sporulations&#34;: collateral_sporulation_datetimes,
+        # &#34;collateral_sporangia_counts&#34;: collateral_sporangia_counts,
+        # &#34;collateral_spore_lifespan_days&#34;: collateral_spore_lifespan_days,
+        # &#34;collateral_secondary_infections&#34;: collateral_secondary_infections_datetimes,
+    }
+    return infection_events
+
+
+def get_oospore_maturation_date(
+    processed_data,
+    model_parameters,
+    standard_colformats,
+    timezone,
+    daily_temperatures,
+    daily_mean_temperatures,
+    logfile,
+):
+    &#34;&#34;&#34;
+    Function directing the determination of oospore maturation date, a unique date per season, thus only computed once or manually inserted.
+
+    &#34;&#34;&#34;
+
+    &#34;&#34;&#34; Determine oospore maturation date (aka date of readiness) &#34;&#34;&#34;
+
+    try:
+        oospore_maturation_date = model_parameters[&#34;oospore_maturation_date&#34;]
+        oospore_maturation_base_temperature = model_parameters[
+            &#34;oospore_maturation_base_temperature&#34;
+        ]
+        oospore_sum_degree_days_maturation_threshold = model_parameters[
+            &#34;oospore_maturation_sum_degree_days_threshold&#34;
+        ]
+    except TypeError:
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(
+                &#34;\nRun Infection Model Error: could not correctly read or send parameters from config file to oospore maturation date determination function.\n&#34;
+            )
+    if oospore_maturation_date is None:
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(&#34;\nNo pre-set oospore maturation date.&#34;)
+        (
+            oospore_maturation_date,
+            oospore_maturation_datetime_rowindex,
+        ) = oospore_maturation.oospore_maturation(
+            processed_data,
+            oospore_maturation_base_temperature,
+            oospore_sum_degree_days_maturation_threshold,
+            daily_temperatures,
+            daily_mean_temperatures,
+        )
+    else:
+        oospore_maturation_date = pd.to_datetime(
+            oospore_maturation_date, format=standard_colformats[0]
+        ).tz_localize(timezone)
+        oospore_maturation_datetime_rowindex = processed_data.index.get_loc(
+            processed_data[processed_data[&#34;datetime&#34;] == oospore_maturation_date].index[
+                0
+            ]
+        )
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(
+                f&#34;\nLoading oospore maturation date from config file: {oospore_maturation_date}\n&#34;
+            )
+
+    if oospore_maturation_date is None:
+        log_message = &#34;\nWARNING: threshold conditions for oospore maturation not reached. Date of oospore maturation could not be determined. Model run interrupted.\n&#34;
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(log_message)
+        print(log_message)
+        sys.exit()
+    else:
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(
+                f&#34;\nOospore maturation date computationally determined on day: {oospore_maturation_date}\n&#34;
+            )
+
+    return oospore_maturation_date, oospore_maturation_datetime_rowindex
+
+
+&#34;&#34;&#34; Main function coordinating the call of infection algorithms &#34;&#34;&#34;
+
+
+def run_infection_model(  # noqa: C901
+    processed_data,
+    model_parameters,
+    start_event_rowindex,
+    oospore_maturation_date,
+    daily_mean_temperatures,
+    algorithmic_time_steps,
+    logfile,
+    oospore_infection_datetimes,
+):
+    &#34;&#34;&#34;
+    Main function directing the steps of the full infection prediction model.
+
+    argument1
+    : processed time series pandas dataframe
+
+    argument2
+    : dictionary of model parameters
+
+    argument3
+    : timeseries row index from which computation will start
+
+    arguemnt4
+    : computational time steps to be used in successive runs of datetime search loops
+
+    return
+    : dicionary of infection events&#39; datetimes and properties
+
+    &#34;&#34;&#34;
+    measurement_time_interval = model_parameters[&#34;measurement_time_interval&#34;]
+
+    &#34;&#34;&#34; Determine primary infections (aka oospore infections) &#34;&#34;&#34;
+    try:
+        oospore_germination_algorithm = model_parameters[
+            &#34;oospore_germination_algorithm&#34;
+        ]
+        oospore_germination_relative_humidity_threshold = model_parameters[
+            &#34;oospore_germination_relative_humidity_threshold&#34;
+        ]
+        oospore_germination_base_temperature = model_parameters[
+            &#34;oospore_germination_base_temperature&#34;
+        ]
+        oospore_germination_base_duration = model_parameters[
+            &#34;oospore_germination_base_duration&#34;
+        ]
+        oospore_germination_leaf_wetness_threshold = model_parameters[
+            &#34;oospore_germination_leaf_wetness_threshold&#34;
+        ]
+        moisturization_temperature_threshold = model_parameters[
+            &#34;moisturization_temperature_threshold&#34;
+        ]
+        moisturization_rainfall_threshold = model_parameters[
+            &#34;moisturization_rainfall_threshold&#34;
+        ]
+        moisturization_rainfall_period = model_parameters[
+            &#34;moisturization_rainfall_period&#34;
+        ]
+    except TypeError:
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(
+                &#34;\nRun Infection Model Error: could not correctly read or send parameters from config file to soil infection determination functions.\n&#34;
+            )
+
+    &#34;&#34;&#34; Oospore germination &#34;&#34;&#34;
+
+    (
+        oospore_germination_datetime,
+        oospore_germination_datetime_rowindex,
+    ) = primary_infection.oospore_germination(
+        processed_data,
+        start_event_rowindex,
+        oospore_germination_relative_humidity_threshold,
+        oospore_germination_base_temperature,
+        oospore_germination_base_duration,
+        oospore_germination_leaf_wetness_threshold,
+        oospore_germination_algorithm,
+        moisturization_temperature_threshold,
+        moisturization_rainfall_threshold,
+        moisturization_rainfall_period,
+        measurement_time_interval,
+        algorithmic_time_steps,
+        logfile,
+    )
+    if oospore_germination_datetime is None:
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            *[None] * (number_of_infection_events - 1),
+        )
+        return events
+
+    &#34;&#34;&#34; Oospore dispersion (rain splashing) &#34;&#34;&#34;
+
+    oospore_dispersion_rainfall_threshold = model_parameters[
+        &#34;oospore_dispersion_rainfall_threshold&#34;
+    ]
+    oospore_dispersion_latency = model_parameters[&#34;oospore_dispersion_latency&#34;]
+
+    (
+        oospore_dispersion_datetime,
+        oospore_dispersion_datetime_rowindex,
+        stop_oospore_dispersion_latency_rowindex,
+    ) = primary_infection.oospore_dispersion(  ## IS IT REDUNDANT GIVEN THAT WE LAUNCH THE LOOP AFTER ANYWAYS IF NO RESULT?
+        processed_data,
+        measurement_time_interval,
+        oospore_germination_datetime_rowindex,
+        oospore_dispersion_rainfall_threshold,
+        oospore_dispersion_latency,
+        algorithmic_time_steps,
+    )
+
+    if oospore_dispersion_datetime is None:
+        (
+            oospore_dispersion_datetime,
+            oospore_dispersion_datetime_rowindex,
+        ) = primary_infection.launch_dispersion_loop(
+            processed_data,
+            start_event_rowindex,
+            oospore_germination_datetime_rowindex,
+            oospore_germination_relative_humidity_threshold,
+            oospore_germination_base_temperature,
+            oospore_germination_base_duration,
+            oospore_germination_leaf_wetness_threshold,
+            oospore_germination_algorithm,
+            moisturization_temperature_threshold,
+            moisturization_rainfall_threshold,
+            moisturization_rainfall_period,
+            oospore_dispersion_rainfall_threshold,
+            oospore_dispersion_latency,
+            measurement_time_interval,
+            algorithmic_time_steps,
+            logfile,
+        )
+
+    if oospore_dispersion_datetime is None:
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            oospore_germination_datetime,
+            *[None] * (number_of_infection_events - 2),
+        )
+        return events
+
+    &#34;&#34;&#34; Oospore infection &#34;&#34;&#34;
+
+    oospore_infection_leaf_wetness_latency = model_parameters[
+        &#34;oospore_infection_leaf_wetness_latency&#34;
+    ]
+    oospore_infection_base_temperature = model_parameters[
+        &#34;oospore_infection_base_temperature&#34;
+    ]
+    oospore_infection_sum_degree_hours_threshold = model_parameters[
+        &#34;oospore_infection_sum_degree_hours_threshold&#34;
+    ]
+    (
+        oospore_infection_datetime,
+        oospore_infection_datetime_rowindex,
+    ) = primary_infection.oospore_infection(
+        processed_data,
+        measurement_time_interval,
+        oospore_dispersion_datetime_rowindex,
+        oospore_infection_leaf_wetness_latency,
+        oospore_infection_base_temperature,
+        oospore_infection_sum_degree_hours_threshold,
+        algorithmic_time_steps,
+    )
+
+    if oospore_infection_datetime is None:
+        (
+            oospore_infection_datetime,
+            oospore_infection_datetime_rowindex,
+        ) = primary_infection.launch_infection_loop(
+            processed_data,
+            measurement_time_interval,
+            start_event_rowindex,
+            oospore_germination_datetime,
+            oospore_germination_datetime_rowindex,
+            oospore_germination_relative_humidity_threshold,
+            oospore_germination_base_temperature,
+            oospore_germination_base_duration,
+            oospore_germination_leaf_wetness_threshold,
+            oospore_germination_algorithm,
+            moisturization_temperature_threshold,
+            moisturization_rainfall_threshold,
+            moisturization_rainfall_period,
+            oospore_dispersion_rainfall_threshold,
+            oospore_dispersion_latency,
+            oospore_dispersion_datetime_rowindex,
+            oospore_infection_leaf_wetness_latency,
+            oospore_infection_base_temperature,
+            oospore_infection_sum_degree_hours_threshold,
+            algorithmic_time_steps,
+            logfile,
+        )
+
+    if oospore_infection_datetime is None:
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            oospore_germination_datetime,
+            oospore_dispersion_datetime,
+            *[None] * (number_of_infection_events - 3),
+        )
+        return events
+    # Cheking whether the oospore_infection_datetime has already been found, so that only one incubation event is launched per same datetime.
+    else:
+        is_already_found = False
+        with open(oospore_infection_datetimes, &#34;r&#34;) as f:
+            lines = f.readlines()
+        if len(lines) == 0:
+            with open(oospore_infection_datetimes, &#34;a&#34;) as f:
+                f.write(str(oospore_infection_datetime) + &#34;\n&#34;)
+        else:
+            for line in lines:
+                if str(oospore_infection_datetime) in line:
+                    is_already_found = True
+            if is_already_found:
+                events = get_infection_events_dictionary(
+                    oospore_maturation_date,
+                    oospore_germination_datetime,
+                    oospore_dispersion_datetime,
+                    *[None] * (number_of_infection_events - 3),
+                )
+                return events
+            else:
+                with open(oospore_infection_datetimes, &#34;a&#34;) as f:
+                    f.write(str(oospore_infection_datetime) + &#34;\n&#34;)
+
+    &#34;&#34;&#34; Incubation &#34;&#34;&#34;
+    incubation_days, end_incubation_datetime_rowindex = incubation.launch_incubation(
+        oospore_infection_datetime,
+        oospore_infection_datetime_rowindex,
+        daily_mean_temperatures,
+        measurement_time_interval,
+    )
+
+    if incubation_days is None:
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            oospore_germination_datetime,
+            oospore_dispersion_datetime,
+            oospore_infection_datetime,
+            *[None] * (number_of_infection_events - 4),
+        )
+        return events
+
+    &#34;&#34;&#34; Sporulation &#34;&#34;&#34;
+
+    sporulation_leaf_wetness_threshold = model_parameters[
+        &#34;sporulation_leaf_wetness_threshold&#34;
+    ]
+    sporulation_min_humidity = model_parameters[&#34;sporulation_min_humidity&#34;]
+    sporulation_min_temperature = model_parameters[&#34;sporulation_min_temperature&#34;]
+    sporulation_min_darkness_hours = model_parameters[&#34;sporulation_min_darkness_hours&#34;]
+    longitude = model_parameters[&#34;longitude&#34;]
+    latitude = model_parameters[&#34;latitude&#34;]
+    elevation = model_parameters[&#34;elevation&#34;]
+
+    (
+        sporulation_datetimes,
+        sporulation_datetime_rowindexes,
+    ) = sporulation.launch_sporulation(
+        processed_data,
+        oospore_infection_datetime_rowindex,
+        end_incubation_datetime_rowindex,
+        sporulation_leaf_wetness_threshold,
+        sporulation_min_humidity,
+        sporulation_min_temperature,
+        sporulation_min_darkness_hours,
+        measurement_time_interval,
+        longitude,
+        latitude,
+        elevation,
+        algorithmic_time_steps,
+    )
+
+    if not sporulation_datetimes:  # check if sporulation_datetimes list is empty
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            oospore_germination_datetime,
+            oospore_dispersion_datetime,
+            oospore_infection_datetime,
+            incubation_days,
+            *[None] * (number_of_infection_events - 5),
+        )
+        return events
+
+    &#34;&#34;&#34; Sporangia density &#34;&#34;&#34;
+
+    # In counts of sporangia per square centimeter of leaf
+
+    sporangia_latency = model_parameters[&#34;sporangia_latency&#34;]
+    sporangia_min_temperature = model_parameters[&#34;sporangia_min_temperature&#34;]
+    sporangia_max_temperature = model_parameters[&#34;sporangia_max_temperature&#34;]
+    sporangia_max_density = model_parameters[&#34;sporangia_max_density&#34;]
+
+    sporangia_densities = sporangia_density.launch_sporangia_densities(
+        processed_data,
+        measurement_time_interval,
+        longitude,
+        latitude,
+        elevation,
+        sporulation_datetime_rowindexes,
+        sporangia_latency,
+        sporangia_min_temperature,
+        sporangia_max_temperature,
+        sporangia_max_density,
+        algorithmic_time_steps,
+    )
+
+    &#34;&#34;&#34; Spore lifespan &#34;&#34;&#34;
+
+    saturation_vapor_pressure = model_parameters[&#34;saturation_vapor_pressure&#34;]
+    spore_lifespan_constant = model_parameters[&#34;spore_lifespan_constant&#34;]
+
+    spore_lifespan_days = spore_lifespan.launch_spore_lifespans(
+        processed_data,
+        saturation_vapor_pressure,
+        spore_lifespan_constant,
+        sporulation_datetime_rowindexes,
+    )
+
+    &#34;&#34;&#34; Secondary infections &#34;&#34;&#34;
+
+    secondary_infection_min_temperature = model_parameters[
+        &#34;secondary_infection_min_temperature&#34;
+    ]
+    secondary_infection_max_temperature = model_parameters[
+        &#34;secondary_infection_max_temperature&#34;
+    ]
+    secondary_infection_leaf_wetness_latency = model_parameters[
+        &#34;secondary_infection_leaf_wetness_latency&#34;
+    ]
+    secondary_infection_sum_degree_hours_threshold = model_parameters[
+        &#34;secondary_infection_sum_degree_hours_threshold&#34;
+    ]
+
+    (
+        secondary_infections_datetimes,
+        secondary_infections_datetimes_rowindexes,
+    ) = secondary_infection.launch_secondary_infections(
+        processed_data,
+        sporulation_datetime_rowindexes,
+        spore_lifespan_days,
+        secondary_infection_min_temperature,
+        secondary_infection_max_temperature,
+        secondary_infection_leaf_wetness_latency,
+        secondary_infection_sum_degree_hours_threshold,
+        measurement_time_interval,
+        algorithmic_time_steps,
+    )
+
+    # &#34;&#34;&#34; Collateral secondary infections &#34;&#34;&#34;
+    #
+    # # Re-launching incubation algorithm and start over infection as long as secondary infections are found
+    # collateral_incubation_days = None
+    # collateral_sporulation_datetime = None
+    # collateral_sporangia_counts = None
+    # collateral_spore_lifespan_days = None
+    # collateral_secondary_infections_datetimes = None
+    #
+    # for (
+    #     secondary_infection_datetime_rowindex
+    # ) in secondary_infections_datetimes_rowindexes:
+    #     secondary_infection_datetime = processed_data[&#34;datetime&#34;][
+    #         secondary_infection_datetime_rowindex
+    #     ]
+    #     (
+    #         collateral_incubation_days,
+    #         end_incubation_datetime_rowindex,
+    #     ) = incubation.launch_incubation(
+    #         secondary_infection_datetime,
+    #         secondary_infection_datetime_rowindex,
+    #         daily_mean_temperatures,
+    #         measurement_time_interval,
+    #     )
+    #
+    #     if collateral_incubation_days is not None:
+    #         (
+    #             collateral_sporulation_datetime,
+    #             collateral_sporulation_datetime_rowindex,
+    #         ) = sporulation.launch_sporulation(
+    #             processed_data,
+    #             secondary_infection_datetime_rowindex,
+    #             end_incubation_datetime_rowindex,
+    #             sporulation_leaf_wetness_threshold,
+    #             sporulation_min_humidity,
+    #             sporulation_min_temperature,
+    #             sporulation_min_darkness_hours,
+    #             measurement_time_interval,
+    #             longitude,
+    #             latitude,
+    #             elevation,
+    #             algorithmic_time_steps,
+    #         )
+    #
+    #         if collateral_sporulation_datetime_rowindex is not None:
+    #             if collateral_sporulation_datetime_rowindex &lt;= len(processed_data.index) - 1:
+    #                 collateral_sporangia_counts = sporangia_density.launch_sporangia_counts(
+    #                     processed_data,
+    #                     measurement_time_interval,
+    #                     longitude,
+    #                     latitude,
+    #                     elevation,
+    #                     collateral_sporulation_datetime_rowindex,
+    #                     sporangia_latency,
+    #                     sporangia_min_temperature,
+    #                     sporangia_max_temperature,
+    #                     sporangia_max_density,
+    #                     algorithmic_time_steps,
+    #                 )
+    #
+    #                 collateral_spore_lifespan_days = spore_death.launch_spore_lifespans(
+    #                     processed_data,
+    #                     saturation_vapor_pressure,
+    #                     spore_lifespan_constant,
+    #                     collateral_sporangia_counts,
+    #                 )
+    #
+    #                 (
+    #                     collateral_secondary_infections_datetimes,
+    #                     collateral_secondary_infections_datetimes_rowindexes,
+    #                 ) = secondary_infection.launch_secondary_infections(
+    #                     processed_data,
+    #                     collateral_spore_lifespan_days,
+    #                     secondary_infection_min_temperature,
+    #                     secondary_infection_max_temperature,
+    #                     secondary_infection_leaf_wetness_latency,
+    #                     secondary_infection_sum_degree_hours_threshold,
+    #                     measurement_time_interval,
+    #                     algorithmic_time_steps,
+    #                 )
+
+    &#34;&#34;&#34; Returning list of infection events&#39; datetimes and properties &#34;&#34;&#34;
+    events = get_infection_events_dictionary(
+        oospore_maturation_date,
+        oospore_germination_datetime,
+        oospore_dispersion_datetime,
+        oospore_infection_datetime,
+        incubation_days,
+        sporulation_datetimes,
+        sporangia_densities,
+        spore_lifespan_days,
+        secondary_infections_datetimes,
+        # collateral_incubation_days,
+        # collateral_sporulation_datetime,
+        # collateral_sporangia_counts,
+        # collateral_spore_lifespan_days,
+        # collateral_secondary_infections_datetimes,
+    )
+
+    return events</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-variables">Global variables</h2>
+<dl>
+<dt id="src.infection_model.number_of_infection_events"><code class="name">var <span class="ident">number_of_infection_events</span></code></dt>
+<dd>
+<div class="desc"><p>Returning list of infection events' datetimes and properties</p></div>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="src.infection_model.get_infection_events_dictionary"><code class="name flex">
+<span>def <span class="ident">get_infection_events_dictionary</span></span>(<span>oospore_maturation_date, oospore_germination_datetime, oospore_dispersion_datetime, oospore_infection_datetime, incubation_days, sporulation_datetimes, sporangia_densities, spore_lifespan_days, secondary_infections_datetimes)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function building a dictionary of infection event datetimes and properties, such as oospore dispersion date and final sporangia densities.
+Used to print out major information from each InfectionEvent object.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_infection_events_dictionary(
+    oospore_maturation_date,
+    oospore_germination_datetime,
+    oospore_dispersion_datetime,
+    oospore_infection_datetime,
+    incubation_days,
+    sporulation_datetimes,
+    sporangia_densities,
+    spore_lifespan_days,
+    secondary_infections_datetimes,
+    # collateral_incubation_days,
+    # collateral_sporulation_datetime,
+    # collateral_sporangia_counts,
+    # collateral_spore_lifespan_days,
+    # collateral_secondary_infections_datetimes
+):
+    &#34;&#34;&#34;
+    Function building a dictionary of infection event datetimes and properties, such as oospore dispersion date and final sporangia densities.
+    Used to print out major information from each InfectionEvent object.
+
+    &#34;&#34;&#34;
+    infection_events = {
+        &#34;oospore_maturation&#34;: oospore_maturation_date,
+        &#34;oospore_germination&#34;: oospore_germination_datetime,
+        &#34;oospore_dispersion&#34;: oospore_dispersion_datetime,
+        &#34;oospore_infection&#34;: oospore_infection_datetime,
+        &#34;incubation_days&#34;: incubation_days,
+        &#34;sporulations&#34;: sporulation_datetimes,
+        &#34;sporangia_densities&#34;: sporangia_densities,
+        &#34;spore_lifespan_days&#34;: spore_lifespan_days,
+        &#34;secondary_infections&#34;: secondary_infections_datetimes,
+        # &#34;collateral_incubation_days&#34;: collateral_incubation_days,
+        # &#34;collateral_sporulations&#34;: collateral_sporulation_datetimes,
+        # &#34;collateral_sporangia_counts&#34;: collateral_sporangia_counts,
+        # &#34;collateral_spore_lifespan_days&#34;: collateral_spore_lifespan_days,
+        # &#34;collateral_secondary_infections&#34;: collateral_secondary_infections_datetimes,
+    }
+    return infection_events</code></pre>
+</details>
+</dd>
+<dt id="src.infection_model.get_oospore_maturation_date"><code class="name flex">
+<span>def <span class="ident">get_oospore_maturation_date</span></span>(<span>processed_data, model_parameters, standard_colformats, timezone, daily_temperatures, daily_mean_temperatures, logfile)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function directing the determination of oospore maturation date, a unique date per season, thus only computed once or manually inserted.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_oospore_maturation_date(
+    processed_data,
+    model_parameters,
+    standard_colformats,
+    timezone,
+    daily_temperatures,
+    daily_mean_temperatures,
+    logfile,
+):
+    &#34;&#34;&#34;
+    Function directing the determination of oospore maturation date, a unique date per season, thus only computed once or manually inserted.
+
+    &#34;&#34;&#34;
+
+    &#34;&#34;&#34; Determine oospore maturation date (aka date of readiness) &#34;&#34;&#34;
+
+    try:
+        oospore_maturation_date = model_parameters[&#34;oospore_maturation_date&#34;]
+        oospore_maturation_base_temperature = model_parameters[
+            &#34;oospore_maturation_base_temperature&#34;
+        ]
+        oospore_sum_degree_days_maturation_threshold = model_parameters[
+            &#34;oospore_maturation_sum_degree_days_threshold&#34;
+        ]
+    except TypeError:
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(
+                &#34;\nRun Infection Model Error: could not correctly read or send parameters from config file to oospore maturation date determination function.\n&#34;
+            )
+    if oospore_maturation_date is None:
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(&#34;\nNo pre-set oospore maturation date.&#34;)
+        (
+            oospore_maturation_date,
+            oospore_maturation_datetime_rowindex,
+        ) = oospore_maturation.oospore_maturation(
+            processed_data,
+            oospore_maturation_base_temperature,
+            oospore_sum_degree_days_maturation_threshold,
+            daily_temperatures,
+            daily_mean_temperatures,
+        )
+    else:
+        oospore_maturation_date = pd.to_datetime(
+            oospore_maturation_date, format=standard_colformats[0]
+        ).tz_localize(timezone)
+        oospore_maturation_datetime_rowindex = processed_data.index.get_loc(
+            processed_data[processed_data[&#34;datetime&#34;] == oospore_maturation_date].index[
+                0
+            ]
+        )
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(
+                f&#34;\nLoading oospore maturation date from config file: {oospore_maturation_date}\n&#34;
+            )
+
+    if oospore_maturation_date is None:
+        log_message = &#34;\nWARNING: threshold conditions for oospore maturation not reached. Date of oospore maturation could not be determined. Model run interrupted.\n&#34;
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(log_message)
+        print(log_message)
+        sys.exit()
+    else:
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(
+                f&#34;\nOospore maturation date computationally determined on day: {oospore_maturation_date}\n&#34;
+            )
+
+    return oospore_maturation_date, oospore_maturation_datetime_rowindex</code></pre>
+</details>
+</dd>
+<dt id="src.infection_model.run_infection_model"><code class="name flex">
+<span>def <span class="ident">run_infection_model</span></span>(<span>processed_data, model_parameters, start_event_rowindex, oospore_maturation_date, daily_mean_temperatures, algorithmic_time_steps, logfile, oospore_infection_datetimes)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Main function directing the steps of the full infection prediction model.</p>
+<dl>
+<dt>argument1</dt>
+<dd>processed time series pandas dataframe</dd>
+<dt>argument2</dt>
+<dd>dictionary of model parameters</dd>
+<dt>argument3</dt>
+<dd>timeseries row index from which computation will start</dd>
+<dt>arguemnt4</dt>
+<dd>computational time steps to be used in successive runs of datetime search loops</dd>
+<dt>return</dt>
+<dd>dicionary of infection events' datetimes and properties</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def run_infection_model(  # noqa: C901
+    processed_data,
+    model_parameters,
+    start_event_rowindex,
+    oospore_maturation_date,
+    daily_mean_temperatures,
+    algorithmic_time_steps,
+    logfile,
+    oospore_infection_datetimes,
+):
+    &#34;&#34;&#34;
+    Main function directing the steps of the full infection prediction model.
+
+    argument1
+    : processed time series pandas dataframe
+
+    argument2
+    : dictionary of model parameters
+
+    argument3
+    : timeseries row index from which computation will start
+
+    arguemnt4
+    : computational time steps to be used in successive runs of datetime search loops
+
+    return
+    : dicionary of infection events&#39; datetimes and properties
+
+    &#34;&#34;&#34;
+    measurement_time_interval = model_parameters[&#34;measurement_time_interval&#34;]
+
+    &#34;&#34;&#34; Determine primary infections (aka oospore infections) &#34;&#34;&#34;
+    try:
+        oospore_germination_algorithm = model_parameters[
+            &#34;oospore_germination_algorithm&#34;
+        ]
+        oospore_germination_relative_humidity_threshold = model_parameters[
+            &#34;oospore_germination_relative_humidity_threshold&#34;
+        ]
+        oospore_germination_base_temperature = model_parameters[
+            &#34;oospore_germination_base_temperature&#34;
+        ]
+        oospore_germination_base_duration = model_parameters[
+            &#34;oospore_germination_base_duration&#34;
+        ]
+        oospore_germination_leaf_wetness_threshold = model_parameters[
+            &#34;oospore_germination_leaf_wetness_threshold&#34;
+        ]
+        moisturization_temperature_threshold = model_parameters[
+            &#34;moisturization_temperature_threshold&#34;
+        ]
+        moisturization_rainfall_threshold = model_parameters[
+            &#34;moisturization_rainfall_threshold&#34;
+        ]
+        moisturization_rainfall_period = model_parameters[
+            &#34;moisturization_rainfall_period&#34;
+        ]
+    except TypeError:
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(
+                &#34;\nRun Infection Model Error: could not correctly read or send parameters from config file to soil infection determination functions.\n&#34;
+            )
+
+    &#34;&#34;&#34; Oospore germination &#34;&#34;&#34;
+
+    (
+        oospore_germination_datetime,
+        oospore_germination_datetime_rowindex,
+    ) = primary_infection.oospore_germination(
+        processed_data,
+        start_event_rowindex,
+        oospore_germination_relative_humidity_threshold,
+        oospore_germination_base_temperature,
+        oospore_germination_base_duration,
+        oospore_germination_leaf_wetness_threshold,
+        oospore_germination_algorithm,
+        moisturization_temperature_threshold,
+        moisturization_rainfall_threshold,
+        moisturization_rainfall_period,
+        measurement_time_interval,
+        algorithmic_time_steps,
+        logfile,
+    )
+    if oospore_germination_datetime is None:
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            *[None] * (number_of_infection_events - 1),
+        )
+        return events
+
+    &#34;&#34;&#34; Oospore dispersion (rain splashing) &#34;&#34;&#34;
+
+    oospore_dispersion_rainfall_threshold = model_parameters[
+        &#34;oospore_dispersion_rainfall_threshold&#34;
+    ]
+    oospore_dispersion_latency = model_parameters[&#34;oospore_dispersion_latency&#34;]
+
+    (
+        oospore_dispersion_datetime,
+        oospore_dispersion_datetime_rowindex,
+        stop_oospore_dispersion_latency_rowindex,
+    ) = primary_infection.oospore_dispersion(  ## IS IT REDUNDANT GIVEN THAT WE LAUNCH THE LOOP AFTER ANYWAYS IF NO RESULT?
+        processed_data,
+        measurement_time_interval,
+        oospore_germination_datetime_rowindex,
+        oospore_dispersion_rainfall_threshold,
+        oospore_dispersion_latency,
+        algorithmic_time_steps,
+    )
+
+    if oospore_dispersion_datetime is None:
+        (
+            oospore_dispersion_datetime,
+            oospore_dispersion_datetime_rowindex,
+        ) = primary_infection.launch_dispersion_loop(
+            processed_data,
+            start_event_rowindex,
+            oospore_germination_datetime_rowindex,
+            oospore_germination_relative_humidity_threshold,
+            oospore_germination_base_temperature,
+            oospore_germination_base_duration,
+            oospore_germination_leaf_wetness_threshold,
+            oospore_germination_algorithm,
+            moisturization_temperature_threshold,
+            moisturization_rainfall_threshold,
+            moisturization_rainfall_period,
+            oospore_dispersion_rainfall_threshold,
+            oospore_dispersion_latency,
+            measurement_time_interval,
+            algorithmic_time_steps,
+            logfile,
+        )
+
+    if oospore_dispersion_datetime is None:
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            oospore_germination_datetime,
+            *[None] * (number_of_infection_events - 2),
+        )
+        return events
+
+    &#34;&#34;&#34; Oospore infection &#34;&#34;&#34;
+
+    oospore_infection_leaf_wetness_latency = model_parameters[
+        &#34;oospore_infection_leaf_wetness_latency&#34;
+    ]
+    oospore_infection_base_temperature = model_parameters[
+        &#34;oospore_infection_base_temperature&#34;
+    ]
+    oospore_infection_sum_degree_hours_threshold = model_parameters[
+        &#34;oospore_infection_sum_degree_hours_threshold&#34;
+    ]
+    (
+        oospore_infection_datetime,
+        oospore_infection_datetime_rowindex,
+    ) = primary_infection.oospore_infection(
+        processed_data,
+        measurement_time_interval,
+        oospore_dispersion_datetime_rowindex,
+        oospore_infection_leaf_wetness_latency,
+        oospore_infection_base_temperature,
+        oospore_infection_sum_degree_hours_threshold,
+        algorithmic_time_steps,
+    )
+
+    if oospore_infection_datetime is None:
+        (
+            oospore_infection_datetime,
+            oospore_infection_datetime_rowindex,
+        ) = primary_infection.launch_infection_loop(
+            processed_data,
+            measurement_time_interval,
+            start_event_rowindex,
+            oospore_germination_datetime,
+            oospore_germination_datetime_rowindex,
+            oospore_germination_relative_humidity_threshold,
+            oospore_germination_base_temperature,
+            oospore_germination_base_duration,
+            oospore_germination_leaf_wetness_threshold,
+            oospore_germination_algorithm,
+            moisturization_temperature_threshold,
+            moisturization_rainfall_threshold,
+            moisturization_rainfall_period,
+            oospore_dispersion_rainfall_threshold,
+            oospore_dispersion_latency,
+            oospore_dispersion_datetime_rowindex,
+            oospore_infection_leaf_wetness_latency,
+            oospore_infection_base_temperature,
+            oospore_infection_sum_degree_hours_threshold,
+            algorithmic_time_steps,
+            logfile,
+        )
+
+    if oospore_infection_datetime is None:
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            oospore_germination_datetime,
+            oospore_dispersion_datetime,
+            *[None] * (number_of_infection_events - 3),
+        )
+        return events
+    # Cheking whether the oospore_infection_datetime has already been found, so that only one incubation event is launched per same datetime.
+    else:
+        is_already_found = False
+        with open(oospore_infection_datetimes, &#34;r&#34;) as f:
+            lines = f.readlines()
+        if len(lines) == 0:
+            with open(oospore_infection_datetimes, &#34;a&#34;) as f:
+                f.write(str(oospore_infection_datetime) + &#34;\n&#34;)
+        else:
+            for line in lines:
+                if str(oospore_infection_datetime) in line:
+                    is_already_found = True
+            if is_already_found:
+                events = get_infection_events_dictionary(
+                    oospore_maturation_date,
+                    oospore_germination_datetime,
+                    oospore_dispersion_datetime,
+                    *[None] * (number_of_infection_events - 3),
+                )
+                return events
+            else:
+                with open(oospore_infection_datetimes, &#34;a&#34;) as f:
+                    f.write(str(oospore_infection_datetime) + &#34;\n&#34;)
+
+    &#34;&#34;&#34; Incubation &#34;&#34;&#34;
+    incubation_days, end_incubation_datetime_rowindex = incubation.launch_incubation(
+        oospore_infection_datetime,
+        oospore_infection_datetime_rowindex,
+        daily_mean_temperatures,
+        measurement_time_interval,
+    )
+
+    if incubation_days is None:
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            oospore_germination_datetime,
+            oospore_dispersion_datetime,
+            oospore_infection_datetime,
+            *[None] * (number_of_infection_events - 4),
+        )
+        return events
+
+    &#34;&#34;&#34; Sporulation &#34;&#34;&#34;
+
+    sporulation_leaf_wetness_threshold = model_parameters[
+        &#34;sporulation_leaf_wetness_threshold&#34;
+    ]
+    sporulation_min_humidity = model_parameters[&#34;sporulation_min_humidity&#34;]
+    sporulation_min_temperature = model_parameters[&#34;sporulation_min_temperature&#34;]
+    sporulation_min_darkness_hours = model_parameters[&#34;sporulation_min_darkness_hours&#34;]
+    longitude = model_parameters[&#34;longitude&#34;]
+    latitude = model_parameters[&#34;latitude&#34;]
+    elevation = model_parameters[&#34;elevation&#34;]
+
+    (
+        sporulation_datetimes,
+        sporulation_datetime_rowindexes,
+    ) = sporulation.launch_sporulation(
+        processed_data,
+        oospore_infection_datetime_rowindex,
+        end_incubation_datetime_rowindex,
+        sporulation_leaf_wetness_threshold,
+        sporulation_min_humidity,
+        sporulation_min_temperature,
+        sporulation_min_darkness_hours,
+        measurement_time_interval,
+        longitude,
+        latitude,
+        elevation,
+        algorithmic_time_steps,
+    )
+
+    if not sporulation_datetimes:  # check if sporulation_datetimes list is empty
+        events = get_infection_events_dictionary(
+            oospore_maturation_date,
+            oospore_germination_datetime,
+            oospore_dispersion_datetime,
+            oospore_infection_datetime,
+            incubation_days,
+            *[None] * (number_of_infection_events - 5),
+        )
+        return events
+
+    &#34;&#34;&#34; Sporangia density &#34;&#34;&#34;
+
+    # In counts of sporangia per square centimeter of leaf
+
+    sporangia_latency = model_parameters[&#34;sporangia_latency&#34;]
+    sporangia_min_temperature = model_parameters[&#34;sporangia_min_temperature&#34;]
+    sporangia_max_temperature = model_parameters[&#34;sporangia_max_temperature&#34;]
+    sporangia_max_density = model_parameters[&#34;sporangia_max_density&#34;]
+
+    sporangia_densities = sporangia_density.launch_sporangia_densities(
+        processed_data,
+        measurement_time_interval,
+        longitude,
+        latitude,
+        elevation,
+        sporulation_datetime_rowindexes,
+        sporangia_latency,
+        sporangia_min_temperature,
+        sporangia_max_temperature,
+        sporangia_max_density,
+        algorithmic_time_steps,
+    )
+
+    &#34;&#34;&#34; Spore lifespan &#34;&#34;&#34;
+
+    saturation_vapor_pressure = model_parameters[&#34;saturation_vapor_pressure&#34;]
+    spore_lifespan_constant = model_parameters[&#34;spore_lifespan_constant&#34;]
+
+    spore_lifespan_days = spore_lifespan.launch_spore_lifespans(
+        processed_data,
+        saturation_vapor_pressure,
+        spore_lifespan_constant,
+        sporulation_datetime_rowindexes,
+    )
+
+    &#34;&#34;&#34; Secondary infections &#34;&#34;&#34;
+
+    secondary_infection_min_temperature = model_parameters[
+        &#34;secondary_infection_min_temperature&#34;
+    ]
+    secondary_infection_max_temperature = model_parameters[
+        &#34;secondary_infection_max_temperature&#34;
+    ]
+    secondary_infection_leaf_wetness_latency = model_parameters[
+        &#34;secondary_infection_leaf_wetness_latency&#34;
+    ]
+    secondary_infection_sum_degree_hours_threshold = model_parameters[
+        &#34;secondary_infection_sum_degree_hours_threshold&#34;
+    ]
+
+    (
+        secondary_infections_datetimes,
+        secondary_infections_datetimes_rowindexes,
+    ) = secondary_infection.launch_secondary_infections(
+        processed_data,
+        sporulation_datetime_rowindexes,
+        spore_lifespan_days,
+        secondary_infection_min_temperature,
+        secondary_infection_max_temperature,
+        secondary_infection_leaf_wetness_latency,
+        secondary_infection_sum_degree_hours_threshold,
+        measurement_time_interval,
+        algorithmic_time_steps,
+    )
+
+    # &#34;&#34;&#34; Collateral secondary infections &#34;&#34;&#34;
+    #
+    # # Re-launching incubation algorithm and start over infection as long as secondary infections are found
+    # collateral_incubation_days = None
+    # collateral_sporulation_datetime = None
+    # collateral_sporangia_counts = None
+    # collateral_spore_lifespan_days = None
+    # collateral_secondary_infections_datetimes = None
+    #
+    # for (
+    #     secondary_infection_datetime_rowindex
+    # ) in secondary_infections_datetimes_rowindexes:
+    #     secondary_infection_datetime = processed_data[&#34;datetime&#34;][
+    #         secondary_infection_datetime_rowindex
+    #     ]
+    #     (
+    #         collateral_incubation_days,
+    #         end_incubation_datetime_rowindex,
+    #     ) = incubation.launch_incubation(
+    #         secondary_infection_datetime,
+    #         secondary_infection_datetime_rowindex,
+    #         daily_mean_temperatures,
+    #         measurement_time_interval,
+    #     )
+    #
+    #     if collateral_incubation_days is not None:
+    #         (
+    #             collateral_sporulation_datetime,
+    #             collateral_sporulation_datetime_rowindex,
+    #         ) = sporulation.launch_sporulation(
+    #             processed_data,
+    #             secondary_infection_datetime_rowindex,
+    #             end_incubation_datetime_rowindex,
+    #             sporulation_leaf_wetness_threshold,
+    #             sporulation_min_humidity,
+    #             sporulation_min_temperature,
+    #             sporulation_min_darkness_hours,
+    #             measurement_time_interval,
+    #             longitude,
+    #             latitude,
+    #             elevation,
+    #             algorithmic_time_steps,
+    #         )
+    #
+    #         if collateral_sporulation_datetime_rowindex is not None:
+    #             if collateral_sporulation_datetime_rowindex &lt;= len(processed_data.index) - 1:
+    #                 collateral_sporangia_counts = sporangia_density.launch_sporangia_counts(
+    #                     processed_data,
+    #                     measurement_time_interval,
+    #                     longitude,
+    #                     latitude,
+    #                     elevation,
+    #                     collateral_sporulation_datetime_rowindex,
+    #                     sporangia_latency,
+    #                     sporangia_min_temperature,
+    #                     sporangia_max_temperature,
+    #                     sporangia_max_density,
+    #                     algorithmic_time_steps,
+    #                 )
+    #
+    #                 collateral_spore_lifespan_days = spore_death.launch_spore_lifespans(
+    #                     processed_data,
+    #                     saturation_vapor_pressure,
+    #                     spore_lifespan_constant,
+    #                     collateral_sporangia_counts,
+    #                 )
+    #
+    #                 (
+    #                     collateral_secondary_infections_datetimes,
+    #                     collateral_secondary_infections_datetimes_rowindexes,
+    #                 ) = secondary_infection.launch_secondary_infections(
+    #                     processed_data,
+    #                     collateral_spore_lifespan_days,
+    #                     secondary_infection_min_temperature,
+    #                     secondary_infection_max_temperature,
+    #                     secondary_infection_leaf_wetness_latency,
+    #                     secondary_infection_sum_degree_hours_threshold,
+    #                     measurement_time_interval,
+    #                     algorithmic_time_steps,
+    #                 )
+
+    &#34;&#34;&#34; Returning list of infection events&#39; datetimes and properties &#34;&#34;&#34;
+    events = get_infection_events_dictionary(
+        oospore_maturation_date,
+        oospore_germination_datetime,
+        oospore_dispersion_datetime,
+        oospore_infection_datetime,
+        incubation_days,
+        sporulation_datetimes,
+        sporangia_densities,
+        spore_lifespan_days,
+        secondary_infections_datetimes,
+        # collateral_incubation_days,
+        # collateral_sporulation_datetime,
+        # collateral_sporangia_counts,
+        # collateral_spore_lifespan_days,
+        # collateral_secondary_infections_datetimes,
+    )
+
+    return events</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="src" href="index.html">src</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-variables">Global variables</a></h3>
+<ul class="">
+<li><code><a title="src.infection_model.number_of_infection_events" href="#src.infection_model.number_of_infection_events">number_of_infection_events</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="src.infection_model.get_infection_events_dictionary" href="#src.infection_model.get_infection_events_dictionary">get_infection_events_dictionary</a></code></li>
+<li><code><a title="src.infection_model.get_oospore_maturation_date" href="#src.infection_model.get_oospore_maturation_date">get_oospore_maturation_date</a></code></li>
+<li><code><a title="src.infection_model.run_infection_model" href="#src.infection_model.run_infection_model">run_infection_model</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

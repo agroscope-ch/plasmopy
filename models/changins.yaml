@@ -1,0 +1,141 @@
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+
+# The default Agrometeo datatable format consists of 5 variables of interest:
+# Date and Time (datetime %d.%m.%Y %H:%M), Avg Temperature (°C), Avg Humidity (%), Rainfall Intensity (mm/h), and Leaf Wetness (min)
+input_data:
+  meteo: data/input/2023_changins.csv
+  spore_counts:
+
+# Selected timeseries columns from the flat data table downloaded from the Agrometeo website:
+use_columns: [0,1,2,3,4]
+
+# Standard renaming for selected columns:
+rename_columns:
+  0: datetime
+  1: temperature
+  2: humidity
+  3: rainfall
+  4: leaf_wetness
+
+# Standard date format, and min/max values for the meteorological measurement columns:
+format_columns:
+  0: '%d.%m.%Y %H:%M'
+  1: [-20,50]
+  2: [0,100]
+  3: [0,200]
+  4: [0,10]
+
+
+## Site_coordinates:
+# in decimal degrees
+longitude: 6.2
+# in decimal degrees
+latitude: 46.4
+# in metres
+elevation: 439
+
+
+# One of the timezones readable by Python's pandas datetime
+timezone: Europe/Zurich
+
+
+## Timeseries-handling and infection-launching intervals and parameters
+# in minutes, time interval between meteostation measurements
+measurement_time_interval: 10
+# in numbers of measurement time intervals (or datetime rows), steps between new computations of infection events
+computational_time_steps: 6
+# in numbers of measurement time intervals (or datetime rows), steps between datetime row parsing within algorithms (separate from launch of infection event computation)
+algorithmic_time_steps: 1
+
+
+## Oospore maturation
+# in datetimes, use format: "%d.%m.%Y %H:%M" and keep the quotation marks, e.g.: "18.02.2023 15:30" ; if unknown, keep empty
+oospore_maturation_date:
+# in degrees Celsius
+oospore_maturation_base_temperature: 8
+# in degrees Celsius
+oospore_maturation_sum_degree_days_threshold: 140
+
+
+## Soil (primary) infection - algorithm selection parameter
+# either 1 or 2, specific algorithm parameters are detailed below
+oospore_germination_algorithm: 2
+
+
+## Soil (primary) infection, stage 1 - algorithm 1: oospore germination
+# in percentage
+oospore_germination_relative_humidity_threshold: 80
+# in minutes of wetness per 10 minutes (as recorded by the agroscope meteostation)
+oospore_germination_leaf_wetness_threshold: 10
+# in degrees Celsius
+oospore_germination_base_temperature: 8
+# in hours
+oospore_germination_base_duration: 8
+
+
+## Soil (primary) infection, stage 1 - algorithm 2: moisturization
+# in degrees Celsius
+moisturization_temperature_threshold: 8
+# in millimeters (or liters per square meter) of accumulated rainfall over X time, defined below
+moisturization_rainfall_threshold: 5
+# in hours, time for accumulating rainfall
+moisturization_rainfall_period: 48
+
+
+## Soil (primary) infection, stage 2: oospore dispersion, i.e., rain splashing
+# in millimeters per hour
+oospore_dispersion_rainfall_threshold: 3
+# in hours, latency period for rainfall splashing
+oospore_dispersion_latency: 6
+
+
+## Soil (primary) infection, stage 3: oospore infection
+# in degrees Celsius
+oospore_infection_sum_degree_hours_threshold: 50
+# in hours, latency period for leaf wetness
+oospore_infection_leaf_wetness_latency: 6
+# in degrees Celsius, minimum valid temperature for incrementing infection's sum degree hours
+oospore_infection_base_temperature: 8
+
+
+## Sporulation
+# in minutes of wetness per 10 minutes (as recorded by the agroscope meteostation)
+sporulation_leaf_wetness_threshold: 0
+# in percentage
+sporulation_min_humidity: 92
+# in degrees Celsius
+sporulation_min_temperature: 12
+# in hours
+sporulation_min_darkness_hours: 4
+
+
+## Sporangia density
+# in hours
+sporangia_latency: 4
+# in degrees Celsius
+sporangia_min_temperature: 11
+# in degrees Celsius
+sporangia_max_temperature: 17.5
+# in sporangia counts per square centimeter of sporulating oil spot on the leaf surface
+sporangia_max_density: 300000
+
+
+## Spore die-off
+# actual vapor pressure in hPa; if unknown, keep empty
+saturation_vapor_pressure:
+# in days
+spore_lifespan_constant: 11.35
+
+
+## Secondary infections
+# in degrees Celsius
+secondary_infection_min_temperature: 3
+# in degrees Celsius
+secondary_infection_max_temperature: 29
+# in minutes
+secondary_infection_leaf_wetness_latency: 60
+# in degrees Celsius
+secondary_infection_sum_degree_hours_threshold: 50

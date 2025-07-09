@@ -1,0 +1,70 @@
+algorithmic_time_steps: 1
+computational_time_steps: 6
+elevation: 439
+format_columns:
+  0: '%d.%m.%Y %H:%M'
+  1:
+  - -20
+  - 50
+  2:
+  - 0
+  - 100
+  3:
+  - 0
+  - 200
+  4:
+  - 0
+  - 10
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+input_data:
+  meteo: data/input/2025_meteo_changins.csv
+  spore_counts: data/input/2025_AI_dailySum_changins.labo.exterieur.csv
+latitude: 46.4
+longitude: 6.2
+measurement_time_interval: 10
+moisturization_rainfall_period: 48
+moisturization_rainfall_threshold: 5
+moisturization_temperature_threshold: 8
+oospore_dispersion_latency: 6
+oospore_dispersion_rainfall_threshold: 3
+oospore_germination_algorithm: 2
+oospore_germination_base_duration: 8
+oospore_germination_base_temperature: 8
+oospore_germination_leaf_wetness_threshold: 10
+oospore_germination_relative_humidity_threshold: 80
+oospore_infection_base_temperature: 8
+oospore_infection_leaf_wetness_latency: 6
+oospore_infection_sum_degree_hours_threshold: 50
+oospore_maturation_base_temperature: 8.0
+oospore_maturation_date: null
+oospore_maturation_sum_degree_days_threshold: 140.0
+rename_columns:
+  0: datetime
+  1: temperature
+  2: humidity
+  3: rainfall
+  4: leaf_wetness
+saturation_vapor_pressure: null
+secondary_infection_leaf_wetness_latency: 60
+secondary_infection_max_temperature: 29
+secondary_infection_min_temperature: 3
+secondary_infection_sum_degree_hours_threshold: 50
+sporangia_latency: 4
+sporangia_max_density: 300000
+sporangia_max_temperature: 17.5
+sporangia_min_temperature: 11
+spore_lifespan_constant: 11.35
+sporulation_leaf_wetness_threshold: 0
+sporulation_min_darkness_hours: 4
+sporulation_min_humidity: 92
+sporulation_min_temperature: 12
+timezone: Europe/Zurich
+use_columns:
+- 0
+- 1
+- 2
+- 3
+- 4
