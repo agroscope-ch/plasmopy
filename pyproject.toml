@@ -5,11 +5,11 @@ description = "Python implementation of the Vitimeteo Plasmopara model at Agrosc
 authors = ["Livio Ruzzante"]
 
 [tool.poetry.dependencies]
-python = "3.12.3"
+python = ">3.9.7"
 dvc = "2.10.0"
 hydra-core = "1.3"
 matplotlib = "3.8.4"
-pandas = "2.0.3"
+pandas = ">2.0.3"
 plotly = "5.22.0"
 pdoc3 = "0.10.0"
 numpy = "1.26.2"
