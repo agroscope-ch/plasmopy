@@ -4,7 +4,7 @@
 
 ### Setup with Bash console
 
-1. Install [Poetry](https://python-poetry.org/docs/#installation), a Python packaging and dependency manager:
+1. Make sure to have Python3 in your Unix system. Install [Poetry](https://python-poetry.org/docs/#installation), a Python packaging and dependency manager:
 ```bash
 curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
 ```
