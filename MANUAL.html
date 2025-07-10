@@ -1,0 +1,43 @@
+<h1 id="plasmopy-v1.0">Plasmopy v1.0</h1>
+<h2 id="manual">Manual</h2>
+<h3 id="input-data---weather-variables">Input data - Weather variables</h3>
+<p>Input data needs to be in the form of timeseries, where the positioning of columns must be precisely kept in the following order:</p>
+<ol type="1">
+<li><p>Date and time of measurement in the <em>%d.%m.%Y %H:%M</em> local timezone format.</p></li>
+<li><p>Average temperature <em>[°C]</em> in degrees Celsius.</p></li>
+<li><p>Relative humidity <em>[%]</em> in percentages.</p></li>
+<li><p>Rainfall intensity <em>[mm/h]</em> in millimeters per hour.</p></li>
+<li><p>Leaf wetness <em>[min]</em> in minutes of wetness over 10 minutes.</p></li>
+</ol>
+<h3 id="optional-input-data---spore-counts">Optional input data - Spore counts</h3>
+<p>Input spore counts data (e.g. from qPCR, microscopy, …) columns must be ordered and formatted in the following way:</p>
+<ol type="1">
+<li><p>Date of daily spore counts in the <em>%d.%m.%Y %H:%M</em> local timezone format.</p></li>
+<li><p>Spore counts.</p></li>
+</ol>
+<h3 id="infection-algorithms">Infection algorithms</h3>
+<h4 id="oospore-maturation">1. Oospore maturation</h4>
+<p>If oospore maturation date not observed in the field thus cannot be manually inserted, then compute it with the following formula [Gehmann 1991]:</p>
+<div data-align="center">
+
+</div>
+<h4 id="oospore-germination">2. Oospore germination</h4>
+<p>Stage 1 of primary infection, i.e. oospore infection from soil. This stage can be run by either one of two algorithms:</p>
+<p><strong>Algorithm 1, oospore development</strong>:</p>
+<div data-align="center">
+
+</div>
+<p>If no datetime could be found due to never reaching the conditions, then the oospore germination datetime can not be found and the model is interrupted for the whole season.</p>
+<p><strong>Algorithm 2, moisture penetration</strong>:</p>
+<div data-align="center">
+
+</div>
+<h4 id="oospore-dispersion">3. Oospore dispersion</h4>
+<p>Stage 2 of primary infection, i.e. oospore spreading through rain splashing.</p>
+<h4 id="oospore-infection">4. Oospore infection</h4>
+<p>Stage 3 of primary infection, i.e. activating conditions for a successful oospore infection.</p>
+<h4 id="incubation">5. Incubation</h4>
+<h4 id="sporulation">6. Sporulation</h4>
+<h4 id="estimation-of-sporangia-density">7. Estimation of sporangia density</h4>
+<h4 id="estimation-of-spore-life-span">8. Estimation of spore life-span</h4>
+<h4 id="secondary-infection">9. Secondary infection</h4>
