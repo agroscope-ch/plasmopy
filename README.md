@@ -15,7 +15,7 @@ curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
 git clone https://github.com/laruzzante/plasmopy
 ```
 
-3. Make sure to move into the *plasmopy* folder where the Makefile is located (replace *user_path_to_plasmopy* with your folder path):
+3. Move into the *plasmopy* folder where the Makefile is located (replace *user_path_to_plasmopy* with your folder path):
 
 ```bash
 cd user_path_to_plasmopy/plasmopy
