@@ -6,17 +6,31 @@
 
 Input data needs to be in the form of timeseries in a semicolon-delimited CSV file, where the positioning of columns must be precisely kept in the following order:
 
-1. Date and time of measurement in the *%d.%m.%Y %H:%M* local timezone format.
+1. **Date and time** of measurement in the *%d.%m.%Y %H:%M* local timezone format.
 
-2. Average temperature *[°C]* in degrees Celsius.
+2. **Average temperature** *[°C]* in degrees Celsius.
 
-3. Relative humidity *[%]* in percentages.
+3. **Relative humidity** *[%]* in percentages.
 
-4. Rainfall intensity *[mm/h]* in millimeters per hour.
+4. **Rainfall intensity** *[mm/h]* in millimeters per hour.
 
-5. Leaf wetness *[min]* in minutes of wetness over 10 minutes.
+5. **Leaf wetness** *[min]* in minutes of wetness over 10 minutes (by default, or whatever sampling period is available).
 
 Such timeseries data is publicly available for Switzerland from the Agroscope weather stations, accessible at [Agrometeo](https://www.agrometeo.ch/meteorologie).
+
+Be sure to update accordingly the most important input-related parameters in the **config/main.yaml** file: *measurement_time_interval*, *computational_time_steps*, *algorithmic_time_steps*.
+
+The file can be managed directly, or through the streamlit web-app, as detailed in the [**README**](https://github.com/agroscope-ch/plasmopy/blob/main/README.md).
+
+**_Example_**:
+
+If the data sampling interval consists in weather data rows generated every 10 minutes, then *measurement_time_interval* is 10.
+
+Accordingly, if computational_time_steps is set to 6, a simulated infection event is launched every 6x10 minutes, i.e. once every hour.
+
+If the *algorithmic_time_steps* is set to 1, specific algorithmic loops within that simulated infection event are instead set to analyze the data at every row, i.e. looking in detail at the highest possible resolution of 10 minutes.
+
+If the *algorithmic_time_steps* is set to 6, the specific algorithmic loops would only check the necessary weather conditions at a hourly-rate, thus decreasing the simulation precision while increasing the simulation speed.
 
 ### Optional input data - Spore counts
 

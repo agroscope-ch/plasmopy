@@ -362,17 +362,40 @@ display: none;
 semicolon-delimited CSV file, where the positioning of columns must be
 precisely kept in the following order:</p>
 <ol style="list-style-type: decimal">
-<li><p>Date and time of measurement in the <em>%d.%m.%Y %H:%M</em> local
-timezone format.</p></li>
-<li><p>Average temperature <em>[°C]</em> in degrees Celsius.</p></li>
-<li><p>Relative humidity <em>[%]</em> in percentages.</p></li>
-<li><p>Rainfall intensity <em>[mm/h]</em> in millimeters per
-hour.</p></li>
-<li><p>Leaf wetness <em>[min]</em> in minutes of wetness over 10
-minutes.</p></li>
+<li><p><strong>Date and time</strong> of measurement in the <em>%d.%m.%Y
+%H:%M</em> local timezone format.</p></li>
+<li><p><strong>Average temperature</strong> <em>[°C]</em> in degrees
+Celsius.</p></li>
+<li><p><strong>Relative humidity</strong> <em>[%]</em> in
+percentages.</p></li>
+<li><p><strong>Rainfall intensity</strong> <em>[mm/h]</em> in
+millimeters per hour.</p></li>
+<li><p><strong>Leaf wetness</strong> <em>[min]</em> in minutes of
+wetness over 10 minutes (by default, or whatever sampling period is
+available).</p></li>
 </ol>
 <p>Such timeseries data is publicly available for Switzerland from the
 Agroscope weather stations, accessible at <a href="https://www.agrometeo.ch/meteorologie">Agrometeo</a>.</p>
+<p>Be sure to update accordingly the most important input-related
+parameters in the <strong>config/main.yaml</strong> file:
+<em>measurement_time_interval</em>, <em>computational_time_steps</em>,
+<em>algorithmic_time_steps</em>.</p>
+<p>The file can be managed directly, or through the streamlit web-app,
+as detailed in the <a href="https://github.com/agroscope-ch/plasmopy/blob/main/README.md"><strong>README</strong></a>.</p>
+<p><strong><em>Example</em></strong>:</p>
+<p>If the data sampling interval consists in weather data rows generated
+every 10 minutes, then <em>measurement_time_interval</em> is 10.</p>
+<p>Accordingly, if computational_time_steps is set to 6, a simulated
+infection event is launched every 6x10 minutes, i.e. once every
+hour.</p>
+<p>If the <em>algorithmic_time_steps</em> is set to 1, specific
+algorithmic loops within that simulated infection event are instead set
+to analyze the data at every row, i.e. looking in detail at the highest
+possible resolution of 10 minutes.</p>
+<p>If the <em>algorithmic_time_steps</em> is set to 6, the specific
+algorithmic loops would only check the necessary weather conditions at a
+hourly-rate, thus decreasing the simulation precision while increasing
+the simulation speed.</p>
 </div>
 <div id="optional-input-data---spore-counts" class="section level3">
 <h3>Optional input data - Spore counts</h3>
