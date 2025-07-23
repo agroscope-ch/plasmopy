@@ -354,10 +354,11 @@ display: none;
 
 <div id="plasmopy-v1.0" class="section level1">
 <h1>Plasmopy v1.0</h1>
-<div id="manual" class="section level2">
-<h2>Manual</h2>
-<div id="input-data---weather-variables" class="section level3">
-<h3>Input data - Weather variables</h3>
+</div>
+<div id="manual" class="section level1">
+<h1>Manual</h1>
+<div id="input-data---weather-variables" class="section level2">
+<h2>Input data - Weather variables</h2>
 <p>Input data needs to be in the form of timeseries in a
 semicolon-delimited CSV file, where the positioning of columns must be
 precisely kept in the following order:</p>
@@ -376,12 +377,14 @@ available).</p></li>
 </ol>
 <p>Such timeseries data is publicly available for Switzerland from the
 Agroscope weather stations, accessible at <a href="https://www.agrometeo.ch/meteorologie">Agrometeo</a>.</p>
-<p>Be sure to update accordingly the most important input-related
-parameters in the <strong>config/main.yaml</strong> file:
+<p>Examples of input weather data are available in
+<code>data/input/</code>.</p>
+<p>Be sure to update accordingly the most important input-dependent
+parameters in <code>config/main.yaml</code>:
 <em>measurement_time_interval</em>, <em>computational_time_steps</em>,
 <em>algorithmic_time_steps</em>.</p>
 <p>The file can be managed directly, or through the streamlit web-app,
-as detailed in the <a href="https://github.com/agroscope-ch/plasmopy/blob/main/README.md"><strong>README</strong></a>.</p>
+as detailed in the <a href="https://github.com/agroscope-ch/plasmopy/blob/main/README.md">README</a>.</p>
 <p><strong><em>Example</em></strong>:</p>
 <p>If the data sampling interval consists in weather data rows generated
 every 10 minutes, then <em>measurement_time_interval</em> is 10.</p>
@@ -396,7 +399,6 @@ possible resolution of 10 minutes.</p>
 algorithmic loops would only check the necessary weather conditions at a
 hourly-rate, thus decreasing the simulation precision while increasing
 the simulation speed.</p>
-</div>
 <div id="optional-input-data---spore-counts" class="section level3">
 <h3>Optional input data - Spore counts</h3>
 <p>Input spore counts data (e.g. from qPCR, microscopy, …) columns must
@@ -407,10 +409,179 @@ timezone format.</p></li>
 <li><p>Spore counts.</p></li>
 </ol>
 </div>
-<div id="infection-algorithms" class="section level3">
-<h3>Infection algorithms</h3>
-<div id="oospore-maturation" class="section level4">
-<h4>1. Oospore maturation</h4>
+</div>
+<div id="workflow-description" class="section level2">
+<h2>Workflow description</h2>
+<div id="data-loading-function" class="section level3">
+<h3>Data Loading Function</h3>
+<p>The data loading function load_data is responsible for importing raw
+time series data from a specified file path. It accepts two input
+arguments:</p>
+<p><em>raw_data_path</em> (str): The file path of the raw data,
+typically formatted as a semicolon-delimited CSV file.</p>
+<p><em>logfile</em> (str): The path to a log file where the function
+records details about the data loading process.</p>
+<p>The function begins by appending a log entry that indicates the start
+of the data loading process, including the provided file path. It then
+attempts to read the data using the pandas library’s read_csv function
+with a semicolon delimiter (sep=“;”). If the data is successfully read
+into a pandas DataFrame, the function logs the number of rows in the
+dataset and provides summary statistics (minimum and maximum values) for
+each of the columns (excluding the first column). If any error occurs
+during the data loading process (e.g., if the file cannot be read), an
+error message is written to the log file, and the function terminates
+the execution by calling sys.exit(). The function returns the loaded
+DataFrame if successful. If an error occurs, the function prints the
+error message and terminates the process.</p>
+</div>
+<div id="data-processing-functions" class="section level3">
+<h3>Data Processing Functions</h3>
+<p>The Python code consists of two primary functions:
+<em>map_to_timegrid</em> and process_data. The <em>map_to_timegrid</em>
+function is designed to create a consistent time grid onto which
+measurement data can be mapped, ensuring that missing rows and uneven
+time intervals are avoided. The <em>process_data function</em>, which is
+the core of the data processing workflow, takes multiple inputs,
+including a raw pandas DataFrame (<em>input_data: meteo</em>), column
+indices of interest (<em>selected_columns</em>), standard column names
+(<em>standard_colnames</em>), column formats
+(<em>standard_colformats</em>), timezone (<em>timezone</em>), model
+parameters (<em>model_parameters</em>), and file paths for logs
+(<em>logfile</em>) and output data (<em>outfile</em>). This function
+processes the data to ensure that the measurement values are within
+specified tolerance ranges and that any missing or erroneous data is
+handled appropriately.</p>
+<p><strong>Column Selection and Renaming</strong> The function first
+extracts the selected columns from the input data based on the provided
+indices and logs the selected columns and their corresponding standard
+names. The columns are then renamed according to the standard_colnames
+mapping.</p>
+<p><strong>Datetime Parsing and Localization</strong> The first column,
+assumed to be the datetime column, is parsed into a pandas datetime
+format and localized to the specified timezone. An error is logged if
+the datetime column cannot be parsed correctly.</p>
+<p><strong>Time Grid Creation</strong> A consistent time grid is
+generated using the start_timegrid and end_timegrid values from the
+input data, with the frequency determined by the
+measurement_time_interval parameter in the model_parameters. This time
+grid is then merged with the processed data to handle missing timestamps
+by filling in the gaps.</p>
+<p><strong>Data Type Validation and Quality Filtering</strong> The
+function iterates through each data column (excluding the datetime
+column) and attempts to convert the data to numeric format. Non-numeric
+values are coerced to NaN. The data is then checked for values outside
+of the specified acceptable ranges (given in standard_colformats).
+Out-of-range values are either replaced with NaN or, in the case of
+specific variables (e.g., leaf wetness), corrected to the maximum
+allowable value.</p>
+<p><strong>Handling Missing and Out-of-Range Data</strong> Missing or
+out-of-range values are identified and logged. A custom handling process
+is implemented for the leaf wetness variable, where values exceeding the
+specified range are corrected. The function fills missing values (either
+from data gaps or out-of-range values) using linear interpolation
+between adjacent valid values.</p>
+<p><strong>Data Output and Logging</strong> After processing, the
+resulting data is saved to a CSV file, and the operations are logged to
+a specified log file. Any errors encountered during file I/O operations
+are logged. The function returns the processed data as a pandas
+DataFrame, with the cleaned and interpolated values, along with the
+final output file and log file paths.</p>
+<p><strong>Error Handling and Logging</strong> Throughout the process,
+detailed error messages are written to the log file. This includes
+warnings for out-of-range values, formatting issues, and potential
+mismatches in the input data structure. The log also captures the number
+of out-of-range and missing values replaced through interpolation.</p>
+</div>
+<div id="infection-event-class" class="section level3">
+<h3>Infection event class</h3>
+<p><em>_<em>init_</em>(self, timeseries, parameters,
+start_event_rowindex, oospore_maturation_date, daily_mean_temperatures,
+algorithmic_time_steps, logfile, oospore_infection_datetimes)</em> The
+initialization method of the InfectionEvent class. This method sets up
+the object by assigning input values to instance variables. These
+include the timeseries of data, model parameters, index of the start
+event, date of oospore maturation, daily mean temperatures, algorithmic
+time steps, a logfile for logging outputs, and a list of infection
+datetimes. The method also computes the datetime corresponding to the
+start of the event from the provided timeseries and assigns a unique ID
+based on the row index of the start event.</p>
+<p><em>predict_infection(self)</em> This method calls the
+run_infection_model function from the infection_model module to compute
+the infection events based on the initialized instance variables. It
+passes the relevant data, including timeseries, model parameters,
+oospore maturation date, and other relevant inputs, and stores the
+output in the infection_events attribute.</p>
+<p><em>_<em>str_</em>(self)</em> The string representation method
+returns a human-readable string of the InfectionEvent object. The string
+includes the event ID, start datetime of the event, and the computed
+infection events, providing an overview of the object’s state.</p>
+</div>
+</div>
+<div id="infection-model" class="section level2">
+<h2>Infection model</h2>
+<p>The <code>main.py</code> and <code>infection_model.py</code> Python
+scripts orchestrate a computational framework for modeling infection
+dynamics based on meteorological and biological parameters. Below, the
+main components of the methodology are outlined:</p>
+<p><strong>Data Preprocessing and Initialization</strong> The script
+requires input data formatted as a time-series DataFrame, model
+parameters provided via a configuration file, and supporting metadata
+such as time zones and column formats. Model parameters are validated
+and logged, ensuring consistency across computational stages.</p>
+<p><strong>Determination of Oospore Maturation</strong> The
+get_oospore_maturation_date function identifies the date of oospore
+maturation using daily temperature data. If a predefined maturation date
+is unavailable, the function computes it based on degree-day thresholds
+and writes results to a log file. Missing data or unmet threshold
+conditions halt the process.</p>
+<p><strong>Infection Event Construction</strong> The function
+get_infection_events_dictionary compiles and organizes data into a
+dictionary containing key infection event datetimes (e.g., oospore
+germination, sporulation) and their associated parameters (e.g.,
+sporangia density, spore lifespan).</p>
+<blockquote>
+<p>Primary Infection Prediction</p>
+</blockquote>
+<p>The <em>run_infection_model</em> function coordinates the infection
+prediction process, starting with primary infection stages:</p>
+<p><strong>Oospore Germination</strong>: Simulated based on relative
+humidity, temperature thresholds, and environmental conditions.</p>
+<p><strong>Oospore Dispersion</strong>: Modeled as a rainfall-driven
+process with latency considerations.</p>
+<p><strong>Oospore Infection</strong>: Dependent on leaf wetness,
+degree-hour accumulation, and environmental conditions.</p>
+<blockquote>
+<p>Secondary Infection and Incubation Dynamics</p>
+</blockquote>
+<p>Subsequent infection stages include:</p>
+<p><strong>Incubation Period</strong>: Duration is computed based on
+mean temperatures.</p>
+<p><strong>Sporulation</strong>: Triggered by environmental factors such
+as humidity, temperature, and darkness duration.</p>
+<p><strong>Sporangia Density</strong>: Simulated as a function of
+temperature and latency parameters.</p>
+<p><strong>Spore Lifespan</strong>: Calculated using vapor pressure and
+lifespan constants.</p>
+<p><strong>Secondary Infections</strong>: Modeled based on spore
+availability, temperature thresholds, and leaf wetness conditions.</p>
+<div id="logging-and-error-handling" class="section level3">
+<h3>Logging and Error Handling</h3>
+<p>The script employs robust error logging to identify issues such as
+missing configuration parameters or unfulfilled biological conditions.
+Warnings are issued if model requirements (e.g., maturation thresholds)
+are unmet.</p>
+</div>
+<div id="output" class="section level3">
+<h3>Output</h3>
+<p>The final output is a structured dictionary summarizing infection
+event properties and datetimes. This dictionary serves as the primary
+interface for downstream analyses or reporting.</p>
+</div>
+</div>
+<div id="infection-algorithms" class="section level2">
+<h2>Infection algorithms</h2>
+<div id="oospore-maturation" class="section level3">
+<h3>1. Oospore maturation</h3>
 <p>If oospore maturation date not observed in the field thus cannot be
 manually inserted, then compute it with the following formula [Gehmann
 1991]:</p>
@@ -418,8 +589,8 @@ manually inserted, then compute it with the following formula [Gehmann
 
 </div>
 </div>
-<div id="oospore-germination" class="section level4">
-<h4>2. Oospore germination</h4>
+<div id="oospore-germination" class="section level3">
+<h3>2. Oospore germination</h3>
 <p>Stage 1 of primary infection, i.e. oospore infection from soil. This
 stage can be run by either one of two algorithms:</p>
 <p><strong>Algorithm 1, oospore development</strong>:</p>
@@ -434,31 +605,30 @@ interrupted for the whole season.</p>
 
 </div>
 </div>
-<div id="oospore-dispersion" class="section level4">
-<h4>3. Oospore dispersion</h4>
+<div id="oospore-dispersion" class="section level3">
+<h3>3. Oospore dispersion</h3>
 <p>Stage 2 of primary infection, i.e. oospore spreading through rain
 splashing.</p>
 </div>
-<div id="oospore-infection" class="section level4">
-<h4>4. Oospore infection</h4>
+<div id="oospore-infection" class="section level3">
+<h3>4. Oospore infection</h3>
 <p>Stage 3 of primary infection, i.e. activating conditions for a
 successful oospore infection.</p>
 </div>
-<div id="incubation" class="section level4">
-<h4>5. Incubation</h4>
+<div id="incubation" class="section level3">
+<h3>5. Incubation</h3>
 </div>
-<div id="sporulation" class="section level4">
-<h4>6. Sporulation</h4>
+<div id="sporulation" class="section level3">
+<h3>6. Sporulation</h3>
 </div>
-<div id="estimation-of-sporangia-density" class="section level4">
-<h4>7. Estimation of sporangia density</h4>
+<div id="estimation-of-sporangia-density" class="section level3">
+<h3>7. Estimation of sporangia density</h3>
 </div>
-<div id="estimation-of-spore-life-span" class="section level4">
-<h4>8. Estimation of spore life-span</h4>
+<div id="estimation-of-spore-life-span" class="section level3">
+<h3>8. Estimation of spore life-span</h3>
 </div>
-<div id="secondary-infection" class="section level4">
-<h4>9. Secondary infection</h4>
-</div>
+<div id="secondary-infection" class="section level3">
+<h3>9. Secondary infection</h3>
 </div>
 </div>
 </div>
