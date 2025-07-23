@@ -4,7 +4,7 @@
 
 ### Input data - Weather variables
 
-Input data needs to be in the form of timeseries, where the positioning of columns must be precisely kept in the following order:
+Input data needs to be in the form of timeseries in a semicolon-delimited CSV file, where the positioning of columns must be precisely kept in the following order:
 
 1. Date and time of measurement in the *%d.%m.%Y %H:%M* local timezone format.
 
@@ -15,6 +15,8 @@ Input data needs to be in the form of timeseries, where the positioning of colum
 4. Rainfall intensity *[mm/h]* in millimeters per hour.
 
 5. Leaf wetness *[min]* in minutes of wetness over 10 minutes.
+
+Such timeseries data is publicly available for Switzerland from the data collected from the Agroscope weather stations, accessible at [Agrometeo](https://www.agrometeo.ch/meteorologie).
 
 ### Optional input data - Spore counts
 
