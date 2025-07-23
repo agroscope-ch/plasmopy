@@ -16,7 +16,7 @@ Input data needs to be in the form of timeseries in a semicolon-delimited CSV fi
 
 5. Leaf wetness *[min]* in minutes of wetness over 10 minutes.
 
-Such timeseries data is publicly available for Switzerland from the data collected from the Agroscope weather stations, accessible at [Agrometeo](https://www.agrometeo.ch/meteorologie).
+Such timeseries data is publicly available for Switzerland from the Agroscope weather stations, accessible at [Agrometeo](https://www.agrometeo.ch/meteorologie).
 
 ### Optional input data - Spore counts
 
