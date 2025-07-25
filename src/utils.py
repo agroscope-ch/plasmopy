@@ -37,12 +37,7 @@ class output_files:
 
 
 def create_output_filenames(input_file_meteo, input_spore_counts):
-    basename_meteo = Path(input_file_meteo).stem
-    if input_spore_counts is not None:
-        basename_spores = Path(input_spore_counts).stem
-        basename = basename_meteo + "." + basename_spores
-    else:
-        basename = basename_meteo
+    basename = Path(input_file_meteo).stem
     output_folder = "data/output/" + basename
     Path(output_folder).mkdir(parents=True, exist_ok=True)
     output_basename = output_folder + "/" + basename
@@ -125,7 +120,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     graphs = {"pdf": graphs[0], "html": graphs[1]}
 
     scatter_height_factor = 1
-    n_events = 5
+    n_events = 6
     if model_parameters["input_data"]["spore_counts"] is not None:
         spore_counts = pd.read_csv(
             model_parameters["input_data"]["spore_counts"], sep=";"
@@ -134,11 +129,12 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
             spore_counts.iloc[:, 0],
             format=model_parameters["format_columns"][0],
         )
-        scatter_height_factor = max(spore_counts.iloc[:, 1].dropna()) / n_events
-
+        scatter_height_factor = max(spore_counts.iloc[:, 1]) / n_events
+    
     oospore_germinations = []
     oospore_dispersions = []
     oospore_infections = []
+    completed_incubations = []
     sporulations = []
     secondary_infections = []
 
@@ -161,6 +157,11 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
         ):
             oospore_infections.append(infection_event["oospore_infection"])
         if (
+            infection_event["completed_incubation"] is not None
+            and infection_event["completed_incubation"] not in completed_incubations
+        ):
+            completed_incubations.append(infection_event["completed_incubation"])
+        if (
             infection_event["sporulations"] is not None
             and infection_event["sporulations"] not in sporulations
         ):
@@ -180,17 +181,21 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     oospore_infections_tuple = {
         (element, 3 * scatter_height_factor) for element in oospore_infections
     }
+    completed_incubations_tuple = {
+        (element, 4 * scatter_height_factor) for element in completed_incubations
+    }
     sporulations_tuple = {
-        (element, 4 * scatter_height_factor) for element in sporulations
+        (element, 5 * scatter_height_factor) for element in sporulations
     }
     secondary_infections_tuple = {
-        (element, 5 * scatter_height_factor) for element in secondary_infections
+        (element, 6 * scatter_height_factor) for element in secondary_infections
     }
 
     category_data = {
         "oospore_germinations": oospore_germinations_tuple,
         "oospore_dispersions": oospore_dispersions_tuple,
         "oospore_infections": oospore_infections_tuple,
+        "completed_incubations": completed_incubations_tuple,
         "sporulations": sporulations_tuple,
         "secondary_infections": secondary_infections_tuple,
     }
@@ -209,7 +214,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     fig, ax = plt.subplots()
 
     # Plot events over dates for each category
-    event_colours = ["darkgreen", "darkorange", "red", "darkred", "indigo"]
+    event_colours = ["lightgreen", "orange", "red", "green", "violet", "purple"]
     colour_n = 0
     for category in category_data.keys():
         ax.plot(
@@ -238,10 +243,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     )
 
     # Set labels, title and grid
-    title = Path(model_parameters["input_data"]["meteo"]).stem
-    if model_parameters["input_data"]["spore_counts"] is not None:
-        title = title + "." + Path(model_parameters["input_data"]["spore_counts"]).stem
-    plt.title(title)
+    plt.title(model_parameters["input_data"]["meteo"])
     plt.tick_params(
         left=False, right=False, labelleft=False, labelbottom=True, bottom=True
     )

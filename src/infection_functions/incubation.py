@@ -25,6 +25,7 @@ def get_incubation_days(mean_daily_temperature):
 
 
 def launch_incubation(
+    processed_data,
     infection_datetime,
     infection_datetime_rowindex,
     mean_daily_temperatures,
@@ -63,7 +64,8 @@ def launch_incubation(
             * 60  # hours to minutes conversion
             / measurement_time_interval  # minutes to measurement interval conversion
         )
+        end_incubation_datetime = processed_data["datetime"][end_incubation_datetime_rowindex]
     else:
-        return None, None
+        return None, None, None
 
-    return incubation_days, end_incubation_datetime_rowindex
+    return incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex

@@ -16,7 +16,7 @@ from infection_functions import (
 )
 
 # Global variable, defining the number of infection events that we will store and print as output.
-number_of_infection_events = 9
+number_of_infection_events = 10
 
 
 """ Returning list of infection events' datetimes and properties """
@@ -28,6 +28,7 @@ def get_infection_events_dictionary(
     oospore_dispersion_datetime,
     oospore_infection_datetime,
     incubation_days,
+    end_incubation_datetime,
     sporulation_datetimes,
     sporangia_densities,
     spore_lifespan_days,
@@ -49,6 +50,7 @@ def get_infection_events_dictionary(
         "oospore_dispersion": oospore_dispersion_datetime,
         "oospore_infection": oospore_infection_datetime,
         "incubation_days": incubation_days,
+        "completed_incubation": end_incubation_datetime,
         "sporulations": sporulation_datetimes,
         "sporangia_densities": sporangia_densities,
         "spore_lifespan_days": spore_lifespan_days,
@@ -362,7 +364,8 @@ def run_infection_model(  # noqa: C901
                     f.write(str(oospore_infection_datetime) + "\n")
 
     """ Incubation """
-    incubation_days, end_incubation_datetime_rowindex = incubation.launch_incubation(
+    incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex = incubation.launch_incubation(
+        processed_data,
         oospore_infection_datetime,
         oospore_infection_datetime_rowindex,
         daily_mean_temperatures,
@@ -416,7 +419,8 @@ def run_infection_model(  # noqa: C901
             oospore_dispersion_datetime,
             oospore_infection_datetime,
             incubation_days,
-            *[None] * (number_of_infection_events - 5),
+            end_incubation_datetime,
+            *[None] * (number_of_infection_events - 6),
         )
         return events
 
@@ -573,6 +577,7 @@ def run_infection_model(  # noqa: C901
         oospore_dispersion_datetime,
         oospore_infection_datetime,
         incubation_days,
+        end_incubation_datetime,
         sporulation_datetimes,
         sporangia_densities,
         spore_lifespan_days,
