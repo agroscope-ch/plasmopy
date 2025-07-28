@@ -53,7 +53,7 @@ make run
 
 ### Data processing, model configuration and run from the streamlit web-app
 
-1. Launch the web-app from your browser with the command:
+Launch the web-app from your browser with the command:
 ```bash
 make app
 ```
