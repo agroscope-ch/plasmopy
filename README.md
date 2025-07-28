@@ -17,7 +17,7 @@ curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
 2. Make sure to have Git installed on your computer (https://github.com/git-guides/install-git), then clone *Plasmopy* with the following command in your terminal:
 
 ```bash
-git clone https://github.com/laruzzante/plasmopy
+git clone https://github.com/agroscope-ch/plasmopy.git
 ```
 
 3. Move into the *plasmopy* folder where the Makefile is located (replace *user_path_to_plasmopy* with your folder path):
