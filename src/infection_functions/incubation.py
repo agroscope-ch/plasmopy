@@ -64,7 +64,11 @@ def launch_incubation(
             * 60  # hours to minutes conversion
             / measurement_time_interval  # minutes to measurement interval conversion
         )
-        end_incubation_datetime = processed_data["datetime"][end_incubation_datetime_rowindex]
+        if end_incubation_datetime_rowindex < len(processed_data):
+            end_incubation_datetime = processed_data["datetime"][end_incubation_datetime_rowindex]
+        else:
+            end_incubation_datetime = None
+            
     else:
         return None, None, None
 
