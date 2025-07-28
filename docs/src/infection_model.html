@@ -45,7 +45,7 @@ from infection_functions import (
 )
 
 # Global variable, defining the number of infection events that we will store and print as output.
-number_of_infection_events = 9
+number_of_infection_events = 10
 
 
 &#34;&#34;&#34; Returning list of infection events&#39; datetimes and properties &#34;&#34;&#34;
@@ -57,6 +57,7 @@ def get_infection_events_dictionary(
     oospore_dispersion_datetime,
     oospore_infection_datetime,
     incubation_days,
+    end_incubation_datetime,
     sporulation_datetimes,
     sporangia_densities,
     spore_lifespan_days,
@@ -78,6 +79,7 @@ def get_infection_events_dictionary(
         &#34;oospore_dispersion&#34;: oospore_dispersion_datetime,
         &#34;oospore_infection&#34;: oospore_infection_datetime,
         &#34;incubation_days&#34;: incubation_days,
+        &#34;completed_incubation&#34;: end_incubation_datetime,
         &#34;sporulations&#34;: sporulation_datetimes,
         &#34;sporangia_densities&#34;: sporangia_densities,
         &#34;spore_lifespan_days&#34;: spore_lifespan_days,
@@ -391,7 +393,8 @@ def run_infection_model(  # noqa: C901
                     f.write(str(oospore_infection_datetime) + &#34;\n&#34;)
 
     &#34;&#34;&#34; Incubation &#34;&#34;&#34;
-    incubation_days, end_incubation_datetime_rowindex = incubation.launch_incubation(
+    incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex = incubation.launch_incubation(
+        processed_data,
         oospore_infection_datetime,
         oospore_infection_datetime_rowindex,
         daily_mean_temperatures,
@@ -445,7 +448,8 @@ def run_infection_model(  # noqa: C901
             oospore_dispersion_datetime,
             oospore_infection_datetime,
             incubation_days,
-            *[None] * (number_of_infection_events - 5),
+            end_incubation_datetime,
+            *[None] * (number_of_infection_events - 6),
         )
         return events
 
@@ -602,6 +606,7 @@ def run_infection_model(  # noqa: C901
         oospore_dispersion_datetime,
         oospore_infection_datetime,
         incubation_days,
+        end_incubation_datetime,
         sporulation_datetimes,
         sporangia_densities,
         spore_lifespan_days,
@@ -631,7 +636,7 @@ def run_infection_model(  # noqa: C901
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="src.infection_model.get_infection_events_dictionary"><code class="name flex">
-<span>def <span class="ident">get_infection_events_dictionary</span></span>(<span>oospore_maturation_date, oospore_germination_datetime, oospore_dispersion_datetime, oospore_infection_datetime, incubation_days, sporulation_datetimes, sporangia_densities, spore_lifespan_days, secondary_infections_datetimes)</span>
+<span>def <span class="ident">get_infection_events_dictionary</span></span>(<span>oospore_maturation_date, oospore_germination_datetime, oospore_dispersion_datetime, oospore_infection_datetime, incubation_days, end_incubation_datetime, sporulation_datetimes, sporangia_densities, spore_lifespan_days, secondary_infections_datetimes)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function building a dictionary of infection event datetimes and properties, such as oospore dispersion date and final sporangia densities.
@@ -646,6 +651,7 @@ Used to print out major information from each InfectionEvent object.</p></div>
     oospore_dispersion_datetime,
     oospore_infection_datetime,
     incubation_days,
+    end_incubation_datetime,
     sporulation_datetimes,
     sporangia_densities,
     spore_lifespan_days,
@@ -667,6 +673,7 @@ Used to print out major information from each InfectionEvent object.</p></div>
         &#34;oospore_dispersion&#34;: oospore_dispersion_datetime,
         &#34;oospore_infection&#34;: oospore_infection_datetime,
         &#34;incubation_days&#34;: incubation_days,
+        &#34;completed_incubation&#34;: end_incubation_datetime,
         &#34;sporulations&#34;: sporulation_datetimes,
         &#34;sporangia_densities&#34;: sporangia_densities,
         &#34;spore_lifespan_days&#34;: spore_lifespan_days,
@@ -1007,7 +1014,8 @@ Used to print out major information from each InfectionEvent object.</p></div>
                     f.write(str(oospore_infection_datetime) + &#34;\n&#34;)
 
     &#34;&#34;&#34; Incubation &#34;&#34;&#34;
-    incubation_days, end_incubation_datetime_rowindex = incubation.launch_incubation(
+    incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex = incubation.launch_incubation(
+        processed_data,
         oospore_infection_datetime,
         oospore_infection_datetime_rowindex,
         daily_mean_temperatures,
@@ -1061,7 +1069,8 @@ Used to print out major information from each InfectionEvent object.</p></div>
             oospore_dispersion_datetime,
             oospore_infection_datetime,
             incubation_days,
-            *[None] * (number_of_infection_events - 5),
+            end_incubation_datetime,
+            *[None] * (number_of_infection_events - 6),
         )
         return events
 
@@ -1218,6 +1227,7 @@ Used to print out major information from each InfectionEvent object.</p></div>
         oospore_dispersion_datetime,
         oospore_infection_datetime,
         incubation_days,
+        end_incubation_datetime,
         sporulation_datetimes,
         sporangia_densities,
         spore_lifespan_days,

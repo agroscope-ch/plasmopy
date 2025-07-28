@@ -24,6 +24,8 @@ Be sure to update accordingly the most important input-dependent parameters in `
 
 The file can be managed directly, or through the streamlit web-app, as detailed in the [README](https://github.com/agroscope-ch/plasmopy/blob/main/README.md).
 
+![](images/plasmopy_screen0.jpg)
+
 
 **_Example_**:
 
@@ -34,6 +36,8 @@ Accordingly, if computational_time_steps is set to 6, a simulated infection even
 If the *algorithmic_time_steps* is set to 1, specific algorithmic loops within that simulated infection event are instead set to analyze the data at every row, i.e. looking in detail at the highest possible resolution of 10 minutes.
 
 If the *algorithmic_time_steps* is set to 6, the specific algorithmic loops would only check the necessary weather conditions at a hourly-rate, thus decreasing the simulation precision while increasing the simulation speed.
+
+![](images/plasmopy_screen2.jpg)
 
 ### Optional input data - Spore counts
 
@@ -145,9 +149,19 @@ The script employs robust error logging to identify issues such as missing confi
 
 ### Output
 
-The final output is a structured dictionary summarizing infection event properties and datetimes. This dictionary serves as the primary interface for downstream analyses or reporting.
+The final output is a structured `pickle` dictionary summarizing infection event properties and datetimes. This dictionary serves as the primary interface for downstream analyses or reporting.
+Additional output files included in `data/output/`:
 
+1) PDF and HTML graphs of the simulated infection events across the input datetime range;
+2) a logfile detailing the simulation data pre-processing, model parameters and eventual workflow errors;
+3) the post-processing weather variables input file;
+4) a summary description of the successful primary and secondary infection events.
 
+The output files as well as the model parameters and input files for running new simulations can be interactively explored and configured through the *streamlit* web-app, activated with the command:
+
+```bash
+make app
+```
 
 ## Infection algorithms
 

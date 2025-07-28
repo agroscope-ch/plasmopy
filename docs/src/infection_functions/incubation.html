@@ -54,6 +54,7 @@ def get_incubation_days(mean_daily_temperature):
 
 
 def launch_incubation(
+    processed_data,
     infection_datetime,
     infection_datetime_rowindex,
     mean_daily_temperatures,
@@ -92,10 +93,15 @@ def launch_incubation(
             * 60  # hours to minutes conversion
             / measurement_time_interval  # minutes to measurement interval conversion
         )
+        if end_incubation_datetime_rowindex &lt; len(processed_data):
+            end_incubation_datetime = processed_data[&#34;datetime&#34;][end_incubation_datetime_rowindex]
+        else:
+            end_incubation_datetime = None
+            
     else:
-        return None, None
+        return None, None, None
 
-    return incubation_days, end_incubation_datetime_rowindex</code></pre>
+    return incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex</code></pre>
 </details>
 </section>
 <section>
@@ -132,7 +138,7 @@ def launch_incubation(
 </details>
 </dd>
 <dt id="src.infection_functions.incubation.launch_incubation"><code class="name flex">
-<span>def <span class="ident">launch_incubation</span></span>(<span>infection_datetime, infection_datetime_rowindex, mean_daily_temperatures, measurement_time_interval)</span>
+<span>def <span class="ident">launch_incubation</span></span>(<span>processed_data, infection_datetime, infection_datetime_rowindex, mean_daily_temperatures, measurement_time_interval)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function to launch incubation event.</p></div>
@@ -141,6 +147,7 @@ def launch_incubation(
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def launch_incubation(
+    processed_data,
     infection_datetime,
     infection_datetime_rowindex,
     mean_daily_temperatures,
@@ -179,10 +186,15 @@ def launch_incubation(
             * 60  # hours to minutes conversion
             / measurement_time_interval  # minutes to measurement interval conversion
         )
+        if end_incubation_datetime_rowindex &lt; len(processed_data):
+            end_incubation_datetime = processed_data[&#34;datetime&#34;][end_incubation_datetime_rowindex]
+        else:
+            end_incubation_datetime = None
+            
     else:
-        return None, None
+        return None, None, None
 
-    return incubation_days, end_incubation_datetime_rowindex</code></pre>
+    return incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex</code></pre>
 </details>
 </dd>
 </dl>

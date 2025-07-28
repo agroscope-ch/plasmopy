@@ -66,12 +66,7 @@ class output_files:
 
 
 def create_output_filenames(input_file_meteo, input_spore_counts):
-    basename_meteo = Path(input_file_meteo).stem
-    if input_spore_counts is not None:
-        basename_spores = Path(input_spore_counts).stem
-        basename = basename_meteo + &#34;.&#34; + basename_spores
-    else:
-        basename = basename_meteo
+    basename = Path(input_file_meteo).stem
     output_folder = &#34;data/output/&#34; + basename
     Path(output_folder).mkdir(parents=True, exist_ok=True)
     output_basename = output_folder + &#34;/&#34; + basename
@@ -154,7 +149,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     graphs = {&#34;pdf&#34;: graphs[0], &#34;html&#34;: graphs[1]}
 
     scatter_height_factor = 1
-    n_events = 5
+    n_events = 6
     if model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;] is not None:
         spore_counts = pd.read_csv(
             model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;], sep=&#34;;&#34;
@@ -163,11 +158,12 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
             spore_counts.iloc[:, 0],
             format=model_parameters[&#34;format_columns&#34;][0],
         )
-        scatter_height_factor = max(spore_counts.iloc[:, 1].dropna()) / n_events
-
+        scatter_height_factor = max(spore_counts.iloc[:, 1]) / n_events
+    
     oospore_germinations = []
     oospore_dispersions = []
     oospore_infections = []
+    completed_incubations = []
     sporulations = []
     secondary_infections = []
 
@@ -190,6 +186,11 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
         ):
             oospore_infections.append(infection_event[&#34;oospore_infection&#34;])
         if (
+            infection_event[&#34;completed_incubation&#34;] is not None
+            and infection_event[&#34;completed_incubation&#34;] not in completed_incubations
+        ):
+            completed_incubations.append(infection_event[&#34;completed_incubation&#34;])
+        if (
             infection_event[&#34;sporulations&#34;] is not None
             and infection_event[&#34;sporulations&#34;] not in sporulations
         ):
@@ -209,17 +210,21 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     oospore_infections_tuple = {
         (element, 3 * scatter_height_factor) for element in oospore_infections
     }
+    completed_incubations_tuple = {
+        (element, 4 * scatter_height_factor) for element in completed_incubations
+    }
     sporulations_tuple = {
-        (element, 4 * scatter_height_factor) for element in sporulations
+        (element, 5 * scatter_height_factor) for element in sporulations
     }
     secondary_infections_tuple = {
-        (element, 5 * scatter_height_factor) for element in secondary_infections
+        (element, 6 * scatter_height_factor) for element in secondary_infections
     }
 
     category_data = {
         &#34;oospore_germinations&#34;: oospore_germinations_tuple,
         &#34;oospore_dispersions&#34;: oospore_dispersions_tuple,
         &#34;oospore_infections&#34;: oospore_infections_tuple,
+        &#34;completed_incubations&#34;: completed_incubations_tuple,
         &#34;sporulations&#34;: sporulations_tuple,
         &#34;secondary_infections&#34;: secondary_infections_tuple,
     }
@@ -238,7 +243,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     fig, ax = plt.subplots()
 
     # Plot events over dates for each category
-    event_colours = [&#34;darkgreen&#34;, &#34;darkorange&#34;, &#34;red&#34;, &#34;darkred&#34;, &#34;indigo&#34;]
+    event_colours = [&#34;lightgreen&#34;, &#34;orange&#34;, &#34;red&#34;, &#34;green&#34;, &#34;violet&#34;, &#34;purple&#34;]
     colour_n = 0
     for category in category_data.keys():
         ax.plot(
@@ -267,10 +272,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     )
 
     # Set labels, title and grid
-    title = Path(model_parameters[&#34;input_data&#34;][&#34;meteo&#34;]).stem
-    if model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;] is not None:
-        title = title + &#34;.&#34; + Path(model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]).stem
-    plt.title(title)
+    plt.title(model_parameters[&#34;input_data&#34;][&#34;meteo&#34;])
     plt.tick_params(
         left=False, right=False, labelleft=False, labelbottom=True, bottom=True
     )
@@ -383,12 +385,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def create_output_filenames(input_file_meteo, input_spore_counts):
-    basename_meteo = Path(input_file_meteo).stem
-    if input_spore_counts is not None:
-        basename_spores = Path(input_spore_counts).stem
-        basename = basename_meteo + &#34;.&#34; + basename_spores
-    else:
-        basename = basename_meteo
+    basename = Path(input_file_meteo).stem
     output_folder = &#34;data/output/&#34; + basename
     Path(output_folder).mkdir(parents=True, exist_ok=True)
     output_basename = output_folder + &#34;/&#34; + basename
@@ -509,7 +506,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
     graphs = {&#34;pdf&#34;: graphs[0], &#34;html&#34;: graphs[1]}
 
     scatter_height_factor = 1
-    n_events = 5
+    n_events = 6
     if model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;] is not None:
         spore_counts = pd.read_csv(
             model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;], sep=&#34;;&#34;
@@ -518,11 +515,12 @@ can occur. Required inputs are the site coordinates and date.</p></div>
             spore_counts.iloc[:, 0],
             format=model_parameters[&#34;format_columns&#34;][0],
         )
-        scatter_height_factor = max(spore_counts.iloc[:, 1].dropna()) / n_events
-
+        scatter_height_factor = max(spore_counts.iloc[:, 1]) / n_events
+    
     oospore_germinations = []
     oospore_dispersions = []
     oospore_infections = []
+    completed_incubations = []
     sporulations = []
     secondary_infections = []
 
@@ -545,6 +543,11 @@ can occur. Required inputs are the site coordinates and date.</p></div>
         ):
             oospore_infections.append(infection_event[&#34;oospore_infection&#34;])
         if (
+            infection_event[&#34;completed_incubation&#34;] is not None
+            and infection_event[&#34;completed_incubation&#34;] not in completed_incubations
+        ):
+            completed_incubations.append(infection_event[&#34;completed_incubation&#34;])
+        if (
             infection_event[&#34;sporulations&#34;] is not None
             and infection_event[&#34;sporulations&#34;] not in sporulations
         ):
@@ -564,17 +567,21 @@ can occur. Required inputs are the site coordinates and date.</p></div>
     oospore_infections_tuple = {
         (element, 3 * scatter_height_factor) for element in oospore_infections
     }
+    completed_incubations_tuple = {
+        (element, 4 * scatter_height_factor) for element in completed_incubations
+    }
     sporulations_tuple = {
-        (element, 4 * scatter_height_factor) for element in sporulations
+        (element, 5 * scatter_height_factor) for element in sporulations
     }
     secondary_infections_tuple = {
-        (element, 5 * scatter_height_factor) for element in secondary_infections
+        (element, 6 * scatter_height_factor) for element in secondary_infections
     }
 
     category_data = {
         &#34;oospore_germinations&#34;: oospore_germinations_tuple,
         &#34;oospore_dispersions&#34;: oospore_dispersions_tuple,
         &#34;oospore_infections&#34;: oospore_infections_tuple,
+        &#34;completed_incubations&#34;: completed_incubations_tuple,
         &#34;sporulations&#34;: sporulations_tuple,
         &#34;secondary_infections&#34;: secondary_infections_tuple,
     }
@@ -593,7 +600,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
     fig, ax = plt.subplots()
 
     # Plot events over dates for each category
-    event_colours = [&#34;darkgreen&#34;, &#34;darkorange&#34;, &#34;red&#34;, &#34;darkred&#34;, &#34;indigo&#34;]
+    event_colours = [&#34;lightgreen&#34;, &#34;orange&#34;, &#34;red&#34;, &#34;green&#34;, &#34;violet&#34;, &#34;purple&#34;]
     colour_n = 0
     for category in category_data.keys():
         ax.plot(
@@ -622,10 +629,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
     )
 
     # Set labels, title and grid
-    title = Path(model_parameters[&#34;input_data&#34;][&#34;meteo&#34;]).stem
-    if model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;] is not None:
-        title = title + &#34;.&#34; + Path(model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]).stem
-    plt.title(title)
+    plt.title(model_parameters[&#34;input_data&#34;][&#34;meteo&#34;])
     plt.tick_params(
         left=False, right=False, labelleft=False, labelbottom=True, bottom=True
     )

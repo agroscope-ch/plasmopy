@@ -2,6 +2,8 @@
 
 Infection prediction modeling of *Plasmopara viticola* life cycle stages in vineyards using weather data. This project represents a revisited and customizable Python version of the VitiMeteo-Plasmopara model in use at Agroscope (Switzerland) for downy mildew infection forecasting.
 
+![](images/plasmopy_screen3.jpg)
+
 ## Quick setup & run
 
 
@@ -55,6 +57,9 @@ make run
 ```bash
 make app
 ```
+
+![](images/plasmopy_screen1.jpg)
+
 
 ## Developer Tools
 
