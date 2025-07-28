@@ -114,9 +114,9 @@ This project development guide is inspired from [Khuyen Tran’s blog](https://t
 pip install cookiecutter
 ```
 
-2.	Add local installation binaries to $PATH temporarily on the Bash console (replace “f########” with your own Agroscope user id):
+2.	Add local installation binaries to $PATH temporarily on the Bash console (replace #### with your user folder):
 ```bash
-export PATH="/home/agsad.admin.ch/f########/.local/bin:$PATH"
+export PATH="/home/###/.local/bin:$PATH"
 ```
 
 Or permanently by adding the same command line at the end of the `.bashrc` file in the users’s home folder.
