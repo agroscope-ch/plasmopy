@@ -1,6 +1,7 @@
 algorithmic_time_steps: 1
 computational_time_steps: 6
 elevation: 439.0
+fast_mode: true
 format_columns:
   0: '%d.%m.%Y %H:%M'
   1:
@@ -20,8 +21,8 @@ hydra:
   run:
     dir: .
 input_data:
-  meteo: data/input/2023_meteo_changins.csv
-  spore_counts: data/input/2023_qPCR_changins.pinot.noir.csv
+  meteo: data/input/2024_meteo_changins.csv
+  spore_counts: null
 latitude: 46.4
 longitude: 6.2
 measurement_time_interval: 10

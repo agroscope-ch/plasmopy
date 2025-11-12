@@ -43,6 +43,7 @@ timezone: Europe/Zurich
 
 
 ## Timeseries-handling and infection-launching intervals and parameters
+fast_mode: true
 # in minutes, time interval between meteostation measurements
 measurement_time_interval: 10
 # in numbers of measurement time intervals (or datetime rows), steps between new computations of infection events

@@ -108,6 +108,7 @@ def launch_secondary_infections(
     secondary_infection_leaf_wetness_latency,
     secondary_infection_sum_degree_hours_threshold,
     measurement_time_interval,
+    fast_mode,
     algorithmic_time_steps,
 ):
     """
@@ -137,5 +138,7 @@ def launch_secondary_infections(
             secondary_infections_datetimes_rowindexes.extend(
                 local_secondary_infection_datetime_rowindexes
             )
+            if fast_mode:
+                break
 
     return secondary_infections_datetimes, secondary_infections_datetimes_rowindexes

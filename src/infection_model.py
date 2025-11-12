@@ -364,7 +364,11 @@ def run_infection_model(  # noqa: C901
                     f.write(str(oospore_infection_datetime) + "\n")
 
     """ Incubation """
-    incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex = incubation.launch_incubation(
+    (
+        incubation_days,
+        end_incubation_datetime,
+        end_incubation_datetime_rowindex,
+    ) = incubation.launch_incubation(
         processed_data,
         oospore_infection_datetime,
         oospore_infection_datetime_rowindex,
@@ -393,6 +397,7 @@ def run_infection_model(  # noqa: C901
     longitude = model_parameters["longitude"]
     latitude = model_parameters["latitude"]
     elevation = model_parameters["elevation"]
+    fast_mode = model_parameters["fast_mode"]
 
     (
         sporulation_datetimes,
@@ -409,6 +414,7 @@ def run_infection_model(  # noqa: C901
         longitude,
         latitude,
         elevation,
+        fast_mode,
         algorithmic_time_steps,
     )
 
@@ -486,6 +492,7 @@ def run_infection_model(  # noqa: C901
         secondary_infection_leaf_wetness_latency,
         secondary_infection_sum_degree_hours_threshold,
         measurement_time_interval,
+        fast_mode,
         algorithmic_time_steps,
     )
 

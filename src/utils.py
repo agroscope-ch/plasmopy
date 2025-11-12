@@ -9,6 +9,7 @@ from statistics import mean
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from suntimes import SunTimes
@@ -129,8 +130,9 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
             spore_counts.iloc[:, 0],
             format=model_parameters["format_columns"][0],
         )
+        spore_counts.iloc[:, 1] = [np.log10(x + 1) for x in spore_counts.iloc[:, 1]]
         scatter_height_factor = max(spore_counts.iloc[:, 1]) / n_events
-    
+
     oospore_germinations = []
     oospore_dispersions = []
     oospore_infections = []
@@ -192,12 +194,12 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     }
 
     category_data = {
-        "oospore_germinations": oospore_germinations_tuple,
-        "oospore_dispersions": oospore_dispersions_tuple,
-        "oospore_infections": oospore_infections_tuple,
-        "completed_incubations": completed_incubations_tuple,
+        "oospore germinations": oospore_germinations_tuple,
+        "oospore dispersions": oospore_dispersions_tuple,
+        "oospore infections": oospore_infections_tuple,
+        "completed incubations": completed_incubations_tuple,
         "sporulations": sporulations_tuple,
-        "secondary_infections": secondary_infections_tuple,
+        "secondary infections": secondary_infections_tuple,
     }
 
     # Convert date strings to datetime objects for each category
@@ -256,7 +258,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
             spore_counts.iloc[:, 1],
             alpha=0.4,
             linestyle="--",
-            label="spore_counts",
+            label="spore counts (log10)",
         )
 
     # plt.tight_layout()
@@ -297,7 +299,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
                 x=spore_counts.iloc[:, 0],
                 y=spore_counts.iloc[:, 1],
                 line={"color": "royalblue", "width": 1, "dash": "dot"},
-                name="spore_counts",
+                name="spore counts (log10)",
                 opacity=1,
                 hovertext=spore_counts["Counts"],
             )

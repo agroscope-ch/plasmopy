@@ -102,6 +102,11 @@ with tab1:
     input_spores = sporecounts_file_selector()
     new_input_spores = sporecounts_file_uploader()
 with tab2:
+    fast_mode = st.radio(
+        "Fast mode:",
+        options=[True, False],
+        index=0,
+    )
     measurement_time_interval = st.number_input(
         "Measurement time interval *[min]*:",
         value=int(config["measurement_time_interval"]),
@@ -305,6 +310,10 @@ if new_input_meteo:
         yaml.dump(config, f)
 if new_input_spores:
     config["input_data"]["spore_counts"] = os.path.relpath(new_input_spores)
+    with open("config/main.yaml", "w") as f:
+        yaml.dump(config, f)
+if fast_mode is not None:
+    config["fast_mode"] = fast_mode
     with open("config/main.yaml", "w") as f:
         yaml.dump(config, f)
 if measurement_time_interval:
