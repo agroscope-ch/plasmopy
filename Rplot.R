@@ -2,7 +2,7 @@ library(plotly)
 library(lubridate)
 
 
-filepath <- "../data/output/2025_meteo_changins/2025_meteo_changins.events_dataframe.csv"
+filepath <- "data/output/2025_meteo_changins/2025_meteo_changins.events_dataframe.csv"
 df <- read.csv2(filepath, sep = ",", na.strings = "None")
 
 tz <- "Europe/Zurich"
