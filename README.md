@@ -13,6 +13,7 @@ Infection prediction modeling of *Plasmopara viticola* life cycle stages in vine
 ```bash
 curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
 ```
+N.B. Do not forget to add poetry's path to your *.bashrc* file.
 
 2. Make sure to have Git installed on your computer (https://github.com/git-guides/install-git), then clone *Plasmopy* with the following command in your terminal:
 
