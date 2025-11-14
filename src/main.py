@@ -3,6 +3,7 @@ Main script orchestrating all modeling steps and launching specific submodules.
 
 """
 
+import csv
 import pickle
 from datetime import datetime
 
@@ -181,6 +182,10 @@ def main(config: DictConfig):  # noqa: C901
                 + ","
                 + "oospore_infection"
                 + ","
+                + "completed_incubation"
+                + ","
+                + "sporulation"
+                + ","
                 + "sporangia_density"
                 + ","
                 + "secondary_infection"
@@ -188,6 +193,7 @@ def main(config: DictConfig):  # noqa: C901
             )
             f.write(header_str)
 
+        infection_predictions = []
         infection_events = []
 
         # Progress bar output on terminal.
@@ -204,6 +210,8 @@ def main(config: DictConfig):  # noqa: C901
             )
             infection_prediction.predict_infection()
             infection_events.append(infection_prediction.infection_events)
+            infection_predictions.append(infection_prediction)
+
             progress_bar.set_description(
                 f"DateTime Row {i}/{len(processed_data.index)}: {infection_prediction.start_event_datetime}"
             )
@@ -321,6 +329,12 @@ def main(config: DictConfig):  # noqa: C901
                             )
                             + ","
                             + str(
+                                infection_prediction.infection_events[
+                                    "completed_incubation"
+                                ]
+                            )
+                            + ","
+                            + str(
                                 infection_prediction.infection_events["sporulations"][i]
                             )
                             + ","
@@ -363,6 +377,35 @@ def main(config: DictConfig):  # noqa: C901
             pickle.dump(infection_events, pickle_file)
         with open(output_files.model_params, "wb") as pickle_file:
             pickle.dump(config, pickle_file)
+
+        ### WRITE CSV "DATAFRAME" OF ALL INFECTION EVENTS DATETIMES
+        with open(output_files.events_dataframe, "w") as f:
+            event_columns = list(infection_events[0].keys())
+            event_columns.insert(0, "id")
+            event_columns.insert(1, "start")
+            wr = csv.writer(f, quoting=csv.QUOTE_NONE)
+            wr.writerow(event_columns)
+            event_id = 0
+            for event in infection_events:
+                start_time = infection_predictions[event_id].start_event_datetime
+                id = infection_predictions[event_id].id
+                f.write(str(id) + "," + str(start_time) + ",")
+                event_id += 1
+                n_events = len(event.keys())
+                i = 0
+                for item in event.items():
+                    i += 1
+                    if isinstance(item, list):
+                        if i < n_events:
+                            f.write(str(item[0]) + ",")
+                        else:
+                            f.write(str(item[0]))
+                    else:
+                        if i < n_events:
+                            f.write(str(item) + ",")
+                        else:
+                            f.write(str(item))
+                f.write("\n")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ class output_files:
         model_params,
         events_dict,
         events_text,
+        events_dataframe,
         infection_datetimes,
         pdf_graph,
         html_graph,
@@ -32,6 +33,7 @@ class output_files:
         self.model_params = model_params
         self.events_dict = events_dict
         self.events_text = events_text
+        self.events_dataframe = events_dataframe
         self.infection_datetimes = infection_datetimes
         self.pdf_graph = pdf_graph
         self.html_graph = html_graph
@@ -48,6 +50,7 @@ def create_output_filenames(input_file_meteo, input_spore_counts):
     model_params = Path(output_basename + ".model_params.obj").resolve()
     events_dict = Path(output_basename + ".events.obj").resolve()
     events_text = Path(output_basename + ".events.csv").resolve()
+    events_dataframe = Path(output_basename + ".events_dataframe.csv").resolve()
     infection_datetimes = Path(output_basename + ".infection_datetimes.csv").resolve()
     pdf_graph = Path(output_basename + ".pdf").resolve()
     html_graph = Path(output_basename + ".html").resolve()
@@ -58,6 +61,7 @@ def create_output_filenames(input_file_meteo, input_spore_counts):
         model_params,
         events_dict,
         events_text,
+        events_dataframe,
         infection_datetimes,
         pdf_graph,
         html_graph,

@@ -16,6 +16,7 @@ def secondary_infection(
     secondary_infection_leaf_wetness_latency,
     secondary_infection_sum_degree_hours_threshold,
     measurement_time_interval,
+    fast_mode,
     algorithmic_time_steps,
 ):
     """
@@ -92,6 +93,8 @@ def secondary_infection(
                     secondary_infection_datetime_rowindexes.append(
                         secondary_infection_datetime_rowindex
                     )
+                    if fast_mode:
+                        break
 
     return (
         secondary_infection_datetimes,
@@ -131,6 +134,7 @@ def launch_secondary_infections(
             secondary_infection_leaf_wetness_latency,
             secondary_infection_sum_degree_hours_threshold,
             measurement_time_interval,
+            fast_mode,
             algorithmic_time_steps,
         )
         if local_secondary_infection_datetimes:  # Check if list is not empty
