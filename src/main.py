@@ -393,13 +393,14 @@ def main(config: DictConfig):  # noqa: C901
                 event_id += 1
                 n_events = len(event.keys())
                 i = 0
-                for item in event.items():
+                for key, item in event.items():  # noqa: B007
                     i += 1
                     if isinstance(item, list):
-                        if i < n_events:
-                            f.write(str(item[0]) + ",")
-                        else:
-                            f.write(str(item[0]))
+                        if item:
+                            if i < n_events:
+                                f.write(str(item[0]) + ",")
+                            else:
+                                f.write(str(item[0]))
                     else:
                         if i < n_events:
                             f.write(str(item) + ",")
