@@ -38,6 +38,7 @@ from statistics import mean
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from suntimes import SunTimes
@@ -51,6 +52,7 @@ class output_files:
         model_params,
         events_dict,
         events_text,
+        events_dataframe,
         infection_datetimes,
         pdf_graph,
         html_graph,
@@ -60,6 +62,7 @@ class output_files:
         self.model_params = model_params
         self.events_dict = events_dict
         self.events_text = events_text
+        self.events_dataframe = events_dataframe
         self.infection_datetimes = infection_datetimes
         self.pdf_graph = pdf_graph
         self.html_graph = html_graph
@@ -76,6 +79,7 @@ def create_output_filenames(input_file_meteo, input_spore_counts):
     model_params = Path(output_basename + &#34;.model_params.obj&#34;).resolve()
     events_dict = Path(output_basename + &#34;.events.obj&#34;).resolve()
     events_text = Path(output_basename + &#34;.events.csv&#34;).resolve()
+    events_dataframe = Path(output_basename + &#34;.events_dataframe.csv&#34;).resolve()
     infection_datetimes = Path(output_basename + &#34;.infection_datetimes.csv&#34;).resolve()
     pdf_graph = Path(output_basename + &#34;.pdf&#34;).resolve()
     html_graph = Path(output_basename + &#34;.html&#34;).resolve()
@@ -86,6 +90,7 @@ def create_output_filenames(input_file_meteo, input_spore_counts):
         model_params,
         events_dict,
         events_text,
+        events_dataframe,
         infection_datetimes,
         pdf_graph,
         html_graph,
@@ -158,8 +163,9 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
             spore_counts.iloc[:, 0],
             format=model_parameters[&#34;format_columns&#34;][0],
         )
+        spore_counts.iloc[:, 1] = [np.log10(x + 1) for x in spore_counts.iloc[:, 1]]
         scatter_height_factor = max(spore_counts.iloc[:, 1]) / n_events
-    
+
     oospore_germinations = []
     oospore_dispersions = []
     oospore_infections = []
@@ -221,12 +227,12 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     }
 
     category_data = {
-        &#34;oospore_germinations&#34;: oospore_germinations_tuple,
-        &#34;oospore_dispersions&#34;: oospore_dispersions_tuple,
-        &#34;oospore_infections&#34;: oospore_infections_tuple,
-        &#34;completed_incubations&#34;: completed_incubations_tuple,
+        &#34;oospore germinations&#34;: oospore_germinations_tuple,
+        &#34;oospore dispersions&#34;: oospore_dispersions_tuple,
+        &#34;oospore infections&#34;: oospore_infections_tuple,
+        &#34;completed incubations&#34;: completed_incubations_tuple,
         &#34;sporulations&#34;: sporulations_tuple,
-        &#34;secondary_infections&#34;: secondary_infections_tuple,
+        &#34;secondary infections&#34;: secondary_infections_tuple,
     }
 
     # Convert date strings to datetime objects for each category
@@ -285,7 +291,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
             spore_counts.iloc[:, 1],
             alpha=0.4,
             linestyle=&#34;--&#34;,
-            label=&#34;spore_counts&#34;,
+            label=&#34;spore counts (log10)&#34;,
         )
 
     # plt.tight_layout()
@@ -326,7 +332,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
                 x=spore_counts.iloc[:, 0],
                 y=spore_counts.iloc[:, 1],
                 line={&#34;color&#34;: &#34;royalblue&#34;, &#34;width&#34;: 1, &#34;dash&#34;: &#34;dot&#34;},
-                name=&#34;spore_counts&#34;,
+                name=&#34;spore counts (log10)&#34;,
                 opacity=1,
                 hovertext=spore_counts[&#34;Counts&#34;],
             )
@@ -395,6 +401,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
     model_params = Path(output_basename + &#34;.model_params.obj&#34;).resolve()
     events_dict = Path(output_basename + &#34;.events.obj&#34;).resolve()
     events_text = Path(output_basename + &#34;.events.csv&#34;).resolve()
+    events_dataframe = Path(output_basename + &#34;.events_dataframe.csv&#34;).resolve()
     infection_datetimes = Path(output_basename + &#34;.infection_datetimes.csv&#34;).resolve()
     pdf_graph = Path(output_basename + &#34;.pdf&#34;).resolve()
     html_graph = Path(output_basename + &#34;.html&#34;).resolve()
@@ -405,6 +412,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
         model_params,
         events_dict,
         events_text,
+        events_dataframe,
         infection_datetimes,
         pdf_graph,
         html_graph,
@@ -515,8 +523,9 @@ can occur. Required inputs are the site coordinates and date.</p></div>
             spore_counts.iloc[:, 0],
             format=model_parameters[&#34;format_columns&#34;][0],
         )
+        spore_counts.iloc[:, 1] = [np.log10(x + 1) for x in spore_counts.iloc[:, 1]]
         scatter_height_factor = max(spore_counts.iloc[:, 1]) / n_events
-    
+
     oospore_germinations = []
     oospore_dispersions = []
     oospore_infections = []
@@ -578,12 +587,12 @@ can occur. Required inputs are the site coordinates and date.</p></div>
     }
 
     category_data = {
-        &#34;oospore_germinations&#34;: oospore_germinations_tuple,
-        &#34;oospore_dispersions&#34;: oospore_dispersions_tuple,
-        &#34;oospore_infections&#34;: oospore_infections_tuple,
-        &#34;completed_incubations&#34;: completed_incubations_tuple,
+        &#34;oospore germinations&#34;: oospore_germinations_tuple,
+        &#34;oospore dispersions&#34;: oospore_dispersions_tuple,
+        &#34;oospore infections&#34;: oospore_infections_tuple,
+        &#34;completed incubations&#34;: completed_incubations_tuple,
         &#34;sporulations&#34;: sporulations_tuple,
-        &#34;secondary_infections&#34;: secondary_infections_tuple,
+        &#34;secondary infections&#34;: secondary_infections_tuple,
     }
 
     # Convert date strings to datetime objects for each category
@@ -642,7 +651,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
             spore_counts.iloc[:, 1],
             alpha=0.4,
             linestyle=&#34;--&#34;,
-            label=&#34;spore_counts&#34;,
+            label=&#34;spore counts (log10)&#34;,
         )
 
     # plt.tight_layout()
@@ -683,7 +692,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
                 x=spore_counts.iloc[:, 0],
                 y=spore_counts.iloc[:, 1],
                 line={&#34;color&#34;: &#34;royalblue&#34;, &#34;width&#34;: 1, &#34;dash&#34;: &#34;dot&#34;},
-                name=&#34;spore_counts&#34;,
+                name=&#34;spore counts (log10)&#34;,
                 opacity=1,
                 hovertext=spore_counts[&#34;Counts&#34;],
             )
@@ -732,7 +741,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
 <dl>
 <dt id="src.utils.output_files"><code class="flex name class">
 <span>class <span class="ident">output_files</span></span>
-<span>(</span><span>logfile, processed_file_meteo, model_params, events_dict, events_text, infection_datetimes, pdf_graph, html_graph)</span>
+<span>(</span><span>logfile, processed_file_meteo, model_params, events_dict, events_text, events_dataframe, infection_datetimes, pdf_graph, html_graph)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -748,6 +757,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
         model_params,
         events_dict,
         events_text,
+        events_dataframe,
         infection_datetimes,
         pdf_graph,
         html_graph,
@@ -757,6 +767,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
         self.model_params = model_params
         self.events_dict = events_dict
         self.events_text = events_text
+        self.events_dataframe = events_dataframe
         self.infection_datetimes = infection_datetimes
         self.pdf_graph = pdf_graph
         self.html_graph = html_graph</code></pre>

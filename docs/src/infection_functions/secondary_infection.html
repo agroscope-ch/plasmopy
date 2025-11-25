@@ -45,6 +45,7 @@ def secondary_infection(
     secondary_infection_leaf_wetness_latency,
     secondary_infection_sum_degree_hours_threshold,
     measurement_time_interval,
+    fast_mode,
     algorithmic_time_steps,
 ):
     &#34;&#34;&#34;
@@ -121,6 +122,8 @@ def secondary_infection(
                     secondary_infection_datetime_rowindexes.append(
                         secondary_infection_datetime_rowindex
                     )
+                    if fast_mode:
+                        break
 
     return (
         secondary_infection_datetimes,
@@ -137,6 +140,7 @@ def launch_secondary_infections(
     secondary_infection_leaf_wetness_latency,
     secondary_infection_sum_degree_hours_threshold,
     measurement_time_interval,
+    fast_mode,
     algorithmic_time_steps,
 ):
     &#34;&#34;&#34;
@@ -159,6 +163,7 @@ def launch_secondary_infections(
             secondary_infection_leaf_wetness_latency,
             secondary_infection_sum_degree_hours_threshold,
             measurement_time_interval,
+            fast_mode,
             algorithmic_time_steps,
         )
         if local_secondary_infection_datetimes:  # Check if list is not empty
@@ -166,6 +171,8 @@ def launch_secondary_infections(
             secondary_infections_datetimes_rowindexes.extend(
                 local_secondary_infection_datetime_rowindexes
             )
+            if fast_mode:
+                break
 
     return secondary_infections_datetimes, secondary_infections_datetimes_rowindexes</code></pre>
 </details>
@@ -178,7 +185,7 @@ def launch_secondary_infections(
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="src.infection_functions.secondary_infection.launch_secondary_infections"><code class="name flex">
-<span>def <span class="ident">launch_secondary_infections</span></span>(<span>processed_data, sporulation_datetime_rowindexes, spore_lifespan_days, secondary_infection_min_temperature, secondary_infection_max_temperature, secondary_infection_leaf_wetness_latency, secondary_infection_sum_degree_hours_threshold, measurement_time_interval, algorithmic_time_steps)</span>
+<span>def <span class="ident">launch_secondary_infections</span></span>(<span>processed_data, sporulation_datetime_rowindexes, spore_lifespan_days, secondary_infection_min_temperature, secondary_infection_max_temperature, secondary_infection_leaf_wetness_latency, secondary_infection_sum_degree_hours_threshold, measurement_time_interval, fast_mode, algorithmic_time_steps)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Launch secondary infection events from all succesful sporulation events.</p></div>
@@ -195,6 +202,7 @@ def launch_secondary_infections(
     secondary_infection_leaf_wetness_latency,
     secondary_infection_sum_degree_hours_threshold,
     measurement_time_interval,
+    fast_mode,
     algorithmic_time_steps,
 ):
     &#34;&#34;&#34;
@@ -217,6 +225,7 @@ def launch_secondary_infections(
             secondary_infection_leaf_wetness_latency,
             secondary_infection_sum_degree_hours_threshold,
             measurement_time_interval,
+            fast_mode,
             algorithmic_time_steps,
         )
         if local_secondary_infection_datetimes:  # Check if list is not empty
@@ -224,12 +233,14 @@ def launch_secondary_infections(
             secondary_infections_datetimes_rowindexes.extend(
                 local_secondary_infection_datetime_rowindexes
             )
+            if fast_mode:
+                break
 
     return secondary_infections_datetimes, secondary_infections_datetimes_rowindexes</code></pre>
 </details>
 </dd>
 <dt id="src.infection_functions.secondary_infection.secondary_infection"><code class="name flex">
-<span>def <span class="ident">secondary_infection</span></span>(<span>processed_data, sporulation_datetime_rowindex, spore_lifespan, secondary_infection_min_temperature, secondary_infection_max_temperature, secondary_infection_leaf_wetness_latency, secondary_infection_sum_degree_hours_threshold, measurement_time_interval, algorithmic_time_steps)</span>
+<span>def <span class="ident">secondary_infection</span></span>(<span>processed_data, sporulation_datetime_rowindex, spore_lifespan, secondary_infection_min_temperature, secondary_infection_max_temperature, secondary_infection_leaf_wetness_latency, secondary_infection_sum_degree_hours_threshold, measurement_time_interval, fast_mode, algorithmic_time_steps)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Algorithm to calculate whether secondary infections can occure given current
@@ -247,6 +258,7 @@ meteorological conditions and the previously computed spore lifespans.</p></div>
     secondary_infection_leaf_wetness_latency,
     secondary_infection_sum_degree_hours_threshold,
     measurement_time_interval,
+    fast_mode,
     algorithmic_time_steps,
 ):
     &#34;&#34;&#34;
@@ -323,6 +335,8 @@ meteorological conditions and the previously computed spore lifespans.</p></div>
                     secondary_infection_datetime_rowindexes.append(
                         secondary_infection_datetime_rowindex
                     )
+                    if fast_mode:
+                        break
 
     return (
         secondary_infection_datetimes,

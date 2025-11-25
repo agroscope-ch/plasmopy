@@ -393,7 +393,11 @@ def run_infection_model(  # noqa: C901
                     f.write(str(oospore_infection_datetime) + &#34;\n&#34;)
 
     &#34;&#34;&#34; Incubation &#34;&#34;&#34;
-    incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex = incubation.launch_incubation(
+    (
+        incubation_days,
+        end_incubation_datetime,
+        end_incubation_datetime_rowindex,
+    ) = incubation.launch_incubation(
         processed_data,
         oospore_infection_datetime,
         oospore_infection_datetime_rowindex,
@@ -422,6 +426,7 @@ def run_infection_model(  # noqa: C901
     longitude = model_parameters[&#34;longitude&#34;]
     latitude = model_parameters[&#34;latitude&#34;]
     elevation = model_parameters[&#34;elevation&#34;]
+    fast_mode = model_parameters[&#34;fast_mode&#34;]
 
     (
         sporulation_datetimes,
@@ -438,6 +443,7 @@ def run_infection_model(  # noqa: C901
         longitude,
         latitude,
         elevation,
+        fast_mode,
         algorithmic_time_steps,
     )
 
@@ -515,6 +521,7 @@ def run_infection_model(  # noqa: C901
         secondary_infection_leaf_wetness_latency,
         secondary_infection_sum_degree_hours_threshold,
         measurement_time_interval,
+        fast_mode,
         algorithmic_time_steps,
     )
 
@@ -1014,7 +1021,11 @@ Used to print out major information from each InfectionEvent object.</p></div>
                     f.write(str(oospore_infection_datetime) + &#34;\n&#34;)
 
     &#34;&#34;&#34; Incubation &#34;&#34;&#34;
-    incubation_days, end_incubation_datetime, end_incubation_datetime_rowindex = incubation.launch_incubation(
+    (
+        incubation_days,
+        end_incubation_datetime,
+        end_incubation_datetime_rowindex,
+    ) = incubation.launch_incubation(
         processed_data,
         oospore_infection_datetime,
         oospore_infection_datetime_rowindex,
@@ -1043,6 +1054,7 @@ Used to print out major information from each InfectionEvent object.</p></div>
     longitude = model_parameters[&#34;longitude&#34;]
     latitude = model_parameters[&#34;latitude&#34;]
     elevation = model_parameters[&#34;elevation&#34;]
+    fast_mode = model_parameters[&#34;fast_mode&#34;]
 
     (
         sporulation_datetimes,
@@ -1059,6 +1071,7 @@ Used to print out major information from each InfectionEvent object.</p></div>
         longitude,
         latitude,
         elevation,
+        fast_mode,
         algorithmic_time_steps,
     )
 
@@ -1136,6 +1149,7 @@ Used to print out major information from each InfectionEvent object.</p></div>
         secondary_infection_leaf_wetness_latency,
         secondary_infection_sum_degree_hours_threshold,
         measurement_time_interval,
+        fast_mode,
         algorithmic_time_steps,
     )
 

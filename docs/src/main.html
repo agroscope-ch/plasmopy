@@ -32,6 +32,7 @@ Main script orchestrating all modeling steps and launching specific submodules.
 
 &#34;&#34;&#34;
 
+import csv
 import pickle
 from datetime import datetime
 
@@ -210,6 +211,10 @@ def main(config: DictConfig):  # noqa: C901
                 + &#34;,&#34;
                 + &#34;oospore_infection&#34;
                 + &#34;,&#34;
+                + &#34;completed_incubation&#34;
+                + &#34;,&#34;
+                + &#34;sporulation&#34;
+                + &#34;,&#34;
                 + &#34;sporangia_density&#34;
                 + &#34;,&#34;
                 + &#34;secondary_infection&#34;
@@ -217,6 +222,7 @@ def main(config: DictConfig):  # noqa: C901
             )
             f.write(header_str)
 
+        infection_predictions = []
         infection_events = []
 
         # Progress bar output on terminal.
@@ -233,6 +239,8 @@ def main(config: DictConfig):  # noqa: C901
             )
             infection_prediction.predict_infection()
             infection_events.append(infection_prediction.infection_events)
+            infection_predictions.append(infection_prediction)
+
             progress_bar.set_description(
                 f&#34;DateTime Row {i}/{len(processed_data.index)}: {infection_prediction.start_event_datetime}&#34;
             )
@@ -350,6 +358,12 @@ def main(config: DictConfig):  # noqa: C901
                             )
                             + &#34;,&#34;
                             + str(
+                                infection_prediction.infection_events[
+                                    &#34;completed_incubation&#34;
+                                ]
+                            )
+                            + &#34;,&#34;
+                            + str(
                                 infection_prediction.infection_events[&#34;sporulations&#34;][i]
                             )
                             + &#34;,&#34;
@@ -392,6 +406,36 @@ def main(config: DictConfig):  # noqa: C901
             pickle.dump(infection_events, pickle_file)
         with open(output_files.model_params, &#34;wb&#34;) as pickle_file:
             pickle.dump(config, pickle_file)
+
+        ### WRITE CSV &#34;DATAFRAME&#34; OF ALL INFECTION EVENTS DATETIMES
+        with open(output_files.events_dataframe, &#34;w&#34;) as f:
+            event_columns = list(infection_events[0].keys())
+            event_columns.insert(0, &#34;id&#34;)
+            event_columns.insert(1, &#34;start&#34;)
+            wr = csv.writer(f, quoting=csv.QUOTE_NONE)
+            wr.writerow(event_columns)
+            event_id = 0
+            for event in infection_events:
+                start_time = infection_predictions[event_id].start_event_datetime
+                id = infection_predictions[event_id].id
+                f.write(str(id) + &#34;,&#34; + str(start_time) + &#34;,&#34;)
+                event_id += 1
+                n_events = len(event.keys())
+                i = 0
+                for key, item in event.items():  # noqa: B007
+                    i += 1
+                    if isinstance(item, list):
+                        if item:
+                            if i &lt; n_events:
+                                f.write(str(item[0]) + &#34;,&#34;)
+                            else:
+                                f.write(str(item[0]))
+                    else:
+                        if i &lt; n_events:
+                            f.write(str(item) + &#34;,&#34;)
+                        else:
+                            f.write(str(item))
+                f.write(&#34;\n&#34;)
 
 
 if __name__ == &#34;__main__&#34;:
@@ -614,6 +658,10 @@ def main(config: DictConfig):  # noqa: C901
                 + &#34;,&#34;
                 + &#34;oospore_infection&#34;
                 + &#34;,&#34;
+                + &#34;completed_incubation&#34;
+                + &#34;,&#34;
+                + &#34;sporulation&#34;
+                + &#34;,&#34;
                 + &#34;sporangia_density&#34;
                 + &#34;,&#34;
                 + &#34;secondary_infection&#34;
@@ -621,6 +669,7 @@ def main(config: DictConfig):  # noqa: C901
             )
             f.write(header_str)
 
+        infection_predictions = []
         infection_events = []
 
         # Progress bar output on terminal.
@@ -637,6 +686,8 @@ def main(config: DictConfig):  # noqa: C901
             )
             infection_prediction.predict_infection()
             infection_events.append(infection_prediction.infection_events)
+            infection_predictions.append(infection_prediction)
+
             progress_bar.set_description(
                 f&#34;DateTime Row {i}/{len(processed_data.index)}: {infection_prediction.start_event_datetime}&#34;
             )
@@ -754,6 +805,12 @@ def main(config: DictConfig):  # noqa: C901
                             )
                             + &#34;,&#34;
                             + str(
+                                infection_prediction.infection_events[
+                                    &#34;completed_incubation&#34;
+                                ]
+                            )
+                            + &#34;,&#34;
+                            + str(
                                 infection_prediction.infection_events[&#34;sporulations&#34;][i]
                             )
                             + &#34;,&#34;
@@ -795,7 +852,37 @@ def main(config: DictConfig):  # noqa: C901
         with open(output_files.events_dict, &#34;wb&#34;) as pickle_file:
             pickle.dump(infection_events, pickle_file)
         with open(output_files.model_params, &#34;wb&#34;) as pickle_file:
-            pickle.dump(config, pickle_file)</code></pre>
+            pickle.dump(config, pickle_file)
+
+        ### WRITE CSV &#34;DATAFRAME&#34; OF ALL INFECTION EVENTS DATETIMES
+        with open(output_files.events_dataframe, &#34;w&#34;) as f:
+            event_columns = list(infection_events[0].keys())
+            event_columns.insert(0, &#34;id&#34;)
+            event_columns.insert(1, &#34;start&#34;)
+            wr = csv.writer(f, quoting=csv.QUOTE_NONE)
+            wr.writerow(event_columns)
+            event_id = 0
+            for event in infection_events:
+                start_time = infection_predictions[event_id].start_event_datetime
+                id = infection_predictions[event_id].id
+                f.write(str(id) + &#34;,&#34; + str(start_time) + &#34;,&#34;)
+                event_id += 1
+                n_events = len(event.keys())
+                i = 0
+                for key, item in event.items():  # noqa: B007
+                    i += 1
+                    if isinstance(item, list):
+                        if item:
+                            if i &lt; n_events:
+                                f.write(str(item[0]) + &#34;,&#34;)
+                            else:
+                                f.write(str(item[0]))
+                    else:
+                        if i &lt; n_events:
+                            f.write(str(item) + &#34;,&#34;)
+                        else:
+                            f.write(str(item))
+                f.write(&#34;\n&#34;)</code></pre>
 </details>
 </dd>
 </dl>

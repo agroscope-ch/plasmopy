@@ -136,6 +136,7 @@ def launch_sporulation(
     longitude,
     latitude,
     elevation,
+    fast_mode,
     algorithmic_time_steps,
 ):
     &#34;&#34;&#34;
@@ -170,6 +171,8 @@ def launch_sporulation(
         if sporulation_datetime is not None:
             sporulation_datetimes.append(sporulation_datetime)
             sporulation_datetime_rowindexes.append(sporulation_datetime_rowindex)
+            if fast_mode:
+                break
 
     return sporulation_datetimes, sporulation_datetime_rowindexes</code></pre>
 </details>
@@ -182,7 +185,7 @@ def launch_sporulation(
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="src.infection_functions.sporulation.launch_sporulation"><code class="name flex">
-<span>def <span class="ident">launch_sporulation</span></span>(<span>processed_data, infection_datetime_rowindex, end_incubation_datetime_rowindex, sporulation_leaf_wetness_threshold, sporulation_min_humidity, sporulation_min_temperature, sporulation_min_darkness_hours, measurement_time_interval, longitude, latitude, elevation, algorithmic_time_steps)</span>
+<span>def <span class="ident">launch_sporulation</span></span>(<span>processed_data, infection_datetime_rowindex, end_incubation_datetime_rowindex, sporulation_leaf_wetness_threshold, sporulation_min_humidity, sporulation_min_temperature, sporulation_min_darkness_hours, measurement_time_interval, longitude, latitude, elevation, fast_mode, algorithmic_time_steps)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function that launches sporulation events.</p></div>
@@ -202,6 +205,7 @@ def launch_sporulation(
     longitude,
     latitude,
     elevation,
+    fast_mode,
     algorithmic_time_steps,
 ):
     &#34;&#34;&#34;
@@ -236,6 +240,8 @@ def launch_sporulation(
         if sporulation_datetime is not None:
             sporulation_datetimes.append(sporulation_datetime)
             sporulation_datetime_rowindexes.append(sporulation_datetime_rowindex)
+            if fast_mode:
+                break
 
     return sporulation_datetimes, sporulation_datetime_rowindexes</code></pre>
 </details>
