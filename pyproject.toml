@@ -16,7 +16,7 @@ numpy = "1.26.2"
 streamlit = "1.37.1"
 suntimes = "1.1.2"
 pytz = "2025.1"
-csv = "0.0.14"
+# csv = "0.0.14"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "6.2.5"
