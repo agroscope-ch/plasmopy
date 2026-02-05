@@ -15,6 +15,9 @@ curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
 ```
 N.B. Do not forget to add poetry's path to your *.bashrc* file.
 
+E.g. on Linux machines, modify the ".bashrc" file for permanent inclusion to path, by adding the following line at the end:
+export PATH="home/YOUR_USERNAME/.local/bin/poetry:$PATH"
+
 2. Make sure to have Git installed on your computer (https://github.com/git-guides/install-git), then clone *Plasmopy* with the following command in your terminal:
 
 ```bash
