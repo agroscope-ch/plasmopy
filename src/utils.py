@@ -438,7 +438,7 @@ def plot_infection_analysis(  # noqa: C901
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
 
     if "sporangia_densities" in df.columns:
         df["sporangia_densities"] = pd.to_numeric(
@@ -683,7 +683,7 @@ def plot_spore_infection_overview(  # noqa: C901
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
 
     # ------------------------------------------------------------------ #
     # Load and aggregate daily spore counts                               #
