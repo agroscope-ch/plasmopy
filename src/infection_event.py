@@ -23,6 +23,7 @@ class InfectionEvent:
         algorithmic_time_steps,
         logfile,
         oospore_infection_datetimes,
+        spore_counts_result=None,
     ):
         """
         Object initialisation function.
@@ -36,6 +37,7 @@ class InfectionEvent:
         self.algorithmic_time_steps = algorithmic_time_steps
         self.logfile = logfile
         self.oospore_infection_datetimes = oospore_infection_datetimes
+        self.spore_counts_result = spore_counts_result
         self.start_event_datetime = timeseries["datetime"][self.start_event_rowindex]
         self.id = start_event_rowindex
 
@@ -53,6 +55,7 @@ class InfectionEvent:
             self.algorithmic_time_steps,
             self.logfile,
             self.oospore_infection_datetimes,
+            self.spore_counts_result,
         )
 
     def __str__(self):

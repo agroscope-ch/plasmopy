@@ -89,7 +89,9 @@ def process_data(  # noqa: C901
         logf.write(
             "\nTIME GRID CREATION ERROR: check first and last datetimes in the input data file.\n"
         )
-    freq_timegrid = str(model_parameters["measurement_time_interval"]) + "min"
+    freq_timegrid = (
+        str(model_parameters["run_settings"]["measurement_time_interval"]) + "min"
+    )
     timegrid = pd.date_range(
         start=start_timegrid, end=end_timegrid, freq=freq_timegrid, tz=timezone
     )

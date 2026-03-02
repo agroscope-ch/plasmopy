@@ -8,7 +8,7 @@ Input data needs to be in the form of timeseries in a semicolon-delimited CSV fi
 
 1. **Date and time** of measurement in the *%d.%m.%Y %H:%M* local timezone format.
 
-2. **Average temperature** *[°C]* in degrees Celsius.
+2. **Average temperature** *[B0C]* in degrees Celsius.
 
 3. **Relative humidity** *[%]* in percentages.
 
@@ -163,54 +163,3 @@ The output files as well as the model parameters and input files for running new
 make app
 ```
 
-## Infection algorithms
-
-### 1. Oospore maturation
-
-If oospore maturation date not observed in the field thus cannot be manually inserted, then compute it with the following formula [Gehmann 1991]:
-
-<div align="center">
-
-</div>
-
-
-### 2. Oospore germination
-
-Stage 1 of primary infection, i.e. oospore infection from soil. This stage can be run by either one of two algorithms:
-
-**Algorithm 1, oospore development**:
-
-<div align="center">
-
-
-</div>
-
-
-If no datetime could be found due to never reaching the conditions, then the oospore germination datetime can not be found and the model is interrupted for the whole season.
-
-
-**Algorithm 2, moisture penetration**:
-
-
-<div align="center">
-
-
-</div>
-
-### 3. Oospore dispersion
-
-Stage 2 of primary infection, i.e. oospore spreading through rain splashing.
-
-### 4. Oospore infection
-
-Stage 3 of primary infection, i.e. activating conditions for a successful oospore infection.
-
-### 5. Incubation
-
-### 6. Sporulation
-
-### 7. Estimation of sporangia density
-
-### 8. Estimation of spore life-span
-
-### 9. Secondary infection

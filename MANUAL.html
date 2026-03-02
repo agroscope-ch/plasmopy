@@ -365,7 +365,7 @@ precisely kept in the following order:</p>
 <ol style="list-style-type: decimal">
 <li><p><strong>Date and time</strong> of measurement in the <em>%d.%m.%Y
 %H:%M</em> local timezone format.</p></li>
-<li><p><strong>Average temperature</strong> <em>[°C]</em> in degrees
+<li><p><strong>Average temperature</strong> <em>[B0C]</em> in degrees
 Celsius.</p></li>
 <li><p><strong>Relative humidity</strong> <em>[%]</em> in
 percentages.</p></li>
@@ -592,59 +592,6 @@ infection events.</li>
 running new simulations can be interactively explored and configured
 through the <em>streamlit</em> web-app, activated with the command:</p>
 <pre class="bash"><code>make app</code></pre>
-</div>
-</div>
-<div id="infection-algorithms" class="section level2">
-<h2>Infection algorithms</h2>
-<div id="oospore-maturation" class="section level3">
-<h3>1. Oospore maturation</h3>
-<p>If oospore maturation date not observed in the field thus cannot be
-manually inserted, then compute it with the following formula [Gehmann
-1991]:</p>
-<div align="center">
-
-</div>
-</div>
-<div id="oospore-germination" class="section level3">
-<h3>2. Oospore germination</h3>
-<p>Stage 1 of primary infection, i.e. oospore infection from soil. This
-stage can be run by either one of two algorithms:</p>
-<p><strong>Algorithm 1, oospore development</strong>:</p>
-<div align="center">
-
-</div>
-<p>If no datetime could be found due to never reaching the conditions,
-then the oospore germination datetime can not be found and the model is
-interrupted for the whole season.</p>
-<p><strong>Algorithm 2, moisture penetration</strong>:</p>
-<div align="center">
-
-</div>
-</div>
-<div id="oospore-dispersion" class="section level3">
-<h3>3. Oospore dispersion</h3>
-<p>Stage 2 of primary infection, i.e. oospore spreading through rain
-splashing.</p>
-</div>
-<div id="oospore-infection" class="section level3">
-<h3>4. Oospore infection</h3>
-<p>Stage 3 of primary infection, i.e. activating conditions for a
-successful oospore infection.</p>
-</div>
-<div id="incubation" class="section level3">
-<h3>5. Incubation</h3>
-</div>
-<div id="sporulation" class="section level3">
-<h3>6. Sporulation</h3>
-</div>
-<div id="estimation-of-sporangia-density" class="section level3">
-<h3>7. Estimation of sporangia density</h3>
-</div>
-<div id="estimation-of-spore-life-span" class="section level3">
-<h3>8. Estimation of spore life-span</h3>
-</div>
-<div id="secondary-infection" class="section level3">
-<h3>9. Secondary infection</h3>
 </div>
 </div>
 </div>

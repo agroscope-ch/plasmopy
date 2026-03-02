@@ -52,6 +52,7 @@ class InfectionEvent:
         algorithmic_time_steps,
         logfile,
         oospore_infection_datetimes,
+        spore_counts_result=None,
     ):
         &#34;&#34;&#34;
         Object initialisation function.
@@ -65,6 +66,7 @@ class InfectionEvent:
         self.algorithmic_time_steps = algorithmic_time_steps
         self.logfile = logfile
         self.oospore_infection_datetimes = oospore_infection_datetimes
+        self.spore_counts_result = spore_counts_result
         self.start_event_datetime = timeseries[&#34;datetime&#34;][self.start_event_rowindex]
         self.id = start_event_rowindex
 
@@ -82,6 +84,7 @@ class InfectionEvent:
             self.algorithmic_time_steps,
             self.logfile,
             self.oospore_infection_datetimes,
+            self.spore_counts_result,
         )
 
     def __str__(self):
@@ -103,7 +106,7 @@ class InfectionEvent:
 <dl>
 <dt id="src.infection_event.InfectionEvent"><code class="flex name class">
 <span>class <span class="ident">InfectionEvent</span></span>
-<span>(</span><span>timeseries, parameters, start_event_rowindex, oospore_maturation_date, daily_mean_temperatures, algorithmic_time_steps, logfile, oospore_infection_datetimes)</span>
+<span>(</span><span>timeseries, parameters, start_event_rowindex, oospore_maturation_date, daily_mean_temperatures, algorithmic_time_steps, logfile, oospore_infection_datetimes, spore_counts_result=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Class InfectionEvent to compute and print out individual instances
@@ -130,6 +133,7 @@ of infection predictions at different datetimes across the input timeseries.</p>
         algorithmic_time_steps,
         logfile,
         oospore_infection_datetimes,
+        spore_counts_result=None,
     ):
         &#34;&#34;&#34;
         Object initialisation function.
@@ -143,6 +147,7 @@ of infection predictions at different datetimes across the input timeseries.</p>
         self.algorithmic_time_steps = algorithmic_time_steps
         self.logfile = logfile
         self.oospore_infection_datetimes = oospore_infection_datetimes
+        self.spore_counts_result = spore_counts_result
         self.start_event_datetime = timeseries[&#34;datetime&#34;][self.start_event_rowindex]
         self.id = start_event_rowindex
 
@@ -160,6 +165,7 @@ of infection predictions at different datetimes across the input timeseries.</p>
             self.algorithmic_time_steps,
             self.logfile,
             self.oospore_infection_datetimes,
+            self.spore_counts_result,
         )
 
     def __str__(self):
@@ -194,6 +200,7 @@ of infection predictions at different datetimes across the input timeseries.</p>
         self.algorithmic_time_steps,
         self.logfile,
         self.oospore_infection_datetimes,
+        self.spore_counts_result,
     )</code></pre>
 </details>
 </dd>

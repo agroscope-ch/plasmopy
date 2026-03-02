@@ -1,20 +1,28 @@
 # To launch streamlit app on browser, run this command from the terminal:
 # streamlit run plasmopy-app.py --server.enableCORS=false
+#
+# Design principle: the config/main.yaml file is NEVER modified by this app.
+# Instead, all user-selected values are passed to the model at launch time as
+# Hydra CLI overrides (key=value arguments appended to the python command).
+# This preserves the YAML file's structure, ordering, and inline comments.
 
 import os
-import pickle
 import subprocess
 from pathlib import Path
 
 import pandas as pd
 import pytz
 import streamlit as st
+import streamlit.components.v1 as components
 import yaml
 
 from src import utils
 
+# ---------------------------------------------------------------------------
+# Load config defaults (read-only — never written back by this app)
+# ---------------------------------------------------------------------------
 with open("config/main.yaml", "r") as f:
-    config = yaml.safe_load(f)
+    C = yaml.safe_load(f)
 
 
 def wide_space_default():
@@ -27,71 +35,54 @@ def read_text_file(file):
 
 wide_space_default()
 
-st.sidebar.title(
-    """
-Plasmopy *v1.0*
-"""
-)
+st.sidebar.title("Plasmopy *v1.0*")
 
 
-with open("config/main.yaml", "r") as f:
-    config_yaml = f.readlines()
-    config_yaml = "".join(config_yaml)
-    loaded_config = yaml.safe_load(f)
-
-
+# ---------------------------------------------------------------------------
+# File helpers
+# ---------------------------------------------------------------------------
 def meteo_file_selector(folder_path="data/input"):
     filenames = os.listdir(folder_path)
-    filenames.insert(0, "")  # <-- default empty
-    selected_filename = st.selectbox("Select an input weather data file:", filenames)
-    filepath = os.path.join(folder_path, selected_filename)
-    if selected_filename == "":
-        filepath = ""
-    return filepath
+    filenames.insert(0, "")
+    selected = st.selectbox("Select an input weather data file:", filenames)
+    return os.path.join(folder_path, selected) if selected else ""
 
 
 def meteo_file_uploader(folder_path="data/input"):
-    selected_filename = None
-    selected_filename = st.file_uploader(
-        "Or upload a new weather data file: *COLUMN ORDER: DATE; TEMPERATURE; HUMIDITY; RAINFALL; LEAF_WETNESS*"
+    uploaded = st.file_uploader(
+        "Or upload a new weather data file: "
+        "*COLUMN ORDER: DATE; TEMPERATURE; HUMIDITY; RAINFALL; LEAF_WETNESS*"
     )
-    if selected_filename is None:
-        filepath = ""
-    else:
-        filepath = os.path.join(folder_path, selected_filename.name)
-        dataframe = pd.read_csv(selected_filename, sep=";")
-        dataframe.to_csv(filepath, sep=";", index=False)
-        st.write(dataframe)
+    if uploaded is None:
+        return ""
+    filepath = os.path.join(folder_path, uploaded.name)
+    pd.read_csv(uploaded, sep=";").to_csv(filepath, sep=";", index=False)
     return filepath
 
 
 def sporecounts_file_selector(folder_path="data/input"):
     filenames = os.listdir(folder_path)
-    filenames.insert(0, "")  # <-- default empty
-    selected_filename = st.selectbox(
+    filenames.insert(0, "")
+    selected = st.selectbox(
         "Select an input spore counts data file: *:gray[[optional]]*", filenames
     )
-    filepath = os.path.join(folder_path, selected_filename)
-    if selected_filename == "":
-        filepath = ""
-    return filepath
+    return os.path.join(folder_path, selected) if selected else ""
 
 
 def sporecounts_file_uploader(folder_path="data/input"):
-    selected_filename = None
-    selected_filename = st.file_uploader(
+    uploaded = st.file_uploader(
         "Or upload a new spore counts data file: *:gray[[optional]]*"
     )
-    if selected_filename is None:
-        filepath = ""
-    else:
-        filepath = os.path.join(folder_path, selected_filename.name)
-        dataframe = pd.read_csv(selected_filename, sep=";")
-        dataframe.to_csv(filepath, sep=";", index=False)
-        st.write(dataframe)
+    if uploaded is None:
+        return ""
+    filepath = os.path.join(folder_path, uploaded.name)
+    pd.read_csv(uploaded, sep=";").to_csv(filepath, sep=";", index=False)
     return filepath
 
 
+# ---------------------------------------------------------------------------
+# Tabs
+# ---------------------------------------------------------------------------
 tab1, tab2, tab3 = st.tabs(["Input data", "Data processing", "Model parameters"])
 
 all_pandas_timezones = pytz.all_timezones
@@ -101,412 +92,267 @@ with tab1:
     new_input_meteo = meteo_file_uploader()
     input_spores = sporecounts_file_selector()
     new_input_spores = sporecounts_file_uploader()
+
 with tab2:
-    fast_mode = st.radio(
-        "Fast mode:",
-        options=[True, False],
-        index=0,
-    )
+    fast_mode = st.radio("Fast mode:", options=[True, False], index=0)
     measurement_time_interval = st.number_input(
         "Measurement time interval *[min]*:",
-        value=int(config["measurement_time_interval"]),
+        value=int(C["run_settings"]["measurement_time_interval"]),
         min_value=1,
     )
     computational_time_steps = st.number_input(
         "Computational step:",
-        value=int(config["computational_time_steps"]),
+        value=int(C["run_settings"]["computational_time_steps"]),
         min_value=1,
     )
     algorithmic_time_steps = st.number_input(
         "Algorithmic step:",
-        value=int(config["algorithmic_time_steps"]),
+        value=int(C["run_settings"]["algorithmic_time_steps"]),
         min_value=1,
     )
-    date_format = st.text_input("Date format", config["format_columns"][0])
+    date_format = st.text_input("Date format", C["data_columns"]["format_columns"][0])
     temperature_range = st.slider(
         "Min and Max allowed temperature *[°C]*:",
         -30,
         70,
-        (config["format_columns"][1][0], config["format_columns"][1][1]),
+        (
+            C["data_columns"]["format_columns"][1][0],
+            C["data_columns"]["format_columns"][1][1],
+        ),
     )
     humidity_range = st.slider(
         "Min and Max allowed relative humidity *[%]*:",
         0,
         100,
-        (config["format_columns"][2][0], config["format_columns"][2][1]),
+        (
+            C["data_columns"]["format_columns"][2][0],
+            C["data_columns"]["format_columns"][2][1],
+        ),
     )
     rainfall_range = st.slider(
         "Min and Max allowed rainfall intensity *[mm/h]*:",
         0,
         300,
-        (config["format_columns"][3][0], config["format_columns"][3][1]),
+        (
+            C["data_columns"]["format_columns"][3][0],
+            C["data_columns"]["format_columns"][3][1],
+        ),
     )
     leaf_wetness_range = st.slider(
         "Min and Max allowed leaf wetness *[min]*:",
         0,
         10,
-        (config["format_columns"][4][0], config["format_columns"][4][1]),
+        (
+            C["data_columns"]["format_columns"][4][0],
+            C["data_columns"]["format_columns"][4][1],
+        ),
     )
+
 with tab3:
     st.subheader("Site coordinates")
     longitude = st.number_input(
-        "Longitude *[decimal degrees]*: ", value=float(config["longitude"])
+        "Longitude *[decimal degrees]*:", value=float(C["site"]["longitude"])
     )
     latitude = st.number_input(
-        "Latitude *[decimal degrees]*: ", value=float(config["latitude"])
+        "Latitude *[decimal degrees]*:", value=float(C["site"]["latitude"])
     )
-    elevation = st.number_input("Elevation *[m]*: ", value=float(config["elevation"]))
+    elevation = st.number_input("Elevation *[m]*:", value=float(C["site"]["elevation"]))
     timezone = st.selectbox(
         "Timezone:",
         all_pandas_timezones,
-        index=all_pandas_timezones.index("Europe/Zurich"),
+        index=list(all_pandas_timezones).index(C["site"]["timezone"]),
     )
+
     st.subheader("Oospore maturation")
     oospore_maturation_date = st.text_input(
-        "Date *[%d.%m.%Y %H:%M] :gray[[keep empty to compute automatically]]*:", None
+        "Date *[%d.%m.%Y %H:%M]* :gray[[keep empty to compute automatically]]:", ""
     )
     oospore_maturation_base_temperature = st.number_input(
-        "Base temperature *[°C]*: ",
-        value=float(config["oospore_maturation_base_temperature"]),
+        "Base temperature *[°C]*:",
+        value=float(C["oospore_maturation"]["base_temperature"]),
+        key="maturation_base_temp",
     )
     oospore_maturation_sum_degree_days_threshold = st.number_input(
-        "Sum degree days threshold *[°C]*: ",
-        value=float(config["oospore_maturation_sum_degree_days_threshold"]),
+        "Sum degree days threshold *[°C·day]*:",
+        value=float(C["oospore_maturation"]["sum_degree_days_threshold"]),
     )
+
     st.subheader("Primary Infection Stage 1: oospore germination / moisturization")
     oospore_germination_algorithm = st.radio(
-        "Select oospore germination algorithm *[1 for oospore germination; 2 for moisturization]*:",
+        "Select oospore germination algorithm "
+        "*[1 = oospore germination conditions; 2 = soil moisturization]*:",
         options=[1, 2],
-        index=1,
+        index=int(C["oospore_germination"]["algorithm"]) - 1,
     )
     if oospore_germination_algorithm == 1:
         oospore_germination_relative_humidity_threshold = st.number_input(
-            "oospore_germination_relative_humidity_threshold:",
-            value=float(config["oospore_germination_relative_humidity_threshold"]),
+            "Relative humidity threshold *[%]*:",
+            value=float(C["oospore_germination"]["relative_humidity_threshold"]),
         )
         oospore_germination_leaf_wetness_threshold = st.number_input(
-            "oospore_germination_leaf_wetness_threshold:",
-            value=float(config["oospore_germination_leaf_wetness_threshold"]),
+            "Leaf wetness threshold *[min]*:",
+            value=float(C["oospore_germination"]["leaf_wetness_threshold"]),
+            key="germination_lw_thresh",
         )
         oospore_germination_base_temperature = st.number_input(
-            "oospore_germination_base_temperature:",
-            value=float(config["oospore_germination_base_temperature"]),
+            "Base temperature *[°C]*:",
+            value=float(C["oospore_germination"]["base_temperature"]),
+            key="germination_base_temp",
         )
         oospore_germination_base_duration = st.number_input(
-            "oospore_germination_base_duration:",
-            value=float(config["oospore_germination_base_duration"]),
+            "Base duration *[h]*:",
+            value=float(C["oospore_germination"]["base_duration"]),
         )
-    elif oospore_germination_algorithm == 2:
+        # Keep moisturization params at their config defaults (not shown)
+        moisturization_temperature_threshold = C["oospore_germination"][
+            "moisturization_temperature_threshold"
+        ]
+        moisturization_rainfall_threshold = C["oospore_germination"][
+            "moisturization_rainfall_threshold"
+        ]
+        moisturization_rainfall_period = C["oospore_germination"][
+            "moisturization_rainfall_period"
+        ]
+    else:
         moisturization_temperature_threshold = st.number_input(
-            "moisturization_temperature_threshold:",
-            value=float(config["moisturization_temperature_threshold"]),
+            "Moisturization temperature threshold *[°C]*:",
+            value=float(
+                C["oospore_germination"]["moisturization_temperature_threshold"]
+            ),
         )
         moisturization_rainfall_threshold = st.number_input(
-            "moisturization_rainfall_threshold:",
-            value=float(config["moisturization_rainfall_threshold"]),
+            "Moisturization rainfall threshold *[mm]*:",
+            value=float(C["oospore_germination"]["moisturization_rainfall_threshold"]),
         )
         moisturization_rainfall_period = st.number_input(
-            "moisturization_rainfall_period:",
-            value=float(config["moisturization_rainfall_period"]),
+            "Moisturization rainfall period *[h]*:",
+            value=float(C["oospore_germination"]["moisturization_rainfall_period"]),
         )
+        # Keep germination params at their config defaults (not shown)
+        oospore_germination_relative_humidity_threshold = C["oospore_germination"][
+            "relative_humidity_threshold"
+        ]
+        oospore_germination_leaf_wetness_threshold = C["oospore_germination"][
+            "leaf_wetness_threshold"
+        ]
+        oospore_germination_base_temperature = C["oospore_germination"][
+            "base_temperature"
+        ]
+        oospore_germination_base_duration = C["oospore_germination"]["base_duration"]
+
     st.subheader("Primary Infection Stage 2: oospore dispersion by rain splashing")
     oospore_dispersion_rainfall_threshold = st.number_input(
-        "oospore_dispersion_rainfall_threshold:",
-        value=float(config["oospore_dispersion_rainfall_threshold"]),
+        "Rainfall threshold *[mm]*:",
+        value=float(C["oospore_dispersion"]["rainfall_threshold"]),
     )
     oospore_dispersion_latency = st.number_input(
-        "oospore_dispersion_latency:",
-        value=float(config["oospore_dispersion_latency"]),
+        "Dispersion latency *[h]*:",
+        value=float(C["oospore_dispersion"]["latency"]),
     )
+
     st.subheader("Primary Infection Stage 3: oospore infection")
     oospore_infection_sum_degree_hours_threshold = st.number_input(
-        "oospore_infection_sum_degree_hours_threshold:",
-        value=float(config["oospore_infection_sum_degree_hours_threshold"]),
+        "Sum degree hours threshold *[°C·h]*:",
+        value=float(C["primary_infection"]["sum_degree_hours_threshold"]),
+        key="primary_infection_dh_thresh",
     )
     oospore_infection_base_temperature = st.number_input(
-        "oospore_infection_base_temperature:",
-        value=float(config["oospore_infection_base_temperature"]),
+        "Base temperature *[°C]*:",
+        value=float(C["primary_infection"]["base_temperature"]),
+        key="primary_infection_base_temp",
     )
     oospore_infection_leaf_wetness_latency = st.number_input(
-        "oospore_infection_leaf_wetness_latency:",
-        value=float(config["oospore_infection_leaf_wetness_latency"]),
+        "Leaf wetness latency *[h]*:",
+        value=float(C["primary_infection"]["leaf_wetness_latency"]),
     )
+
     st.subheader("Sporulation")
     sporulation_leaf_wetness_threshold = st.number_input(
-        "sporulation_leaf_wetness_threshold:",
-        value=float(config["sporulation_leaf_wetness_threshold"]),
+        "Leaf wetness threshold *[min]*:",
+        value=int(C["sporulation"]["leaf_wetness_threshold"]),
+        min_value=0,
+        key="sporulation_lw_thresh",
     )
     sporulation_min_humidity = st.number_input(
-        "sporulation_min_humidity:",
-        value=float(config["sporulation_min_humidity"]),
+        "Min relative humidity *[%]*:",
+        value=float(C["sporulation"]["min_humidity"]),
     )
     sporulation_min_temperature = st.number_input(
-        "sporulation_min_temperature:",
-        value=float(config["sporulation_min_temperature"]),
+        "Min temperature *[°C]*:",
+        value=float(C["sporulation"]["min_temperature"]),
+        key="sporulation_min_temp",
     )
     sporulation_min_darkness_hours = st.number_input(
-        "sporulation_min_darkness_hours:",
-        value=float(config["sporulation_min_darkness_hours"]),
+        "Min darkness hours *[h]*:",
+        value=float(C["sporulation"]["min_darkness_hours"]),
     )
+
     st.subheader("Sporangia density")
     sporangia_latency = st.number_input(
-        "sporangia_latency:",
-        value=float(config["sporangia_latency"]),
+        "Sporangia latency *[h]*:",
+        value=float(C["sporangia"]["latency"]),
     )
     sporangia_min_temperature = st.number_input(
-        "sporangia_min_temperature:",
-        value=float(config["sporangia_min_temperature"]),
+        "Min temperature *[°C]*:",
+        value=float(C["sporangia"]["min_temperature"]),
+        key="sporangia_min_temp",
     )
     sporangia_max_temperature = st.number_input(
-        "sporangia_max_temperature:",
-        value=float(config["sporangia_max_temperature"]),
+        "Max temperature *[°C]*:",
+        value=float(C["sporangia"]["max_temperature"]),
+        key="sporangia_max_temp",
     )
     sporangia_max_density = st.number_input(
-        "sporangia_max_density:",
-        value=float(config["sporangia_max_density"]),
+        "Max density *[sporangia/cm²]*:",
+        value=float(C["sporangia"]["max_density"]),
     )
-    st.subheader("Spore die-off")
+
+    st.subheader("Spore lifespan")
+    _svp_default = C["spore_lifespan"]["saturation_vapor_pressure"]
     saturation_vapor_pressure = st.number_input(
-        "Saturation vapor pressure *[hPa]* :gray[[keep empty if unknown]]:",
-        value=config["saturation_vapor_pressure"],
+        "Saturation vapor pressure *[hPa]* :gray[[0 if unknown]]:",
+        value=float(_svp_default) if _svp_default is not None else 0.0,
+        min_value=0.0,
     )
     spore_lifespan_constant = st.number_input(
-        "spore_lifespan_constant:",
-        value=float(config["spore_lifespan_constant"]),
+        "Lifespan constant:",
+        value=float(C["spore_lifespan"]["constant"]),
     )
+
     st.subheader("Secondary infections")
     secondary_infection_min_temperature = st.number_input(
-        "secondary_infection_min_temperature:",
-        value=float(config["secondary_infection_min_temperature"]),
+        "Min temperature *[°C]*:",
+        value=float(C["secondary_infection"]["min_temperature"]),
+        key="secondary_min_temp",
     )
     secondary_infection_max_temperature = st.number_input(
-        "secondary_infection_max_temperature:",
-        value=float(config["secondary_infection_max_temperature"]),
+        "Max temperature *[°C]*:",
+        value=float(C["secondary_infection"]["max_temperature"]),
+        key="secondary_max_temp",
     )
     secondary_infection_leaf_wetness_latency = st.number_input(
-        "secondary_infection_leaf_wetness_latency:",
-        value=float(config["secondary_infection_leaf_wetness_latency"]),
+        "Leaf wetness latency *[min]*:",
+        value=float(C["secondary_infection"]["leaf_wetness_latency"]),
     )
     secondary_infection_sum_degree_hours_threshold = st.number_input(
-        "secondary_infection_sum_degree_hours_threshold:",
-        value=float(config["secondary_infection_sum_degree_hours_threshold"]),
+        "Sum degree hours threshold *[°C·h]*:",
+        value=float(C["secondary_infection"]["sum_degree_hours_threshold"]),
+        key="secondary_dh_thresh",
     )
 
-if input_meteo:
-    config["input_data"]["meteo"] = input_meteo
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-else:
-    config["input_data"]["meteo"] = None
-if input_spores:
-    config["input_data"]["spore_counts"] = input_spores
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-else:
-    config["input_data"]["spore_counts"] = None
-if new_input_meteo:
-    config["input_data"]["meteo"] = os.path.relpath(new_input_meteo)
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if new_input_spores:
-    config["input_data"]["spore_counts"] = os.path.relpath(new_input_spores)
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if fast_mode is not None:
-    config["fast_mode"] = fast_mode
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if measurement_time_interval:
-    config["measurement_time_interval"] = measurement_time_interval
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if computational_time_steps:
-    config["computational_time_steps"] = computational_time_steps
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if algorithmic_time_steps:
-    config["algorithmic_time_steps"] = algorithmic_time_steps
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if date_format:
-    config["format_columns"][0] = date_format
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if temperature_range:
-    (config["format_columns"][1][0], config["format_columns"][1][1]) = temperature_range
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if humidity_range:
-    (config["format_columns"][2][0], config["format_columns"][2][1]) = humidity_range
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if rainfall_range:
-    (config["format_columns"][3][0], config["format_columns"][3][1]) = rainfall_range
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if leaf_wetness_range:
-    (
-        config["format_columns"][4][0],
-        config["format_columns"][4][1],
-    ) = leaf_wetness_range
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if longitude:
-    config["longitude"] = longitude
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if latitude:
-    config["latitude"] = latitude
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if elevation:
-    config["elevation"] = elevation
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if timezone:
-    config["timezone"] = timezone
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_maturation_date:
-    config["oospore_maturation_date"] = oospore_maturation_date
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_maturation_base_temperature:
-    config["oospore_maturation_base_temperature"] = oospore_maturation_base_temperature
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_maturation_sum_degree_days_threshold:
-    config[
-        "oospore_maturation_sum_degree_days_threshold"
-    ] = oospore_maturation_sum_degree_days_threshold
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_germination_algorithm:
-    config["oospore_germination_algorithm"] = oospore_germination_algorithm
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_germination_algorithm == 1:
-    if oospore_germination_relative_humidity_threshold:
-        config[
-            "oospore_germination_relative_humidity_threshold"
-        ] = oospore_germination_relative_humidity_threshold
-        with open("config/main.yaml", "w") as f:
-            yaml.dump(config, f)
-    if oospore_germination_leaf_wetness_threshold:
-        config[
-            "oospore_germination_leaf_wetness_threshold"
-        ] = oospore_germination_leaf_wetness_threshold
-        with open("config/main.yaml", "w") as f:
-            yaml.dump(config, f)
-    if oospore_germination_base_temperature:
-        config[
-            "oospore_germination_base_temperature"
-        ] = oospore_germination_base_temperature
-        with open("config/main.yaml", "w") as f:
-            yaml.dump(config, f)
-    if oospore_germination_base_duration:
-        config["oospore_germination_base_duration"] = oospore_germination_base_duration
-        with open("config/main.yaml", "w") as f:
-            yaml.dump(config, f)
-elif oospore_germination_algorithm == 2:
-    if moisturization_temperature_threshold:
-        config[
-            "moisturization_temperature_threshold"
-        ] = moisturization_temperature_threshold
-        with open("config/main.yaml", "w") as f:
-            yaml.dump(config, f)
-    if moisturization_rainfall_threshold:
-        config["moisturization_rainfall_threshold"] = moisturization_rainfall_threshold
-        with open("config/main.yaml", "w") as f:
-            yaml.dump(config, f)
-if oospore_dispersion_rainfall_threshold:
-    config[
-        "oospore_dispersion_rainfall_threshold"
-    ] = oospore_dispersion_rainfall_threshold
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_dispersion_latency:
-    config["oospore_dispersion_latency"] = oospore_dispersion_latency
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_infection_sum_degree_hours_threshold:
-    config[
-        "oospore_infection_sum_degree_hours_threshold"
-    ] = oospore_infection_sum_degree_hours_threshold
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_infection_base_temperature:
-    config["oospore_infection_base_temperature"] = oospore_infection_base_temperature
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if oospore_infection_leaf_wetness_latency:
-    config[
-        "oospore_infection_leaf_wetness_latency"
-    ] = oospore_infection_leaf_wetness_latency
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if sporulation_leaf_wetness_threshold:
-    config["sporulation_leaf_wetness_threshold"] = sporulation_leaf_wetness_threshold
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if sporulation_min_humidity:
-    config["sporulation_min_humidity"] = sporulation_min_humidity
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if sporulation_min_temperature:
-    config["sporulation_min_temperature"] = sporulation_min_temperature
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if sporulation_min_darkness_hours:
-    config["sporulation_min_darkness_hours"] = sporulation_min_darkness_hours
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if sporangia_latency:
-    config["sporangia_latency"] = sporangia_latency
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if sporangia_min_temperature:
-    config["sporangia_min_temperature"] = sporangia_min_temperature
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if sporangia_max_temperature:
-    config["sporangia_max_temperature"] = sporangia_max_temperature
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if sporangia_max_density:
-    config["sporangia_max_density"] = sporangia_max_density
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if saturation_vapor_pressure:
-    config["saturation_vapor_pressure"] = saturation_vapor_pressure
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if spore_lifespan_constant:
-    config["spore_lifespan_constant"] = spore_lifespan_constant
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if secondary_infection_min_temperature:
-    config["secondary_infection_min_temperature"] = secondary_infection_min_temperature
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if secondary_infection_max_temperature:
-    config["secondary_infection_max_temperature"] = secondary_infection_max_temperature
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if secondary_infection_leaf_wetness_latency:
-    config[
-        "secondary_infection_leaf_wetness_latency"
-    ] = secondary_infection_leaf_wetness_latency
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
-if secondary_infection_sum_degree_hours_threshold:
-    config[
-        "secondary_infection_sum_degree_hours_threshold"
-    ] = secondary_infection_sum_degree_hours_threshold
-    with open("config/main.yaml", "w") as f:
-        yaml.dump(config, f)
+
+# ---------------------------------------------------------------------------
+# Resolve active file paths (uploaded > selected > config default)
+# ---------------------------------------------------------------------------
+active_meteo = new_input_meteo or input_meteo or C["input_data"].get("meteo", "") or ""
+active_spores = (
+    new_input_spores or input_spores or C["input_data"].get("spore_counts", "") or ""
+)
 
 
+# ---------------------------------------------------------------------------
+# Sidebar: manual / readme
+# ---------------------------------------------------------------------------
 manual_markdown = read_text_file("MANUAL.md")
 readme_markdown = read_text_file("README.md")
 
@@ -515,11 +361,167 @@ with st.sidebar.popover("Click to view **:red[MANUAL]**", use_container_width=Tr
 with st.sidebar.popover("Click to view **:red[README]**", use_container_width=True):
     st.markdown(readme_markdown, unsafe_allow_html=True)
 
+
+# ---------------------------------------------------------------------------
+# Build Hydra CLI overrides
+#
+# The config/main.yaml is NEVER written by this function.  All user choices
+# from the widgets above are serialised as Hydra override strings and passed
+# as extra arguments to `python src/main.py`.  Hydra merges them on top of
+# the base YAML at runtime, so the file on disk stays untouched.
+#
+# Hydra override syntax for nested keys: parent.child=value
+# Lists:  key=[v1,v2]   (OmegaConf list literal)
+# Strings with spaces or % must be single-quoted: key='%d.%m.%Y %H:%M'
+# Null:   key=null
+# ---------------------------------------------------------------------------
+def _q(v):
+    """Quote a string value for OmegaConf if it contains spaces or %."""
+    s = str(v)
+    if any(c in s for c in (" ", "%", "/")):
+        return f"'{s}'"
+    return s
+
+
+def build_hydra_overrides():
+    ov = []
+
+    # Input files
+    ov.append(f"input_data.meteo={_q(active_meteo) if active_meteo else 'null'}")
+    ov.append(
+        f"input_data.spore_counts={_q(active_spores) if active_spores else 'null'}"
+    )
+
+    # Site
+    ov.append(f"site.latitude={latitude}")
+    ov.append(f"site.longitude={longitude}")
+    ov.append(f"site.elevation={elevation}")
+    ov.append(f"site.timezone={_q(timezone)}")
+
+    # Run settings
+    ov.append(f"run_settings.fast_mode={'true' if fast_mode else 'false'}")
+    ov.append(f"run_settings.measurement_time_interval={measurement_time_interval}")
+    ov.append(f"run_settings.computational_time_steps={computational_time_steps}")
+    ov.append(f"run_settings.algorithmic_time_steps={algorithmic_time_steps}")
+
+    # Data columns — format_columns keys are integer-keyed dict in the YAML
+    ov.append(f"data_columns.format_columns.0={_q(date_format)}")
+    ov.append(
+        f"data_columns.format_columns.1=[{temperature_range[0]},{temperature_range[1]}]"
+    )
+    ov.append(
+        f"data_columns.format_columns.2=[{humidity_range[0]},{humidity_range[1]}]"
+    )
+    ov.append(
+        f"data_columns.format_columns.3=[{rainfall_range[0]},{rainfall_range[1]}]"
+    )
+    ov.append(
+        f"data_columns.format_columns.4=[{leaf_wetness_range[0]},{leaf_wetness_range[1]}]"
+    )
+
+    # Oospore maturation
+    if oospore_maturation_date:
+        ov.append(f"oospore_maturation.date={_q(oospore_maturation_date)}")
+    ov.append(
+        f"oospore_maturation.base_temperature={oospore_maturation_base_temperature}"
+    )
+    ov.append(
+        f"oospore_maturation.sum_degree_days_threshold="
+        f"{oospore_maturation_sum_degree_days_threshold}"
+    )
+
+    # Oospore germination
+    ov.append(f"oospore_germination.algorithm={oospore_germination_algorithm}")
+    ov.append(
+        f"oospore_germination.relative_humidity_threshold="
+        f"{oospore_germination_relative_humidity_threshold}"
+    )
+    ov.append(
+        f"oospore_germination.leaf_wetness_threshold="
+        f"{oospore_germination_leaf_wetness_threshold}"
+    )
+    ov.append(
+        f"oospore_germination.base_temperature={oospore_germination_base_temperature}"
+    )
+    ov.append(f"oospore_germination.base_duration={oospore_germination_base_duration}")
+    ov.append(
+        f"oospore_germination.moisturization_temperature_threshold="
+        f"{moisturization_temperature_threshold}"
+    )
+    ov.append(
+        f"oospore_germination.moisturization_rainfall_threshold="
+        f"{moisturization_rainfall_threshold}"
+    )
+    ov.append(
+        f"oospore_germination.moisturization_rainfall_period="
+        f"{moisturization_rainfall_period}"
+    )
+
+    # Oospore dispersion
+    ov.append(
+        f"oospore_dispersion.rainfall_threshold={oospore_dispersion_rainfall_threshold}"
+    )
+    ov.append(f"oospore_dispersion.latency={oospore_dispersion_latency}")
+
+    # Primary infection
+    ov.append(
+        f"primary_infection.sum_degree_hours_threshold="
+        f"{oospore_infection_sum_degree_hours_threshold}"
+    )
+    ov.append(
+        f"primary_infection.base_temperature={oospore_infection_base_temperature}"
+    )
+    ov.append(
+        f"primary_infection.leaf_wetness_latency={oospore_infection_leaf_wetness_latency}"
+    )
+
+    # Sporulation
+    ov.append(
+        f"sporulation.leaf_wetness_threshold={sporulation_leaf_wetness_threshold}"
+    )
+    ov.append(f"sporulation.min_humidity={sporulation_min_humidity}")
+    ov.append(f"sporulation.min_temperature={sporulation_min_temperature}")
+    ov.append(f"sporulation.min_darkness_hours={sporulation_min_darkness_hours}")
+
+    # Sporangia
+    ov.append(f"sporangia.latency={sporangia_latency}")
+    ov.append(f"sporangia.min_temperature={sporangia_min_temperature}")
+    ov.append(f"sporangia.max_temperature={sporangia_max_temperature}")
+    ov.append(f"sporangia.max_density={sporangia_max_density}")
+
+    # Spore lifespan
+    svp = saturation_vapor_pressure if saturation_vapor_pressure != 0.0 else "null"
+    ov.append(f"spore_lifespan.saturation_vapor_pressure={svp}")
+    ov.append(f"spore_lifespan.constant={spore_lifespan_constant}")
+
+    # Secondary infection
+    ov.append(
+        f"secondary_infection.min_temperature={secondary_infection_min_temperature}"
+    )
+    ov.append(
+        f"secondary_infection.max_temperature={secondary_infection_max_temperature}"
+    )
+    ov.append(
+        f"secondary_infection.leaf_wetness_latency="
+        f"{secondary_infection_leaf_wetness_latency}"
+    )
+    ov.append(
+        f"secondary_infection.sum_degree_hours_threshold="
+        f"{secondary_infection_sum_degree_hours_threshold}"
+    )
+
+    return ov
+
+
+# ---------------------------------------------------------------------------
+# Sidebar: run button
+# ---------------------------------------------------------------------------
 start_button = st.sidebar.button(
     "**RUN MODEL**", type="primary", use_container_width=True
 )
 if start_button:
-    command = ["make", "run"]
+    overrides = build_hydra_overrides()
+    command = ["poetry", "run", "python3", "src/main.py"] + overrides
     st.info("Computing infection predictions...")
     model_run = subprocess.Popen(
         command,
@@ -534,99 +536,79 @@ if start_button:
             continue
         model_info.write(line.strip())
 
-if input_meteo or new_input_meteo:
+
+# ---------------------------------------------------------------------------
+# Results display
+# ---------------------------------------------------------------------------
+if active_meteo:
     output_files = utils.create_output_filenames(
-        config["input_data"]["meteo"], config["input_data"]["spore_counts"]
+        active_meteo,
+        active_spores or None,
+        output_dir=C.get("output", {}).get("directory"),
+        run_name=C.get("output", {}).get("run_name"),
     )
-    if os.path.isfile(output_files.logfile) is True:
+
+    if os.path.isfile(output_files.logfile):
         progress_text = "Loading: model prediction data..."
         bar = st.progress(0, text=progress_text)
 
+        # Download buttons
         col1, col2, col3, col4 = st.columns(4)
-
-        with open(output_files.logfile, "r") as log_file:
-            log = log_file.read()
+        with open(output_files.logfile, "r") as lf:
+            log = lf.read()
         with col1:
             st.download_button("Download logfile", data=log, file_name="logfile.txt")
-        with open(output_files.events_text, "r") as events_file:
-            events = events_file.read()
+        with open(output_files.events_text, "r") as ef:
+            events = ef.read()
         with col2:
             st.download_button("Download events", data=events, file_name="events.csv")
-        with open(output_files.infection_datetimes, "r") as infections_file:
-            infections = infections_file.read()
+        with open(output_files.infection_datetimes, "r") as inf_f:
+            infections = inf_f.read()
         with col3:
             st.download_button(
                 "Download infection datetimes",
                 data=infections,
                 file_name="infections.csv",
             )
-        with open(output_files.pdf_graph, "rb") as pdf_file:
-            PDFbyte = pdf_file.read()
+        with open(output_files.pdf_graph, "rb") as pdf_f:
+            PDFbyte = pdf_f.read()
         with col4:
             st.download_button(
                 "Download PDF graph", data=PDFbyte, file_name="graph.pdf"
             )
 
-        with open(output_files.events_dict, "rb") as pickle_file:
-            infection_events = pickle.load(pickle_file)
-        bar.progress(33, text=progress_text)
-        with open(output_files.model_params, "rb") as pickle_file:
-            model_parameters = pickle.load(pickle_file)
-        bar.progress(66, text=progress_text)
+        bar.progress(40, text=progress_text)
 
         try:
-            fig = utils.plot_events(
-                infection_events,
-                model_parameters,
-                [output_files.pdf_graph, output_files.html_graph],
-            )
-            st.subheader("Infection events")
-            st.plotly_chart(fig, use_container_width=True)
+            # ── Analysis plot: full infection-chain view ──────────────────
+            if os.path.isfile(output_files.analysis_html):
+                st.subheader("Infection analysis")
+                components.html(
+                    Path(output_files.analysis_html).read_text(encoding="utf-8"),
+                    height=730,
+                    scrolling=True,
+                )
+            bar.progress(70, text=progress_text)
 
+            # ── Overview plot: spore counts + coloured backgrounds ────────
+            if os.path.isfile(output_files.overview_html):
+                st.subheader("Spore counts & infection overview")
+                components.html(
+                    Path(output_files.overview_html).read_text(encoding="utf-8"),
+                    height=530,
+                    scrolling=True,
+                )
             bar.progress(100, text="Model prediction data: loading complete.")
 
-        except TypeError:
+        except (TypeError, FileNotFoundError):
             st.info(
-                "No infection prediction results found, run a new prediction with the RUN MODEL button to access results."
+                "No infection prediction results found — "
+                "run a new prediction with the RUN MODEL button to access results."
             )
             bar.progress(0, text="Model prediction data: run a new simulation.")
-        except FileNotFoundError:
-            st.info(
-                "No infection prediction results found, run a new prediction with the RUN MODEL button to access results."
-            )
-            bar.progress(0, text="Model prediction data:  run a new simulation.")
+
     else:
         st.info("No corresponding simulation found, run a new one.")
+
 else:
     st.info("Select stored data or run a new prediction with the RUN MODEL button.")
-
-
-## Show Weather Data ---> Too much memory for streamlit web-app, left out for now.
-# progress_text = "Loading: meteorological data..."
-# bar = st.progress(0, text=progress_text)
-# df = pd.read_csv(output_files.processed_file_meteo)
-# df["datetime"] = [
-#     datetime.strftime(datetime.strptime(x, "%Y-%m-%d %H:%M:%S%z"), "%d/%m/%y %H:%M")
-#     for x in df["datetime"]
-# ]
-# variable_displaynames = {
-#     "temperature": "Temperature [°C]",
-#     "humidity": "Relative humidity [%]",
-#     "rainfall": "Rainfall intensity [mm/hr]",
-#     "leaf_wetness": "Leaf wetness [minutes]",
-# }
-#
-# for i, var in enumerate(variable_displaynames.keys()):
-#     progress_text = "Loading: " + var + "..."
-#     percent_complete = i / len(variable_displaynames.keys())
-#     bar.progress(percent_complete, text=progress_text)
-#     st.subheader(variable_displaynames[var])
-#     plot = (
-#         alt.Chart(df)
-#         .mark_line()
-#         .encode(
-#             x=alt.X("datetime", sort=None).title(None), y=alt.Y(var).title(None)
-#         )
-#     )
-#     st.altair_chart(plot, use_container_width=True)
-# bar.progress(100, text="Meteorological data: loading complete.")

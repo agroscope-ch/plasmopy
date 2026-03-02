@@ -1,71 +1,160 @@
-algorithmic_time_steps: 1
-computational_time_steps: 6
-elevation: 439.0
-fast_mode: true
-format_columns:
-  0: '%d.%m.%Y %H:%M'
-  1:
-  - -20
-  - 50
-  2:
-  - 0
-  - 100
-  3:
-  - 0
-  - 200
-  4:
-  - 0
-  - 10
 hydra:
   output_subdir: null
   run:
     dir: .
+
+# -----------------------------------------------------------------------------
+# INPUT DATA
+# -----------------------------------------------------------------------------
 input_data:
-  meteo: data/input/2024_meteo_changins.csv
-  spore_counts: null
-latitude: 46.4
-longitude: 6.2
-measurement_time_interval: 10
-moisturization_rainfall_period: 48
-moisturization_rainfall_threshold: 5.0
-moisturization_temperature_threshold: 8.0
-oospore_dispersion_latency: 6.0
-oospore_dispersion_rainfall_threshold: 3.0
-oospore_germination_algorithm: 2
-oospore_germination_base_duration: 8
-oospore_germination_base_temperature: 8
-oospore_germination_leaf_wetness_threshold: 10
-oospore_germination_relative_humidity_threshold: 80
-oospore_infection_base_temperature: 8.0
-oospore_infection_leaf_wetness_latency: 6.0
-oospore_infection_sum_degree_hours_threshold: 50.0
-oospore_maturation_base_temperature: 8.0
-oospore_maturation_date: null
-oospore_maturation_sum_degree_days_threshold: 140.0
-rename_columns:
-  0: datetime
-  1: temperature
-  2: humidity
-  3: rainfall
-  4: leaf_wetness
-saturation_vapor_pressure: null
-secondary_infection_leaf_wetness_latency: 60.0
-secondary_infection_max_temperature: 29.0
-secondary_infection_min_temperature: 3.0
-secondary_infection_sum_degree_hours_threshold: 50.0
-sporangia_latency: 4.0
-sporangia_max_density: 300000.0
-sporangia_max_temperature: 17.5
-sporangia_min_temperature: 11.0
-spore_lifespan_constant: 11.35
-sporulation_leaf_wetness_threshold: 0
-sporulation_min_darkness_hours: 4.0
-sporulation_min_humidity: 92.0
-sporulation_min_temperature: 12.0
-timezone: Europe/Zurich
-use_columns:
-- 0
-- 1
-- 2
-- 3
-- 4
+  meteo: data/input/2023_meteo_changins.csv
+  spore_counts: data/input/2023_qPCR_changins.labo.exterieur.csv
+  support_decision_tool_enabled: true
+  automated_spore_pull: false
+  spore_counts_api_query: 
+  spore_count_threshold: 5          # condition 1: any day's total exceeds this count
+  spore_count_lookback_days: 3       # condition 2: number of days to consider for percent increase
+  spore_count_percent_increase: 20   # condition 2: minimum percent increase over the lookback window
+  automated_data_pull: false
+  weather_api_query: 
+
+# -----------------------------------------------------------------------------
+# OUTPUT / RUN IDENTIFIER
+# -----------------------------------------------------------------------------
+# You may optionally provide a name for this simulation run.  This string is used
+# as the base name for all output files and the subfolder created beneath the
+# output directory.  When left null (default), the program derives the name from
+# the meteorological input filename stem.  Explicit names are useful when no
+# meteo file is available (e.g. when relying solely on automated data pulls) or
+# when running multiple experiments with identical input paths.
+output:
+  directory: data/output       # base directory for results (can be overridden)
+  run_name: test_changins_2023       # custom run name (null to derive from meteo file)
+
+# -----------------------------------------------------------------------------
+# SITE PARAMETERS
+# -----------------------------------------------------------------------------
+site:
+  latitude: 46.4
+  longitude: 6.2
+  elevation: 439.0
+  timezone: Europe/Zurich
+
+# -----------------------------------------------------------------------------
+# RUN SETTINGS
+# -----------------------------------------------------------------------------
+run_settings:
+  algorithmic_time_steps: 1 # number of time steps to compute per measurement interval (e.g. 1 = 4-hour steps)
+  computational_time_steps: 6 # number of time steps to simulate (e.g. 6 = 1 day with 4-hour steps)
+  measurement_time_interval: 10 # minutes between consecutive measurements in the input data
+  fast_mode: true
+
+# -----------------------------------------------------------------------------
+# DATA COLUMN SETTINGS
+# -----------------------------------------------------------------------------
+data_columns:
+  use_columns:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+  rename_columns:
+    0: datetime
+    1: temperature
+    2: humidity
+    3: rainfall
+    4: leaf_wetness
+  format_columns:
+    0: '%d.%m.%Y %H:%M'
+    1:
+      - -20
+      - 50
+    2:
+      - 0
+      - 100
+    3:
+      - 0
+      - 200
+    4:
+      - 0
+      - 10
+
+# -----------------------------------------------------------------------------
+# OOSPORE MATURATION
+# Maturation accumulates degree-days above base_temperature until
+# sum_degree_days_threshold is reached.  Set date explicitly to skip computation.
+# -----------------------------------------------------------------------------
+oospore_maturation:
+  date: null                        # pre-set date (DD.MM.YYYY HH:MM); null = compute
+  base_temperature: 8.0             # [°C] base temperature for degree-day accumulation
+  sum_degree_days_threshold: 140.0  # [°C·day] cumulative threshold to reach maturation
+
+# -----------------------------------------------------------------------------
+# OOSPORE GERMINATION
+# Germination requires soil moisturization followed by favourable conditions.
+# -----------------------------------------------------------------------------
+oospore_germination:
+  algorithm: 2                           # germination algorithm variant (1 or 2)
+  base_temperature: 8                    # [°C] minimum temperature for germination
+  base_duration: 8                       # [h] minimum duration of favourable conditions
+  leaf_wetness_threshold: 10             # [min/10-min interval] minimum leaf wetness
+  relative_humidity_threshold: 80        # [%] minimum relative humidity
+  moisturization_temperature_threshold: 8.0   # [°C] min temperature for soil moisturization
+  moisturization_rainfall_threshold: 5.0      # [mm] min cumulative rainfall for moisturization
+  moisturization_rainfall_period: 48          # [h] look-back window for rainfall accumulation
+
+# -----------------------------------------------------------------------------
+# OOSPORE DISPERSION
+# Oospores are dispersed by rain splash after germination.
+# -----------------------------------------------------------------------------
+oospore_dispersion:
+  rainfall_threshold: 3.0   # [mm] minimum rainfall required to trigger dispersion
+  latency: 6.0               # [h] minimum hours after germination before dispersion
+
+# -----------------------------------------------------------------------------
+# PRIMARY INFECTION (oospore infection)
+# Conditions required for dispersed oospores to successfully infect leaf tissue.
+# -----------------------------------------------------------------------------
+primary_infection:
+  base_temperature: 8.0                 # [°C] minimum temperature for infection
+  leaf_wetness_latency: 6.0             # [h] minimum leaf wetness duration required
+  sum_degree_hours_threshold: 50.0      # [°C·h] cumulative threshold to complete infection
+
+# -----------------------------------------------------------------------------
+# SPORULATION
+# Conditions for sporangiophore emergence from infected tissue after incubation.
+# -----------------------------------------------------------------------------
+sporulation:
+  leaf_wetness_threshold: 0     # [min/10-min interval] minimum leaf wetness
+  min_humidity: 92.0            # [%] minimum relative humidity
+  min_temperature: 12.0         # [°C] minimum temperature
+  min_darkness_hours: 4.0       # [h] minimum continuous darkness hours required
+
+# -----------------------------------------------------------------------------
+# SPORANGIA
+# Parameters controlling sporangia density calculation after sporulation.
+# -----------------------------------------------------------------------------
+sporangia:
+  latency: 4.0              # [h] minimum hours after sporulation before sporangia mature
+  max_density: 300000.0     # [sporangia/cm²] maximum possible density
+  max_temperature: 17.5     # [°C] optimal upper temperature for sporangia production
+  min_temperature: 11.0     # [°C] minimum temperature for sporangia production
+
+# -----------------------------------------------------------------------------
+# SPORE LIFESPAN
+# Parameters for estimating how long sporangia remain viable.
+# -----------------------------------------------------------------------------
+spore_lifespan:
+  constant: 11.35               # empirical constant for lifespan calculation
+  saturation_vapor_pressure: null  # [hPa] site saturation vapour pressure; null = compute
+
+# -----------------------------------------------------------------------------
+# SECONDARY INFECTION
+# Conditions for sporangia to cause secondary (polycyclic) infections.
+# -----------------------------------------------------------------------------
+secondary_infection:
+  min_temperature: 3.0                  # [°C] minimum temperature
+  max_temperature: 29.0                 # [°C] maximum temperature
+  leaf_wetness_latency: 60.0            # [min] minimum leaf wetness duration
+  sum_degree_hours_threshold: 50.0      # [°C·h] cumulative threshold to complete infection

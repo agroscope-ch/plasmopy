@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>src.automated_data_pull API documentation</title>
+<meta name="description" content="Automated weather data pull module …" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>src.automated_data_pull</code></h1>
+</header>
+<section id="section-intro">
+<p>Automated weather data pull module.</p>
+<p>This module handles periodic fetching of weather data from an API,
+parsing it, and merging it with existing weather data files while
+preserving historical values.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;
+Automated weather data pull module.
+
+This module handles periodic fetching of weather data from an API,
+parsing it, and merging it with existing weather data files while
+preserving historical values.
+&#34;&#34;&#34;
+
+import io
+import threading
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+import requests
+
+
+def fetch_weather_data_from_api(api_query_url, logfile=None):
+    &#34;&#34;&#34;
+    Fetch weather data from the specified API query URL.
+
+    Arguments
+    ---------
+    api_query_url : str
+        The API query URL to fetch weather data from
+
+    logfile : str, optional
+        Path to logfile for writing status messages
+
+    Returns
+    -------
+    str or None
+        CSV formatted string of weather data, or None if fetch fails
+
+    &#34;&#34;&#34;
+
+    def log_message(msg):
+        &#34;&#34;&#34;Helper function to write to logfile and console.&#34;&#34;&#34;
+        print(msg)
+        if logfile is not None:
+            try:
+                with open(logfile, &#34;a&#34;) as f:
+                    f.write(msg + &#34;\n&#34;)
+            except Exception as e:
+                print(f&#34;Warning: Could not write to logfile: {e}&#34;)
+
+    try:
+        # Attempt to fetch JSON data from the API
+        response = requests.get(api_query_url, timeout=30)
+        response.raise_for_status()
+        data_json = response.json()
+
+        # Expecting structure similar to Meteoblue basic-1h response
+        if &#34;data_1h&#34; in data_json:
+            block = data_json[&#34;data_1h&#34;]
+            # build dataframe from lists
+            df = pd.DataFrame(
+                {
+                    &#34;datetime&#34;: block.get(&#34;time&#34;, []),
+                    &#34;temperature&#34;: block.get(&#34;temperature&#34;, []),
+                    &#34;humidity&#34;: block.get(&#34;relativehumidity&#34;, []),
+                    &#34;rainfall&#34;: block.get(&#34;precipitation&#34;, []),
+                    &#34;leaf_wetness&#34;: block.get(&#34;leafwetnessindex&#34;, []),
+                }
+            )
+            # format datetime field
+            df[&#34;datetime&#34;] = pd.to_datetime(df[&#34;datetime&#34;]).dt.strftime(
+                &#34;%d.%m.%Y %H:%M&#34;
+            )
+            log_message(
+                f&#34;Fetched {len(df)} rows  |  &#34;
+                f&#34;{df[&#39;datetime&#39;].iloc[0]}  →  {df[&#39;datetime&#39;].iloc[-1]}&#34;
+            )
+            csv_data = df.to_csv(index=False, sep=&#34;;&#34;)
+        else:
+            # fallback to mock behavior if unexpected JSON
+            msg = &#34;API response missing expected &#39;data_1h&#39; block; using mock data.&#34;
+            log_message(msg)
+            csv_data = _get_mock_weather_data()
+
+        msg = f&#34;Successfully fetched weather data from API at {datetime.now()}&#34;
+        log_message(msg)
+
+        return csv_data
+
+    except requests.exceptions.RequestException as e:
+        msg = f&#34;Error fetching weather data from API: {str(e)}&#34;
+        log_message(msg)
+        return None
+    except ValueError as e:
+        msg = f&#34;Error parsing JSON from API response: {str(e)}&#34;
+        log_message(msg)
+        return None
+    except Exception as e:
+        msg = f&#34;Unexpected error during weather data fetch: {str(e)}&#34;
+        log_message(msg)
+        return None
+
+
+def merge_weather_data(
+    existing_file_path, new_csv_data, logfile=None
+):
+    &#34;&#34;&#34;
+    Merge new weather data with existing weather data file.
+
+    Updates datetime entries that exist in new data while preserving
+    historical values for datetimes not present in the new data.
+
+    Arguments
+    ---------
+    existing_file_path : str
+        Path to the existing weather data CSV file
+
+    new_csv_data : str
+        CSV formatted string of new weather data
+
+    logfile : str, optional
+        Path to logfile for writing status messages
+
+    Returns
+    -------
+    bool
+        True if merge was successful, False otherwise
+
+    &#34;&#34;&#34;
+
+    def log_message(msg):
+        &#34;&#34;&#34;Helper function to write to logfile and console.&#34;&#34;&#34;
+        print(msg)
+        if logfile is not None:
+            try:
+                with open(logfile, &#34;a&#34;) as f:
+                    f.write(msg + &#34;\n&#34;)
+            except Exception as e:
+                print(f&#34;Warning: Could not write to logfile: {e}&#34;)
+
+    try:
+        # Load existing data (semicolon-separated)
+        if not Path(existing_file_path).exists():
+            msg = f&#34;Existing file not found: {existing_file_path}. Creating new file with fetched data.&#34;
+            log_message(msg)
+            with open(existing_file_path, &#34;w&#34;) as f:
+                f.write(new_csv_data)
+            return True
+
+        try:
+            existing_df = pd.read_csv(existing_file_path, sep=&#34;;&#34;)
+        except pd.errors.EmptyDataError:
+            # File exists but is completely empty (e.g. created as a placeholder
+            # before the first automated pull).  Treat it like a new file.
+            msg = f&#34;Existing file {existing_file_path} is empty. Writing fetched data directly.&#34;
+            log_message(msg)
+            with open(existing_file_path, &#34;w&#34;) as f:
+                f.write(new_csv_data)
+            return True
+
+        # If the file only had a header row (no data rows), replace it entirely.
+        if existing_df.empty:
+            msg = f&#34;Existing file {existing_file_path} has no data rows. Writing fetched data directly.&#34;
+            log_message(msg)
+            with open(existing_file_path, &#34;w&#34;) as f:
+                f.write(new_csv_data)
+            return True
+
+        # Load new data from CSV string (semicolon-separated)
+        new_df = pd.read_csv(io.StringIO(new_csv_data), sep=&#34;;&#34;)
+
+        # Ensure both have same column names
+        if list(existing_df.columns) != list(new_df.columns):
+            msg = &#34;Warning: Column mismatch between existing and new data. Attempting to match columns.&#34;
+            log_message(msg)
+            # Rename new columns to match existing if possible
+            if len(existing_df.columns) == len(new_df.columns):
+                new_df.columns = existing_df.columns
+            else:
+                msg = &#34;Error: Column count mismatch. Cannot merge data.&#34;
+                log_message(msg)
+                return False
+
+        # Assume first column is datetime
+        datetime_col = existing_df.columns[0]
+
+        # Parse datetime columns
+        existing_df[datetime_col] = pd.to_datetime(
+            existing_df[datetime_col], format=&#34;%d.%m.%Y %H:%M&#34;
+        )
+        new_df[datetime_col] = pd.to_datetime(
+            new_df[datetime_col], format=&#34;%d.%m.%Y %H:%M&#34;
+        )
+
+        # Merge: keep all from existing, update with new values where datetime matches
+        # Set datetime as index for merge
+        existing_df_indexed = existing_df.set_index(datetime_col)
+        new_df_indexed = new_df.set_index(datetime_col)
+
+        # Update existing data with new data where datetimes match
+        existing_df_indexed.update(new_df_indexed)
+
+        # Add any new datetimes from new data that weren&#39;t in existing
+        new_datetimes = new_df_indexed.index.difference(
+            existing_df_indexed.index
+        )
+        if len(new_datetimes) &gt; 0:
+            existing_df_indexed = pd.concat(
+                [existing_df_indexed, new_df_indexed.loc[new_datetimes]]
+            )
+
+        # Sort by datetime
+        existing_df_indexed = existing_df_indexed.sort_index()
+
+        # Reset index and convert datetime back to string format
+        merged_df = existing_df_indexed.reset_index()
+        merged_df[datetime_col] = merged_df[datetime_col].dt.strftime(
+            &#34;%d.%m.%Y %H:%M&#34;
+        )
+
+        # Write back to file
+        merged_df.to_csv(
+            existing_file_path,
+            index=False,
+            sep=&#34;;&#34;,
+            quoting=None,
+        )
+
+        msg = (
+            f&#34;Successfully merged new weather data into {existing_file_path}. &#34;
+            f&#34;Added/Updated {len(new_df)} records.&#34;
+        )
+        log_message(msg)
+        return True
+
+    except Exception as e:
+        msg = f&#34;Error merging weather data: {str(e)}&#34;
+        log_message(msg)
+        return False
+
+
+def start_periodic_data_pull(
+    meteo_file_path,
+    api_query_url,
+    logfile=None,
+    stop_event=None,
+):
+    &#34;&#34;&#34;
+    Start a background thread to fetch and merge weather data once.
+
+    Since external scheduling (bash/cron) controls execution frequency,
+    this thread performs a single fetch/merge operation during startup
+    to populate the weather file with current data.
+
+    Arguments
+    ---------
+    meteo_file_path : str
+        Path to the weather data file to update
+
+    api_query_url : str
+        API query URL to fetch data from
+
+    logfile : str, optional
+        Path to logfile for writing status messages
+
+    stop_event : threading.Event, optional
+        Event to signal stopping (not used for one-shot execution)
+
+    Returns
+    -------
+    threading.Thread or None
+        The background thread object, or None if parameters invalid
+
+    &#34;&#34;&#34;
+
+    def log_message(msg):
+        &#34;&#34;&#34;Helper function to write to logfile and console.&#34;&#34;&#34;
+        print(msg)
+        if logfile is not None:
+            try:
+                with open(logfile, &#34;a&#34;) as f:
+                    f.write(msg + &#34;\n&#34;)
+            except Exception as e:
+                print(f&#34;Warning: Could not write to logfile: {e}&#34;)
+
+    # Validate parameters
+    if api_query_url is None:
+        msg = &#34;Error: No API query URL provided.&#34;
+        log_message(msg)
+        return None
+
+    def _pull_once():
+        &#34;&#34;&#34;Background thread to perform a single weather data fetch/merge.&#34;&#34;&#34;
+        msg = &#34;Automated weather data pull started (runs once per model execution).&#34;
+        log_message(msg)
+
+        # Fetch and merge data
+        msg = f&#34;Pulling weather data from API at {datetime.now()}&#34;
+        log_message(msg)
+
+        csv_data = fetch_weather_data_from_api(api_query_url, logfile)
+
+        if csv_data is not None:
+            success = merge_weather_data(
+                meteo_file_path, csv_data, logfile
+            )
+            if success:
+                msg = f&#34;Weather data updated successfully at {datetime.now()}&#34;
+            else:
+                msg = f&#34;Failed to merge weather data at {datetime.now()}&#34;
+        else:
+            msg = f&#34;Failed to fetch weather data at {datetime.now()}&#34;
+
+        log_message(msg)
+
+    # Create and start background thread
+    thread = threading.Thread(target=_pull_once, daemon=True)
+    msg = &#34;Starting automated data pull thread...&#34;
+    log_message(msg)
+
+    return thread
+
+
+def _get_mock_weather_data():
+    &#34;&#34;&#34;
+    Generate mock weather data for testing/demo purposes.
+
+    Returns
+    -------
+    str
+        CSV formatted string with mock weather data
+
+    &#34;&#34;&#34;
+    # Mock data in the same format as actual weather files
+    mock_data = &#34;&#34;&#34;date;temperature;humidity;rainfall;leaf_wetness
+02.03.2026 08:00;5.2;75;0;0
+02.03.2026 09:00;6.1;72;0;0
+02.03.2026 10:00;7.5;68;0;0
+02.03.2026 11:00;8.9;65;0;0
+02.03.2026 12:00;10.2;60;0;0
+02.03.2026 13:00;11.5;58;0;0
+02.03.2026 14:00;12.1;55;0;0
+02.03.2026 15:00;11.8;57;0;0
+02.03.2026 16:00;10.5;62;0;0
+02.03.2026 17:00;9.2;68;0.5;0
+02.03.2026 18:00;8.1;75;1.2;5
+02.03.2026 19:00;7.5;80;0.8;8
+02.03.2026 20:00;7.1;85;0;10
+02.03.2026 21:00;6.8;88;0;12
+02.03.2026 22:00;6.5;90;0;15
+02.03.2026 23:00;6.3;92;0;18
+03.03.2026 00:00;6.2;94;0;20
+&#34;&#34;&#34;
+    return mock_data</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="src.automated_data_pull.fetch_weather_data_from_api"><code class="name flex">
+<span>def <span class="ident">fetch_weather_data_from_api</span></span>(<span>api_query_url, logfile=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Fetch weather data from the specified API query URL.</p>
+<h2 id="arguments">Arguments</h2>
+<dl>
+<dt><strong><code>api_query_url</code></strong> :&ensp;<code>str</code></dt>
+<dd>The API query URL to fetch weather data from</dd>
+<dt><strong><code>logfile</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>Path to logfile for writing status messages</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>str</code> or <code>None</code></dt>
+<dd>CSV formatted string of weather data, or None if fetch fails</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def fetch_weather_data_from_api(api_query_url, logfile=None):
+    &#34;&#34;&#34;
+    Fetch weather data from the specified API query URL.
+
+    Arguments
+    ---------
+    api_query_url : str
+        The API query URL to fetch weather data from
+
+    logfile : str, optional
+        Path to logfile for writing status messages
+
+    Returns
+    -------
+    str or None
+        CSV formatted string of weather data, or None if fetch fails
+
+    &#34;&#34;&#34;
+
+    def log_message(msg):
+        &#34;&#34;&#34;Helper function to write to logfile and console.&#34;&#34;&#34;
+        print(msg)
+        if logfile is not None:
+            try:
+                with open(logfile, &#34;a&#34;) as f:
+                    f.write(msg + &#34;\n&#34;)
+            except Exception as e:
+                print(f&#34;Warning: Could not write to logfile: {e}&#34;)
+
+    try:
+        # Attempt to fetch JSON data from the API
+        response = requests.get(api_query_url, timeout=30)
+        response.raise_for_status()
+        data_json = response.json()
+
+        # Expecting structure similar to Meteoblue basic-1h response
+        if &#34;data_1h&#34; in data_json:
+            block = data_json[&#34;data_1h&#34;]
+            # build dataframe from lists
+            df = pd.DataFrame(
+                {
+                    &#34;datetime&#34;: block.get(&#34;time&#34;, []),
+                    &#34;temperature&#34;: block.get(&#34;temperature&#34;, []),
+                    &#34;humidity&#34;: block.get(&#34;relativehumidity&#34;, []),
+                    &#34;rainfall&#34;: block.get(&#34;precipitation&#34;, []),
+                    &#34;leaf_wetness&#34;: block.get(&#34;leafwetnessindex&#34;, []),
+                }
+            )
+            # format datetime field
+            df[&#34;datetime&#34;] = pd.to_datetime(df[&#34;datetime&#34;]).dt.strftime(
+                &#34;%d.%m.%Y %H:%M&#34;
+            )
+            log_message(
+                f&#34;Fetched {len(df)} rows  |  &#34;
+                f&#34;{df[&#39;datetime&#39;].iloc[0]}  →  {df[&#39;datetime&#39;].iloc[-1]}&#34;
+            )
+            csv_data = df.to_csv(index=False, sep=&#34;;&#34;)
+        else:
+            # fallback to mock behavior if unexpected JSON
+            msg = &#34;API response missing expected &#39;data_1h&#39; block; using mock data.&#34;
+            log_message(msg)
+            csv_data = _get_mock_weather_data()
+
+        msg = f&#34;Successfully fetched weather data from API at {datetime.now()}&#34;
+        log_message(msg)
+
+        return csv_data
+
+    except requests.exceptions.RequestException as e:
+        msg = f&#34;Error fetching weather data from API: {str(e)}&#34;
+        log_message(msg)
+        return None
+    except ValueError as e:
+        msg = f&#34;Error parsing JSON from API response: {str(e)}&#34;
+        log_message(msg)
+        return None
+    except Exception as e:
+        msg = f&#34;Unexpected error during weather data fetch: {str(e)}&#34;
+        log_message(msg)
+        return None</code></pre>
+</details>
+</dd>
+<dt id="src.automated_data_pull.merge_weather_data"><code class="name flex">
+<span>def <span class="ident">merge_weather_data</span></span>(<span>existing_file_path, new_csv_data, logfile=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Merge new weather data with existing weather data file.</p>
+<p>Updates datetime entries that exist in new data while preserving
+historical values for datetimes not present in the new data.</p>
+<h2 id="arguments">Arguments</h2>
+<dl>
+<dt><strong><code>existing_file_path</code></strong> :&ensp;<code>str</code></dt>
+<dd>Path to the existing weather data CSV file</dd>
+<dt><strong><code>new_csv_data</code></strong> :&ensp;<code>str</code></dt>
+<dd>CSV formatted string of new weather data</dd>
+<dt><strong><code>logfile</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>Path to logfile for writing status messages</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>bool</code></dt>
+<dd>True if merge was successful, False otherwise</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def merge_weather_data(
+    existing_file_path, new_csv_data, logfile=None
+):
+    &#34;&#34;&#34;
+    Merge new weather data with existing weather data file.
+
+    Updates datetime entries that exist in new data while preserving
+    historical values for datetimes not present in the new data.
+
+    Arguments
+    ---------
+    existing_file_path : str
+        Path to the existing weather data CSV file
+
+    new_csv_data : str
+        CSV formatted string of new weather data
+
+    logfile : str, optional
+        Path to logfile for writing status messages
+
+    Returns
+    -------
+    bool
+        True if merge was successful, False otherwise
+
+    &#34;&#34;&#34;
+
+    def log_message(msg):
+        &#34;&#34;&#34;Helper function to write to logfile and console.&#34;&#34;&#34;
+        print(msg)
+        if logfile is not None:
+            try:
+                with open(logfile, &#34;a&#34;) as f:
+                    f.write(msg + &#34;\n&#34;)
+            except Exception as e:
+                print(f&#34;Warning: Could not write to logfile: {e}&#34;)
+
+    try:
+        # Load existing data (semicolon-separated)
+        if not Path(existing_file_path).exists():
+            msg = f&#34;Existing file not found: {existing_file_path}. Creating new file with fetched data.&#34;
+            log_message(msg)
+            with open(existing_file_path, &#34;w&#34;) as f:
+                f.write(new_csv_data)
+            return True
+
+        try:
+            existing_df = pd.read_csv(existing_file_path, sep=&#34;;&#34;)
+        except pd.errors.EmptyDataError:
+            # File exists but is completely empty (e.g. created as a placeholder
+            # before the first automated pull).  Treat it like a new file.
+            msg = f&#34;Existing file {existing_file_path} is empty. Writing fetched data directly.&#34;
+            log_message(msg)
+            with open(existing_file_path, &#34;w&#34;) as f:
+                f.write(new_csv_data)
+            return True
+
+        # If the file only had a header row (no data rows), replace it entirely.
+        if existing_df.empty:
+            msg = f&#34;Existing file {existing_file_path} has no data rows. Writing fetched data directly.&#34;
+            log_message(msg)
+            with open(existing_file_path, &#34;w&#34;) as f:
+                f.write(new_csv_data)
+            return True
+
+        # Load new data from CSV string (semicolon-separated)
+        new_df = pd.read_csv(io.StringIO(new_csv_data), sep=&#34;;&#34;)
+
+        # Ensure both have same column names
+        if list(existing_df.columns) != list(new_df.columns):
+            msg = &#34;Warning: Column mismatch between existing and new data. Attempting to match columns.&#34;
+            log_message(msg)
+            # Rename new columns to match existing if possible
+            if len(existing_df.columns) == len(new_df.columns):
+                new_df.columns = existing_df.columns
+            else:
+                msg = &#34;Error: Column count mismatch. Cannot merge data.&#34;
+                log_message(msg)
+                return False
+
+        # Assume first column is datetime
+        datetime_col = existing_df.columns[0]
+
+        # Parse datetime columns
+        existing_df[datetime_col] = pd.to_datetime(
+            existing_df[datetime_col], format=&#34;%d.%m.%Y %H:%M&#34;
+        )
+        new_df[datetime_col] = pd.to_datetime(
+            new_df[datetime_col], format=&#34;%d.%m.%Y %H:%M&#34;
+        )
+
+        # Merge: keep all from existing, update with new values where datetime matches
+        # Set datetime as index for merge
+        existing_df_indexed = existing_df.set_index(datetime_col)
+        new_df_indexed = new_df.set_index(datetime_col)
+
+        # Update existing data with new data where datetimes match
+        existing_df_indexed.update(new_df_indexed)
+
+        # Add any new datetimes from new data that weren&#39;t in existing
+        new_datetimes = new_df_indexed.index.difference(
+            existing_df_indexed.index
+        )
+        if len(new_datetimes) &gt; 0:
+            existing_df_indexed = pd.concat(
+                [existing_df_indexed, new_df_indexed.loc[new_datetimes]]
+            )
+
+        # Sort by datetime
+        existing_df_indexed = existing_df_indexed.sort_index()
+
+        # Reset index and convert datetime back to string format
+        merged_df = existing_df_indexed.reset_index()
+        merged_df[datetime_col] = merged_df[datetime_col].dt.strftime(
+            &#34;%d.%m.%Y %H:%M&#34;
+        )
+
+        # Write back to file
+        merged_df.to_csv(
+            existing_file_path,
+            index=False,
+            sep=&#34;;&#34;,
+            quoting=None,
+        )
+
+        msg = (
+            f&#34;Successfully merged new weather data into {existing_file_path}. &#34;
+            f&#34;Added/Updated {len(new_df)} records.&#34;
+        )
+        log_message(msg)
+        return True
+
+    except Exception as e:
+        msg = f&#34;Error merging weather data: {str(e)}&#34;
+        log_message(msg)
+        return False</code></pre>
+</details>
+</dd>
+<dt id="src.automated_data_pull.start_periodic_data_pull"><code class="name flex">
+<span>def <span class="ident">start_periodic_data_pull</span></span>(<span>meteo_file_path, api_query_url, logfile=None, stop_event=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Start a background thread to fetch and merge weather data once.</p>
+<p>Since external scheduling (bash/cron) controls execution frequency,
+this thread performs a single fetch/merge operation during startup
+to populate the weather file with current data.</p>
+<h2 id="arguments">Arguments</h2>
+<dl>
+<dt><strong><code>meteo_file_path</code></strong> :&ensp;<code>str</code></dt>
+<dd>Path to the weather data file to update</dd>
+<dt><strong><code>api_query_url</code></strong> :&ensp;<code>str</code></dt>
+<dd>API query URL to fetch data from</dd>
+<dt><strong><code>logfile</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>Path to logfile for writing status messages</dd>
+<dt><strong><code>stop_event</code></strong> :&ensp;<code>threading.Event</code>, optional</dt>
+<dd>Event to signal stopping (not used for one-shot execution)</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>threading.Thread</code> or <code>None</code></dt>
+<dd>The background thread object, or None if parameters invalid</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def start_periodic_data_pull(
+    meteo_file_path,
+    api_query_url,
+    logfile=None,
+    stop_event=None,
+):
+    &#34;&#34;&#34;
+    Start a background thread to fetch and merge weather data once.
+
+    Since external scheduling (bash/cron) controls execution frequency,
+    this thread performs a single fetch/merge operation during startup
+    to populate the weather file with current data.
+
+    Arguments
+    ---------
+    meteo_file_path : str
+        Path to the weather data file to update
+
+    api_query_url : str
+        API query URL to fetch data from
+
+    logfile : str, optional
+        Path to logfile for writing status messages
+
+    stop_event : threading.Event, optional
+        Event to signal stopping (not used for one-shot execution)
+
+    Returns
+    -------
+    threading.Thread or None
+        The background thread object, or None if parameters invalid
+
+    &#34;&#34;&#34;
+
+    def log_message(msg):
+        &#34;&#34;&#34;Helper function to write to logfile and console.&#34;&#34;&#34;
+        print(msg)
+        if logfile is not None:
+            try:
+                with open(logfile, &#34;a&#34;) as f:
+                    f.write(msg + &#34;\n&#34;)
+            except Exception as e:
+                print(f&#34;Warning: Could not write to logfile: {e}&#34;)
+
+    # Validate parameters
+    if api_query_url is None:
+        msg = &#34;Error: No API query URL provided.&#34;
+        log_message(msg)
+        return None
+
+    def _pull_once():
+        &#34;&#34;&#34;Background thread to perform a single weather data fetch/merge.&#34;&#34;&#34;
+        msg = &#34;Automated weather data pull started (runs once per model execution).&#34;
+        log_message(msg)
+
+        # Fetch and merge data
+        msg = f&#34;Pulling weather data from API at {datetime.now()}&#34;
+        log_message(msg)
+
+        csv_data = fetch_weather_data_from_api(api_query_url, logfile)
+
+        if csv_data is not None:
+            success = merge_weather_data(
+                meteo_file_path, csv_data, logfile
+            )
+            if success:
+                msg = f&#34;Weather data updated successfully at {datetime.now()}&#34;
+            else:
+                msg = f&#34;Failed to merge weather data at {datetime.now()}&#34;
+        else:
+            msg = f&#34;Failed to fetch weather data at {datetime.now()}&#34;
+
+        log_message(msg)
+
+    # Create and start background thread
+    thread = threading.Thread(target=_pull_once, daemon=True)
+    msg = &#34;Starting automated data pull thread...&#34;
+    log_message(msg)
+
+    return thread</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="src" href="index.html">src</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="src.automated_data_pull.fetch_weather_data_from_api" href="#src.automated_data_pull.fetch_weather_data_from_api">fetch_weather_data_from_api</a></code></li>
+<li><code><a title="src.automated_data_pull.merge_weather_data" href="#src.automated_data_pull.merge_weather_data">merge_weather_data</a></code></li>
+<li><code><a title="src.automated_data_pull.start_periodic_data_pull" href="#src.automated_data_pull.start_periodic_data_pull">start_periodic_data_pull</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

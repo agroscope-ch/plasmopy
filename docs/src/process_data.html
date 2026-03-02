@@ -118,7 +118,7 @@ def process_data(  # noqa: C901
         logf.write(
             &#34;\nTIME GRID CREATION ERROR: check first and last datetimes in the input data file.\n&#34;
         )
-    freq_timegrid = str(model_parameters[&#34;measurement_time_interval&#34;]) + &#34;min&#34;
+    freq_timegrid = str(model_parameters[&#34;run_settings&#34;][&#34;measurement_time_interval&#34;]) + &#34;min&#34;
     timegrid = pd.date_range(
         start=start_timegrid, end=end_timegrid, freq=freq_timegrid, tz=timezone
     )
@@ -325,7 +325,7 @@ store the processed data in a '.csv' file.</p></div>
         logf.write(
             &#34;\nTIME GRID CREATION ERROR: check first and last datetimes in the input data file.\n&#34;
         )
-    freq_timegrid = str(model_parameters[&#34;measurement_time_interval&#34;]) + &#34;min&#34;
+    freq_timegrid = str(model_parameters[&#34;run_settings&#34;][&#34;measurement_time_interval&#34;]) + &#34;min&#34;
     timegrid = pd.date_range(
         start=start_timegrid, end=end_timegrid, freq=freq_timegrid, tz=timezone
     )

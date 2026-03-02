@@ -34,13 +34,18 @@ Main script orchestrating all modeling steps and launching specific submodules.
 
 import csv
 import pickle
+import threading
 from datetime import datetime
 
+import pandas as pd
+
 import hydra
+import automated_data_pull
 import infection_event
 import infection_model
 import load_data
 import process_data
+import support_decision_tool
 import utils
 from omegaconf import DictConfig
 from tqdm import tqdm
@@ -71,8 +76,12 @@ def main(config: DictConfig):  # noqa: C901
 
     &#34;&#34;&#34;
 
+    # determine output filenames base on input or explicit run name
     output_files = utils.create_output_filenames(
-        config.input_data.meteo, config.input_data.spore_counts
+        config.input_data.meteo,
+        config.input_data.spore_counts,
+        output_dir=getattr(config, &#34;output&#34;, {}).get(&#34;directory&#34;),
+        run_name=getattr(config, &#34;output&#34;, {}).get(&#34;run_name&#34;),
     )
 
     # Parse log filename.
@@ -99,19 +108,132 @@ def main(config: DictConfig):  # noqa: C901
 
     # Running model computation.
 
-    # Load raw data: vitimeteo timeseries.
-    input_meteo_file = config.input_data.meteo
+    # Initialize automated data pull if enabled
+    data_pull_thread = None
+    data_pull_stop_event = None
+    # resolve meteorological file path for potential auto-pull
+    meteo_file_path = config.input_data.meteo
+    from pathlib import Path
+    if not meteo_file_path or meteo_file_path.strip() == &#34;&#34;:
+        if config.input_data.get(&#34;automated_data_pull&#34;, False):
+            meteo_file_path = &#34;data/input/automated_meteo.csv&#34;
+            Path(meteo_file_path).parent.mkdir(parents=True, exist_ok=True)
+            if not Path(meteo_file_path).exists():
+                open(meteo_file_path, &#34;w&#34;).close()
+        else:
+            meteo_file_path = None
+
+    if config.input_data.get(&#34;automated_data_pull&#34;, False):
+        api_query = config.input_data.get(&#34;weather_api_query&#34;)
+
+        # verify coordinates (and elevation) match between config and API url
+        if api_query is not None:
+            from urllib.parse import urlparse, parse_qs
+
+            parsed = urlparse(api_query)
+            qs = parse_qs(parsed.query)
+            try:
+                lat_list = qs.get(&#34;lat&#34;) or qs.get(&#34;latitude&#34;)
+                lon_list = qs.get(&#34;lon&#34;) or qs.get(&#34;longitude&#34;)
+                asl_list = qs.get(&#34;asl&#34;)
+                if lat_list and lon_list:
+                    api_lat = float(lat_list[0])
+                    api_lon = float(lon_list[0])
+                    cfg_lat = float(config.site.latitude)
+                    cfg_lon = float(config.site.longitude)
+                    # allow small tolerance
+                    if abs(api_lat - cfg_lat) &gt; 1e-4 or abs(api_lon - cfg_lon) &gt; 1e-4:
+                        msg = (
+                            f&#34;\nERROR: API coordinates ({api_lat},{api_lon}) do not match&#34;,
+                            f&#34;config coordinates ({cfg_lat},{cfg_lon}).\nPlease correct them and rerun.\n&#34;,
+                        )
+                        with open(logfile, &#34;a&#34;) as logf:
+                            logf.write(&#34;&#34;.join(msg))
+                        print(&#34;ERROR: API coordinates do not match config; check settings.&#34;)
+                        sys.exit(1)
+                # elevation check
+                if asl_list:
+                    try:
+                        api_asl = float(asl_list[0])
+                        cfg_elev = float(config.site.elevation)
+                        # allow 1 m tolerance
+                        if abs(api_asl - cfg_elev) &gt; 1.0:
+                            msg = (
+                                f&#34;\nERROR: API elevation asl={api_asl} does not&#34;,
+                                f&#34;match config elevation={cfg_elev}.\nPlease correct and rerun.\n&#34;,
+                            )
+                            with open(logfile, &#34;a&#34;) as logf:
+                                logf.write(&#34;&#34;.join(msg))
+                            print(&#34;ERROR: API elevation does not match config; check settings.&#34;)
+                            sys.exit(1)
+                    except ValueError:
+                        with open(logfile, &#34;a&#34;) as logf:
+                            logf.write(&#34;\nWARNING: could not parse asl value from API query URL.\n&#34;)
+            except ValueError:
+                with open(logfile, &#34;a&#34;) as logf:
+                    logf.write(&#34;\nWARNING: could not parse coordinates from API query URL.\n&#34;)
+
+    # Start periodic background thread only if enabled and has API query
+    if config.input_data.get(&#34;automated_data_pull&#34;, False) and api_query is not None:
+        data_pull_stop_event = threading.Event()
+        data_pull_thread = automated_data_pull.start_periodic_data_pull(
+            meteo_file_path=meteo_file_path,
+            api_query_url=api_query,
+            logfile=logfile,
+            stop_event=data_pull_stop_event,
+        )
+        if data_pull_thread is not None:
+            data_pull_thread.start()
+
+    # Load raw data: vitimeteo timeseries.  ``meteo_file_path`` has already
+    # been computed above to take into account the possibility of an empty
+    # configuration value and the automated pull fall‑back.
+    input_meteo_file = meteo_file_path
+    from pathlib import Path
+    if not input_meteo_file or input_meteo_file.strip() == &#34;&#34;:
+        if config.input_data.get(&#34;automated_data_pull&#34;, False):
+            input_meteo_file = &#34;data/input/automated_meteo.csv&#34;
+            Path(input_meteo_file).parent.mkdir(parents=True, exist_ok=True)
+            if not Path(input_meteo_file).exists():
+                # create placeholder with header row so pandas can read columns
+                with open(input_meteo_file, &#34;w&#34;) as fh:
+                    fh.write(&#34;datetime;temperature;humidity;rainfall;leaf_wetness\n&#34;)
+        else:
+            err = &#34;\nERROR: no meteo input file provided and automated_data_pull is disabled.&#34;
+            print(err)
+            with open(logfile, &#34;a&#34;) as logf:
+                logf.write(err + &#34;\n&#34;)
+            sys.exit(1)
+    # If the automated pull is enabled, attempt one immediate fetch/merge.
+    # log to stdout so the user can see progress before load_data runs.
+    if config.input_data.get(&#34;automated_data_pull&#34;, False) and api_query is not None:
+        print(&#34;Performing initial weather data fetch...&#34;)
+        csv_data = automated_data_pull.fetch_weather_data_from_api(api_query, logfile)
+        if csv_data is not None:
+            automated_data_pull.merge_weather_data(input_meteo_file, csv_data, logfile)
+        else:
+            print(&#34;Initial fetch returned no data; input file may remain empty.&#34;)
+    
     loaded_data = load_data.load_data(input_meteo_file, logfile)
+    if loaded_data is None or getattr(loaded_data, &#39;empty&#39;, False):
+        msg = (
+            &#34;\nERROR: meteorological file contains no data. &#34;
+            &#34;Provide a valid meteo input or wait until the automated pull populates the file.\n&#34;
+        )
+        print(msg)
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(msg)
+        sys.exit(1)
 
     # Select columns to use as specified in the config files.
-    selected_columns = config.use_columns
-    standard_colnames = config.rename_columns
+    selected_columns = config.data_columns.use_columns
+    standard_colnames = config.data_columns.rename_columns
 
     # Select column formats and tolerated value ranges depending on the specific input data as specified in the config files.
-    standard_colformats = config.format_columns
+    standard_colformats = config.data_columns.format_columns
 
     # Parse site&#39;s timezone from config file.
-    timezone = config.timezone
+    timezone = config.site.timezone
 
     # Parse output filename for processed data.
     outfile = output_files.processed_file_meteo
@@ -138,12 +260,70 @@ def main(config: DictConfig):  # noqa: C901
     for key, value in config.items():
         logf.write(f&#34;\t{key}: {value}\n&#34;)
 
+    # Determine which spore counts file (if any) to use
+    spore_counts_result = None
+    input_spore_file = config.input_data.spore_counts
+    if not input_spore_file or input_spore_file.strip() == &#34;&#34;:
+        if config.input_data.get(&#34;automated_spore_pull&#34;, False):
+            api_query = config.input_data.get(&#34;spore_counts_api_query&#34;)
+            if api_query:
+                tmpfile = &#34;data/tmp/auto_spore_counts.csv&#34;
+                Path(tmpfile).parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    csvtext = support_decision_tool.fetch_spore_counts(api_query, logfile)
+                    if csvtext:
+                        with open(tmpfile, &#34;w&#34;) as f:
+                            f.write(csvtext)
+                        input_spore_file = tmpfile
+                    else:
+                        logf.write(&#34;\nUnable to fetch spore counts from API; running normal flow.\n&#34;)
+                except Exception as e:
+                    logf.write(f&#34;\nError pulling spore counts: {e}\n&#34;)
+            else:
+                logf.write(&#34;\nAutomated spore pull enabled but no API query provided.\n&#34;)
+    
+    # Check spore counts to determine if model should skip to sporulation stage
+    if (
+        config.input_data.get(&#34;support_decision_tool_enabled&#34;, False)
+        and input_spore_file is not None
+    ):
+        logf.write(
+            &#34;\nSupport decision tool enabled. Checking spore counts file for decision support...\n&#34;
+        )
+        spore_counts_result = support_decision_tool.check_spore_counts(
+            input_spore_file,
+            logfile,
+            spore_count_threshold=config.input_data.get(&#34;spore_count_threshold&#34;, 10),
+            spore_count_lookback_days=config.input_data.get(&#34;spore_count_lookback_days&#34;, 3),
+            spore_count_percent_increase=config.input_data.get(&#34;spore_count_percent_increase&#34;, 20),
+        )
+        if spore_counts_result.get(&#34;skip_to_dispersion&#34;):
+            logf.write(
+                &#34;\nSpore counts flat threshold exceeded. &#34;
+                &#34;Model will jump to oospore dispersion stage.\n&#34;
+            )
+        if spore_counts_result.get(&#34;skip_to_sporulation&#34;):
+            logf.write(
+                &#34;\nSpore counts percent-increase threshold exceeded. &#34;
+                &#34;Model will jump to sporulation stage.\n&#34;
+            )
+    else:
+        if config.input_data.get(&#34;support_decision_tool_enabled&#34;, False):
+            logf.write(
+                &#34;\nSupport decision tool enabled but no spore counts file available. Running normal model flow.\n&#34;
+            )
+        else:
+            logf.write(
+                &#34;\nSupport decision tool disabled. Running normal model flow.\n&#34;
+            )
+
     daily_temperatures = utils.get_daily_measurements(processed_data, &#34;temperature&#34;)
     daily_mean_temperatures = utils.get_daily_mean_measurements(
         processed_data, &#34;temperature&#34;
     )
 
-    # Determine oospore maturation date.
+    # Determine oospore maturation date from the model (always run normal path).
+    # Spore count shortcut events are injected after the main loop as supplements.
     (
         oospore_maturation_date,
         oospore_maturation_datetime_rowindex,
@@ -163,13 +343,13 @@ def main(config: DictConfig):  # noqa: C901
         oospore_maturation_datetime_rowindex
     ]
 
-    algorithmic_time_steps = int(config.algorithmic_time_steps // 1)
+    algorithmic_time_steps = int(config.run_settings.algorithmic_time_steps // 1)
     if algorithmic_time_steps &lt; 1:
         logf.write(
             &#34;WARNING: algorithmic time-step cannot be lower than 1. Running model at 1 time-step intervals...&#34;
         )
         algorithmic_time_steps = 1
-    computational_time_steps = int(config.computational_time_steps // 1)
+    computational_time_steps = int(config.run_settings.computational_time_steps // 1)
     if computational_time_steps &lt; 1:
         logf.write(
             &#34;WARNING: computational time-step cannot be lower than 1. Running model at 1 time-step intervals...&#34;
@@ -236,6 +416,7 @@ def main(config: DictConfig):  # noqa: C901
                 algorithmic_time_steps,
                 logfile,
                 oospore_infection_datetimes,
+                None,  # shortcut events are injected separately after this loop
             )
             infection_prediction.predict_infection()
             infection_events.append(infection_prediction.infection_events)
@@ -320,67 +501,106 @@ def main(config: DictConfig):  # noqa: C901
             #         )
             #         f.write(output_str)
             with open(output_files.infection_datetimes, &#34;a&#34;) as f:
-                i = 0
-                if (
-                    infection_prediction.infection_events[&#34;secondary_infections&#34;]
-                    is not None
-                ):
-                    for _secondary_infection in infection_prediction.infection_events[
-                        &#34;secondary_infections&#34;
-                    ]:
-                        output_str = (
+                _ev = infection_prediction.infection_events
+                if _ev[&#34;oospore_infection&#34;] is not None:
+                    _sec_infs  = _ev.get(&#34;secondary_infections&#34;) or []
+                    _sporuls   = _ev.get(&#34;sporulations&#34;) or []
+                    _spor_dens = _ev.get(&#34;sporangia_densities&#34;) or []
+                    _n_rows = max(1, len(_sec_infs), len(_sporuls))
+                    for _ri in range(_n_rows):
+                        f.write(
                             str(infection_prediction.start_event_rowindex)
-                            + &#34;,&#34;
-                            + str(infection_prediction.start_event_datetime)
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;oospore_maturation&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;oospore_germination&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;oospore_dispersion&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;oospore_infection&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;completed_incubation&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[&#34;sporulations&#34;][i]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;sporangia_densities&#34;
-                                ][i]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;secondary_infections&#34;
-                                ][i]
-                            )
+                            + &#34;,&#34; + str(infection_prediction.start_event_datetime)
+                            + &#34;,&#34; + str(_ev[&#34;oospore_maturation&#34;])
+                            + &#34;,&#34; + str(_ev[&#34;oospore_germination&#34;])
+                            + &#34;,&#34; + str(_ev[&#34;oospore_dispersion&#34;])
+                            + &#34;,&#34; + str(_ev[&#34;oospore_infection&#34;])
+                            + &#34;,&#34; + str(_ev[&#34;completed_incubation&#34;])
+                            + &#34;,&#34; + str(_sporuls[_ri]   if _ri &lt; len(_sporuls)   else &#34;NA&#34;)
+                            + &#34;,&#34; + str(_spor_dens[_ri] if _ri &lt; len(_spor_dens) else &#34;NA&#34;)
+                            + &#34;,&#34; + str(_sec_infs[_ri]  if _ri &lt; len(_sec_infs)  else &#34;NA&#34;)
                             + &#34;\n&#34;
                         )
-                        f.write(output_str)
+
+        # ------------------------------------------------------------------ #
+        # Inject supplementary shortcut events from spore count conditions.  #
+        # These add events that bypass early infection stages based on spore  #
+        # trap data, without replacing the normal model events above.         #
+        # ------------------------------------------------------------------ #
+        if spore_counts_result is not None:
+            # One entry per triggering datetime, each activating only one
+            # condition so run_infection_model takes the correct branch.
+            _sc_to_inject = []
+            for _sc_dt in spore_counts_result.get(&#34;sporulation_datetimes&#34;, []):
+                _sc_to_inject.append({
+                    **spore_counts_result,
+                    &#34;skip_to_sporulation&#34;: True,
+                    &#34;skip_to_dispersion&#34;: False,
+                    &#34;sporulation_datetime&#34;: _sc_dt,
+                })
+            for _sc_dt in spore_counts_result.get(&#34;dispersion_datetimes&#34;, []):
+                _sc_to_inject.append({
+                    **spore_counts_result,
+                    &#34;skip_to_sporulation&#34;: False,
+                    &#34;skip_to_dispersion&#34;: True,
+                    &#34;dispersion_datetime&#34;: _sc_dt,
+                })
+
+            for _sc_result in _sc_to_inject:
+                _anchor_raw = (
+                    _sc_result.get(&#34;sporulation_datetime&#34;)
+                    if _sc_result.get(&#34;skip_to_sporulation&#34;)
+                    else _sc_result.get(&#34;dispersion_datetime&#34;)
+                )
+                if _anchor_raw is None:
+                    continue
+                _sc_dt = pd.to_datetime(_anchor_raw)
+                if processed_data[&#34;datetime&#34;].dt.tz is not None and _sc_dt.tzinfo is None:
+                    _sc_dt = _sc_dt.tz_localize(timezone)
+                _closest = (processed_data[&#34;datetime&#34;] - _sc_dt).abs().argmin()
+                _sc_rowindex = processed_data.index.get_loc(
+                    processed_data.index[_closest]
+                )
+
+                _sc_event = infection_event.InfectionEvent(
+                    processed_data,
+                    config,
+                    _sc_rowindex,
+                    oospore_maturation_datetime,
+                    daily_mean_temperatures,
+                    algorithmic_time_steps,
+                    logfile,
+                    oospore_infection_datetimes,
+                    _sc_result,
+                )
+                _sc_event.predict_infection()
+                infection_events.append(_sc_event.infection_events)
+                infection_predictions.append(_sc_event)
+
+                with open(output_files.events_text, &#34;a&#34;) as f:
+                    f.write(str(_sc_event) + &#34;\n&#34;)
+
+                with open(output_files.infection_datetimes, &#34;a&#34;) as f:
+                    _sc_ev = _sc_event.infection_events
+                    if _sc_ev[&#34;oospore_infection&#34;] is not None:
+                        _sc_sec  = _sc_ev.get(&#34;secondary_infections&#34;) or []
+                        _sc_spor = _sc_ev.get(&#34;sporulations&#34;) or []
+                        _sc_dens = _sc_ev.get(&#34;sporangia_densities&#34;) or []
+                        _sc_rows = max(1, len(_sc_sec), len(_sc_spor))
+                        for _sc_ri in range(_sc_rows):
+                            f.write(
+                                str(_sc_event.start_event_rowindex)
+                                + &#34;,&#34; + str(_sc_event.start_event_datetime)
+                                + &#34;,&#34; + str(_sc_ev[&#34;oospore_maturation&#34;])
+                                + &#34;,&#34; + str(_sc_ev[&#34;oospore_germination&#34;])
+                                + &#34;,&#34; + str(_sc_ev[&#34;oospore_dispersion&#34;])
+                                + &#34;,&#34; + str(_sc_ev[&#34;oospore_infection&#34;])
+                                + &#34;,&#34; + str(_sc_ev[&#34;completed_incubation&#34;])
+                                + &#34;,&#34; + str(_sc_spor[_sc_ri] if _sc_ri &lt; len(_sc_spor) else &#34;NA&#34;)
+                                + &#34;,&#34; + str(_sc_dens[_sc_ri] if _sc_ri &lt; len(_sc_dens) else &#34;NA&#34;)
+                                + &#34;,&#34; + str(_sc_sec[_sc_ri]  if _sc_ri &lt; len(_sc_sec)  else &#34;NA&#34;)
+                                + &#34;\n&#34;
+                            )
 
         logf.write(
             &#34;\nModel run complete. Infection events details and summary of predicted infection datetimes are stored in &#39;data/output/&#39;.\n&#34;
@@ -393,6 +613,15 @@ def main(config: DictConfig):  # noqa: C901
         # Calculate the elapsed time.
         t_diff = t_end - t_start
         logf.write(f&#34;Runtime total: {t_diff}\n&#34;)
+
+        # Stop automated data pull if it was started
+        if data_pull_stop_event is not None:
+            logf.write(
+                &#34;\nStopping automated weather data pull thread...\n&#34;
+            )
+            data_pull_stop_event.set()
+            if data_pull_thread is not None and data_pull_thread.is_alive():
+                data_pull_thread.join(timeout=5)
 
         # Close the log file.
         logf.close()
@@ -436,6 +665,25 @@ def main(config: DictConfig):  # noqa: C901
                         else:
                             f.write(str(item))
                 f.write(&#34;\n&#34;)
+
+        # Plot analysis graph (Rplot.R equivalent).
+        utils.plot_infection_analysis(
+            output_files.events_dataframe,
+            output_files.analysis_html,
+            model_parameters=config,
+            title=&#34;Infection analysis: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+        )
+
+        # Plot spore counts overview with infection event background colours.
+        utils.plot_spore_infection_overview(
+            output_files.events_dataframe,
+            output_files.overview_html,
+            model_parameters=config,
+            spore_counts_result=spore_counts_result,
+            title=&#34;Spore counts &amp; infection overview: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+        )
 
 
 if __name__ == &#34;__main__&#34;:
@@ -518,8 +766,12 @@ def main(config: DictConfig):  # noqa: C901
 
     &#34;&#34;&#34;
 
+    # determine output filenames base on input or explicit run name
     output_files = utils.create_output_filenames(
-        config.input_data.meteo, config.input_data.spore_counts
+        config.input_data.meteo,
+        config.input_data.spore_counts,
+        output_dir=getattr(config, &#34;output&#34;, {}).get(&#34;directory&#34;),
+        run_name=getattr(config, &#34;output&#34;, {}).get(&#34;run_name&#34;),
     )
 
     # Parse log filename.
@@ -546,19 +798,132 @@ def main(config: DictConfig):  # noqa: C901
 
     # Running model computation.
 
-    # Load raw data: vitimeteo timeseries.
-    input_meteo_file = config.input_data.meteo
+    # Initialize automated data pull if enabled
+    data_pull_thread = None
+    data_pull_stop_event = None
+    # resolve meteorological file path for potential auto-pull
+    meteo_file_path = config.input_data.meteo
+    from pathlib import Path
+    if not meteo_file_path or meteo_file_path.strip() == &#34;&#34;:
+        if config.input_data.get(&#34;automated_data_pull&#34;, False):
+            meteo_file_path = &#34;data/input/automated_meteo.csv&#34;
+            Path(meteo_file_path).parent.mkdir(parents=True, exist_ok=True)
+            if not Path(meteo_file_path).exists():
+                open(meteo_file_path, &#34;w&#34;).close()
+        else:
+            meteo_file_path = None
+
+    if config.input_data.get(&#34;automated_data_pull&#34;, False):
+        api_query = config.input_data.get(&#34;weather_api_query&#34;)
+
+        # verify coordinates (and elevation) match between config and API url
+        if api_query is not None:
+            from urllib.parse import urlparse, parse_qs
+
+            parsed = urlparse(api_query)
+            qs = parse_qs(parsed.query)
+            try:
+                lat_list = qs.get(&#34;lat&#34;) or qs.get(&#34;latitude&#34;)
+                lon_list = qs.get(&#34;lon&#34;) or qs.get(&#34;longitude&#34;)
+                asl_list = qs.get(&#34;asl&#34;)
+                if lat_list and lon_list:
+                    api_lat = float(lat_list[0])
+                    api_lon = float(lon_list[0])
+                    cfg_lat = float(config.site.latitude)
+                    cfg_lon = float(config.site.longitude)
+                    # allow small tolerance
+                    if abs(api_lat - cfg_lat) &gt; 1e-4 or abs(api_lon - cfg_lon) &gt; 1e-4:
+                        msg = (
+                            f&#34;\nERROR: API coordinates ({api_lat},{api_lon}) do not match&#34;,
+                            f&#34;config coordinates ({cfg_lat},{cfg_lon}).\nPlease correct them and rerun.\n&#34;,
+                        )
+                        with open(logfile, &#34;a&#34;) as logf:
+                            logf.write(&#34;&#34;.join(msg))
+                        print(&#34;ERROR: API coordinates do not match config; check settings.&#34;)
+                        sys.exit(1)
+                # elevation check
+                if asl_list:
+                    try:
+                        api_asl = float(asl_list[0])
+                        cfg_elev = float(config.site.elevation)
+                        # allow 1 m tolerance
+                        if abs(api_asl - cfg_elev) &gt; 1.0:
+                            msg = (
+                                f&#34;\nERROR: API elevation asl={api_asl} does not&#34;,
+                                f&#34;match config elevation={cfg_elev}.\nPlease correct and rerun.\n&#34;,
+                            )
+                            with open(logfile, &#34;a&#34;) as logf:
+                                logf.write(&#34;&#34;.join(msg))
+                            print(&#34;ERROR: API elevation does not match config; check settings.&#34;)
+                            sys.exit(1)
+                    except ValueError:
+                        with open(logfile, &#34;a&#34;) as logf:
+                            logf.write(&#34;\nWARNING: could not parse asl value from API query URL.\n&#34;)
+            except ValueError:
+                with open(logfile, &#34;a&#34;) as logf:
+                    logf.write(&#34;\nWARNING: could not parse coordinates from API query URL.\n&#34;)
+
+    # Start periodic background thread only if enabled and has API query
+    if config.input_data.get(&#34;automated_data_pull&#34;, False) and api_query is not None:
+        data_pull_stop_event = threading.Event()
+        data_pull_thread = automated_data_pull.start_periodic_data_pull(
+            meteo_file_path=meteo_file_path,
+            api_query_url=api_query,
+            logfile=logfile,
+            stop_event=data_pull_stop_event,
+        )
+        if data_pull_thread is not None:
+            data_pull_thread.start()
+
+    # Load raw data: vitimeteo timeseries.  ``meteo_file_path`` has already
+    # been computed above to take into account the possibility of an empty
+    # configuration value and the automated pull fall‑back.
+    input_meteo_file = meteo_file_path
+    from pathlib import Path
+    if not input_meteo_file or input_meteo_file.strip() == &#34;&#34;:
+        if config.input_data.get(&#34;automated_data_pull&#34;, False):
+            input_meteo_file = &#34;data/input/automated_meteo.csv&#34;
+            Path(input_meteo_file).parent.mkdir(parents=True, exist_ok=True)
+            if not Path(input_meteo_file).exists():
+                # create placeholder with header row so pandas can read columns
+                with open(input_meteo_file, &#34;w&#34;) as fh:
+                    fh.write(&#34;datetime;temperature;humidity;rainfall;leaf_wetness\n&#34;)
+        else:
+            err = &#34;\nERROR: no meteo input file provided and automated_data_pull is disabled.&#34;
+            print(err)
+            with open(logfile, &#34;a&#34;) as logf:
+                logf.write(err + &#34;\n&#34;)
+            sys.exit(1)
+    # If the automated pull is enabled, attempt one immediate fetch/merge.
+    # log to stdout so the user can see progress before load_data runs.
+    if config.input_data.get(&#34;automated_data_pull&#34;, False) and api_query is not None:
+        print(&#34;Performing initial weather data fetch...&#34;)
+        csv_data = automated_data_pull.fetch_weather_data_from_api(api_query, logfile)
+        if csv_data is not None:
+            automated_data_pull.merge_weather_data(input_meteo_file, csv_data, logfile)
+        else:
+            print(&#34;Initial fetch returned no data; input file may remain empty.&#34;)
+    
     loaded_data = load_data.load_data(input_meteo_file, logfile)
+    if loaded_data is None or getattr(loaded_data, &#39;empty&#39;, False):
+        msg = (
+            &#34;\nERROR: meteorological file contains no data. &#34;
+            &#34;Provide a valid meteo input or wait until the automated pull populates the file.\n&#34;
+        )
+        print(msg)
+        with open(logfile, &#34;a&#34;) as logf:
+            logf.write(msg)
+        sys.exit(1)
 
     # Select columns to use as specified in the config files.
-    selected_columns = config.use_columns
-    standard_colnames = config.rename_columns
+    selected_columns = config.data_columns.use_columns
+    standard_colnames = config.data_columns.rename_columns
 
     # Select column formats and tolerated value ranges depending on the specific input data as specified in the config files.
-    standard_colformats = config.format_columns
+    standard_colformats = config.data_columns.format_columns
 
     # Parse site&#39;s timezone from config file.
-    timezone = config.timezone
+    timezone = config.site.timezone
 
     # Parse output filename for processed data.
     outfile = output_files.processed_file_meteo
@@ -585,12 +950,70 @@ def main(config: DictConfig):  # noqa: C901
     for key, value in config.items():
         logf.write(f&#34;\t{key}: {value}\n&#34;)
 
+    # Determine which spore counts file (if any) to use
+    spore_counts_result = None
+    input_spore_file = config.input_data.spore_counts
+    if not input_spore_file or input_spore_file.strip() == &#34;&#34;:
+        if config.input_data.get(&#34;automated_spore_pull&#34;, False):
+            api_query = config.input_data.get(&#34;spore_counts_api_query&#34;)
+            if api_query:
+                tmpfile = &#34;data/tmp/auto_spore_counts.csv&#34;
+                Path(tmpfile).parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    csvtext = support_decision_tool.fetch_spore_counts(api_query, logfile)
+                    if csvtext:
+                        with open(tmpfile, &#34;w&#34;) as f:
+                            f.write(csvtext)
+                        input_spore_file = tmpfile
+                    else:
+                        logf.write(&#34;\nUnable to fetch spore counts from API; running normal flow.\n&#34;)
+                except Exception as e:
+                    logf.write(f&#34;\nError pulling spore counts: {e}\n&#34;)
+            else:
+                logf.write(&#34;\nAutomated spore pull enabled but no API query provided.\n&#34;)
+    
+    # Check spore counts to determine if model should skip to sporulation stage
+    if (
+        config.input_data.get(&#34;support_decision_tool_enabled&#34;, False)
+        and input_spore_file is not None
+    ):
+        logf.write(
+            &#34;\nSupport decision tool enabled. Checking spore counts file for decision support...\n&#34;
+        )
+        spore_counts_result = support_decision_tool.check_spore_counts(
+            input_spore_file,
+            logfile,
+            spore_count_threshold=config.input_data.get(&#34;spore_count_threshold&#34;, 10),
+            spore_count_lookback_days=config.input_data.get(&#34;spore_count_lookback_days&#34;, 3),
+            spore_count_percent_increase=config.input_data.get(&#34;spore_count_percent_increase&#34;, 20),
+        )
+        if spore_counts_result.get(&#34;skip_to_dispersion&#34;):
+            logf.write(
+                &#34;\nSpore counts flat threshold exceeded. &#34;
+                &#34;Model will jump to oospore dispersion stage.\n&#34;
+            )
+        if spore_counts_result.get(&#34;skip_to_sporulation&#34;):
+            logf.write(
+                &#34;\nSpore counts percent-increase threshold exceeded. &#34;
+                &#34;Model will jump to sporulation stage.\n&#34;
+            )
+    else:
+        if config.input_data.get(&#34;support_decision_tool_enabled&#34;, False):
+            logf.write(
+                &#34;\nSupport decision tool enabled but no spore counts file available. Running normal model flow.\n&#34;
+            )
+        else:
+            logf.write(
+                &#34;\nSupport decision tool disabled. Running normal model flow.\n&#34;
+            )
+
     daily_temperatures = utils.get_daily_measurements(processed_data, &#34;temperature&#34;)
     daily_mean_temperatures = utils.get_daily_mean_measurements(
         processed_data, &#34;temperature&#34;
     )
 
-    # Determine oospore maturation date.
+    # Determine oospore maturation date from the model (always run normal path).
+    # Spore count shortcut events are injected after the main loop as supplements.
     (
         oospore_maturation_date,
         oospore_maturation_datetime_rowindex,
@@ -610,13 +1033,13 @@ def main(config: DictConfig):  # noqa: C901
         oospore_maturation_datetime_rowindex
     ]
 
-    algorithmic_time_steps = int(config.algorithmic_time_steps // 1)
+    algorithmic_time_steps = int(config.run_settings.algorithmic_time_steps // 1)
     if algorithmic_time_steps &lt; 1:
         logf.write(
             &#34;WARNING: algorithmic time-step cannot be lower than 1. Running model at 1 time-step intervals...&#34;
         )
         algorithmic_time_steps = 1
-    computational_time_steps = int(config.computational_time_steps // 1)
+    computational_time_steps = int(config.run_settings.computational_time_steps // 1)
     if computational_time_steps &lt; 1:
         logf.write(
             &#34;WARNING: computational time-step cannot be lower than 1. Running model at 1 time-step intervals...&#34;
@@ -683,6 +1106,7 @@ def main(config: DictConfig):  # noqa: C901
                 algorithmic_time_steps,
                 logfile,
                 oospore_infection_datetimes,
+                None,  # shortcut events are injected separately after this loop
             )
             infection_prediction.predict_infection()
             infection_events.append(infection_prediction.infection_events)
@@ -767,67 +1191,106 @@ def main(config: DictConfig):  # noqa: C901
             #         )
             #         f.write(output_str)
             with open(output_files.infection_datetimes, &#34;a&#34;) as f:
-                i = 0
-                if (
-                    infection_prediction.infection_events[&#34;secondary_infections&#34;]
-                    is not None
-                ):
-                    for _secondary_infection in infection_prediction.infection_events[
-                        &#34;secondary_infections&#34;
-                    ]:
-                        output_str = (
+                _ev = infection_prediction.infection_events
+                if _ev[&#34;oospore_infection&#34;] is not None:
+                    _sec_infs  = _ev.get(&#34;secondary_infections&#34;) or []
+                    _sporuls   = _ev.get(&#34;sporulations&#34;) or []
+                    _spor_dens = _ev.get(&#34;sporangia_densities&#34;) or []
+                    _n_rows = max(1, len(_sec_infs), len(_sporuls))
+                    for _ri in range(_n_rows):
+                        f.write(
                             str(infection_prediction.start_event_rowindex)
-                            + &#34;,&#34;
-                            + str(infection_prediction.start_event_datetime)
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;oospore_maturation&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;oospore_germination&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;oospore_dispersion&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;oospore_infection&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;completed_incubation&#34;
-                                ]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[&#34;sporulations&#34;][i]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;sporangia_densities&#34;
-                                ][i]
-                            )
-                            + &#34;,&#34;
-                            + str(
-                                infection_prediction.infection_events[
-                                    &#34;secondary_infections&#34;
-                                ][i]
-                            )
+                            + &#34;,&#34; + str(infection_prediction.start_event_datetime)
+                            + &#34;,&#34; + str(_ev[&#34;oospore_maturation&#34;])
+                            + &#34;,&#34; + str(_ev[&#34;oospore_germination&#34;])
+                            + &#34;,&#34; + str(_ev[&#34;oospore_dispersion&#34;])
+                            + &#34;,&#34; + str(_ev[&#34;oospore_infection&#34;])
+                            + &#34;,&#34; + str(_ev[&#34;completed_incubation&#34;])
+                            + &#34;,&#34; + str(_sporuls[_ri]   if _ri &lt; len(_sporuls)   else &#34;NA&#34;)
+                            + &#34;,&#34; + str(_spor_dens[_ri] if _ri &lt; len(_spor_dens) else &#34;NA&#34;)
+                            + &#34;,&#34; + str(_sec_infs[_ri]  if _ri &lt; len(_sec_infs)  else &#34;NA&#34;)
                             + &#34;\n&#34;
                         )
-                        f.write(output_str)
+
+        # ------------------------------------------------------------------ #
+        # Inject supplementary shortcut events from spore count conditions.  #
+        # These add events that bypass early infection stages based on spore  #
+        # trap data, without replacing the normal model events above.         #
+        # ------------------------------------------------------------------ #
+        if spore_counts_result is not None:
+            # One entry per triggering datetime, each activating only one
+            # condition so run_infection_model takes the correct branch.
+            _sc_to_inject = []
+            for _sc_dt in spore_counts_result.get(&#34;sporulation_datetimes&#34;, []):
+                _sc_to_inject.append({
+                    **spore_counts_result,
+                    &#34;skip_to_sporulation&#34;: True,
+                    &#34;skip_to_dispersion&#34;: False,
+                    &#34;sporulation_datetime&#34;: _sc_dt,
+                })
+            for _sc_dt in spore_counts_result.get(&#34;dispersion_datetimes&#34;, []):
+                _sc_to_inject.append({
+                    **spore_counts_result,
+                    &#34;skip_to_sporulation&#34;: False,
+                    &#34;skip_to_dispersion&#34;: True,
+                    &#34;dispersion_datetime&#34;: _sc_dt,
+                })
+
+            for _sc_result in _sc_to_inject:
+                _anchor_raw = (
+                    _sc_result.get(&#34;sporulation_datetime&#34;)
+                    if _sc_result.get(&#34;skip_to_sporulation&#34;)
+                    else _sc_result.get(&#34;dispersion_datetime&#34;)
+                )
+                if _anchor_raw is None:
+                    continue
+                _sc_dt = pd.to_datetime(_anchor_raw)
+                if processed_data[&#34;datetime&#34;].dt.tz is not None and _sc_dt.tzinfo is None:
+                    _sc_dt = _sc_dt.tz_localize(timezone)
+                _closest = (processed_data[&#34;datetime&#34;] - _sc_dt).abs().argmin()
+                _sc_rowindex = processed_data.index.get_loc(
+                    processed_data.index[_closest]
+                )
+
+                _sc_event = infection_event.InfectionEvent(
+                    processed_data,
+                    config,
+                    _sc_rowindex,
+                    oospore_maturation_datetime,
+                    daily_mean_temperatures,
+                    algorithmic_time_steps,
+                    logfile,
+                    oospore_infection_datetimes,
+                    _sc_result,
+                )
+                _sc_event.predict_infection()
+                infection_events.append(_sc_event.infection_events)
+                infection_predictions.append(_sc_event)
+
+                with open(output_files.events_text, &#34;a&#34;) as f:
+                    f.write(str(_sc_event) + &#34;\n&#34;)
+
+                with open(output_files.infection_datetimes, &#34;a&#34;) as f:
+                    _sc_ev = _sc_event.infection_events
+                    if _sc_ev[&#34;oospore_infection&#34;] is not None:
+                        _sc_sec  = _sc_ev.get(&#34;secondary_infections&#34;) or []
+                        _sc_spor = _sc_ev.get(&#34;sporulations&#34;) or []
+                        _sc_dens = _sc_ev.get(&#34;sporangia_densities&#34;) or []
+                        _sc_rows = max(1, len(_sc_sec), len(_sc_spor))
+                        for _sc_ri in range(_sc_rows):
+                            f.write(
+                                str(_sc_event.start_event_rowindex)
+                                + &#34;,&#34; + str(_sc_event.start_event_datetime)
+                                + &#34;,&#34; + str(_sc_ev[&#34;oospore_maturation&#34;])
+                                + &#34;,&#34; + str(_sc_ev[&#34;oospore_germination&#34;])
+                                + &#34;,&#34; + str(_sc_ev[&#34;oospore_dispersion&#34;])
+                                + &#34;,&#34; + str(_sc_ev[&#34;oospore_infection&#34;])
+                                + &#34;,&#34; + str(_sc_ev[&#34;completed_incubation&#34;])
+                                + &#34;,&#34; + str(_sc_spor[_sc_ri] if _sc_ri &lt; len(_sc_spor) else &#34;NA&#34;)
+                                + &#34;,&#34; + str(_sc_dens[_sc_ri] if _sc_ri &lt; len(_sc_dens) else &#34;NA&#34;)
+                                + &#34;,&#34; + str(_sc_sec[_sc_ri]  if _sc_ri &lt; len(_sc_sec)  else &#34;NA&#34;)
+                                + &#34;\n&#34;
+                            )
 
         logf.write(
             &#34;\nModel run complete. Infection events details and summary of predicted infection datetimes are stored in &#39;data/output/&#39;.\n&#34;
@@ -840,6 +1303,15 @@ def main(config: DictConfig):  # noqa: C901
         # Calculate the elapsed time.
         t_diff = t_end - t_start
         logf.write(f&#34;Runtime total: {t_diff}\n&#34;)
+
+        # Stop automated data pull if it was started
+        if data_pull_stop_event is not None:
+            logf.write(
+                &#34;\nStopping automated weather data pull thread...\n&#34;
+            )
+            data_pull_stop_event.set()
+            if data_pull_thread is not None and data_pull_thread.is_alive():
+                data_pull_thread.join(timeout=5)
 
         # Close the log file.
         logf.close()
@@ -882,7 +1354,26 @@ def main(config: DictConfig):  # noqa: C901
                             f.write(str(item) + &#34;,&#34;)
                         else:
                             f.write(str(item))
-                f.write(&#34;\n&#34;)</code></pre>
+                f.write(&#34;\n&#34;)
+
+        # Plot analysis graph (Rplot.R equivalent).
+        utils.plot_infection_analysis(
+            output_files.events_dataframe,
+            output_files.analysis_html,
+            model_parameters=config,
+            title=&#34;Infection analysis: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+        )
+
+        # Plot spore counts overview with infection event background colours.
+        utils.plot_spore_infection_overview(
+            output_files.events_dataframe,
+            output_files.overview_html,
+            model_parameters=config,
+            spore_counts_result=spore_counts_result,
+            title=&#34;Spore counts &amp; infection overview: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+        )</code></pre>
 </details>
 </dd>
 </dl>

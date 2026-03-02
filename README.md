@@ -13,10 +13,23 @@ Infection prediction modeling of *Plasmopara viticola* life cycle stages in vine
 ```bash
 curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
 ```
+
+> **Note:** if you see an error such as
+> `Command '['/home/user/.pyenv/shims/python', ...] returned non-zero exit status 127` during `make install` or `make run`, it means Poetry is trying to use a broken pyenv shim. Run these steps inside the **WSL/Bash** shell (not PowerShell) and ensure a working Python is available (e.g. install `python3` via `sudo apt install python3` or configure pyenv with `pyenv install 3.x` and `pyenv local 3.x`). You can also force Poetry to use the system interpreter with:
+
+```bash
+poetry env use /usr/bin/python3
+```
+
+> Adjust the path as appropriate and add poetry to your `PATH` per the instructions below.
+
 N.B. Do not forget to add poetry's path to your *.bashrc* file.
 
 E.g. on Linux machines, modify the ".bashrc" file for permanent inclusion to path, by adding the following line at the end:
+
+```bash
 export PATH="home/YOUR_USERNAME/.local/bin/poetry:$PATH"
+```
 
 2. Make sure to have Git installed on your computer (https://github.com/git-guides/install-git), then clone *Plasmopy* with the following command in your terminal:
 
@@ -48,7 +61,7 @@ make activate
 
 1. Load your raw timeseries input data in the folder `data/input/`
 
-2. Choose your data processing and model parameters configurations by customizing the `main.yaml` config file in the `config/` folder.
+2. Choose your data processing and model parameters configurations by customizing the `main.yaml` config file in the `config/` folder.  You may also specify an explicit `output.run_name` (and `output.directory`) in this file if you wish to control the name of the results folder and files instead of using the input filename.
 
 3. Run the infection prediction model with the command:
 ```bash

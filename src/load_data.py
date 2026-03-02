@@ -25,6 +25,12 @@ def load_data(raw_data_path, logfile):
     logf.write(f"\nLoading timeseries data from: {raw_data_path}\n")
     try:
         data = pd.read_csv(raw_data_path, sep=";")
+        if data.empty:
+            # pandas raises EmptyDataError when there is literally no content; but
+            # if the file has a header only (no rows) this catches that case too.
+            logf.write("\nLoad Data Warning: input file contains no rows.\n")
+            logf.close()
+            return data
         nrows = len(data.index)
         logf.write(f"\nNumber of rows: {nrows}\n")
         for i in range(1, len(data.columns)):
@@ -33,7 +39,7 @@ def load_data(raw_data_path, logfile):
             )
         logf.close()
         return data
-    except IOError:
+    except (IOError, pd.errors.EmptyDataError):
         error_msg = f"\nLoad Data Error: could not read {raw_data_path} file as pandas dataframe.\n"
         logf.write(error_msg)
         logf.close()
