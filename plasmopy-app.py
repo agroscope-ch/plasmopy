@@ -88,10 +88,69 @@ tab1, tab2, tab3 = st.tabs(["Input data", "Data processing", "Model parameters"]
 all_pandas_timezones = pytz.all_timezones
 
 with tab1:
-    input_meteo = meteo_file_selector()
-    new_input_meteo = meteo_file_uploader()
+    # ── Weather data ──────────────────────────────────────────────────────
+    st.subheader("Weather data")
+    automated_data_pull = st.checkbox(
+        "Automated weather data pull",
+        value=bool(C["input_data"].get("automated_data_pull", False)),
+    )
+    weather_api_query = ""
+    input_meteo = ""
+    new_input_meteo = ""
+    if automated_data_pull:
+        weather_api_query = st.text_input(
+            "Weather API URL:",
+            value=C["input_data"].get("weather_api_query", "") or "",
+        )
+    else:
+        input_meteo = meteo_file_selector()
+        new_input_meteo = meteo_file_uploader()
+
+    # ── Spore counts data ─────────────────────────────────────────────────
+    st.subheader("Spore counts data")
+    automated_spore_pull = st.checkbox(
+        "Automated spore counts pull",
+        value=bool(C["input_data"].get("automated_spore_pull", False)),
+    )
+    spore_counts_api_query = ""
+    if automated_spore_pull:
+        spore_counts_api_query = st.text_input(
+            "Spore counts API URL:",
+            value=C["input_data"].get("spore_counts_api_query", "") or "",
+        )
     input_spores = sporecounts_file_selector()
     new_input_spores = sporecounts_file_uploader()
+
+    # ── Support decision tool ─────────────────────────────────────────────
+    st.subheader("Support decision tool")
+    support_decision_tool_enabled = st.checkbox(
+        "Enable support decision tool",
+        value=bool(C["input_data"].get("support_decision_tool_enabled", False)),
+    )
+    if support_decision_tool_enabled:
+        spore_count_threshold = st.number_input(
+            "Spore count flat-threshold *:gray[[any day exceeds this count]]*:",
+            value=int(C["input_data"].get("spore_count_threshold", 10)),
+            min_value=0,
+        )
+        spore_count_lookback_days = st.number_input(
+            "Lookback window *[days]*:",
+            value=int(C["input_data"].get("spore_count_lookback_days", 3)),
+            min_value=1,
+        )
+        spore_count_percent_increase = st.number_input(
+            "Min percent increase over lookback *[%]*:",
+            value=float(C["input_data"].get("spore_count_percent_increase", 20)),
+            min_value=0.0,
+        )
+    else:
+        spore_count_threshold = int(C["input_data"].get("spore_count_threshold", 10))
+        spore_count_lookback_days = int(
+            C["input_data"].get("spore_count_lookback_days", 3)
+        )
+        spore_count_percent_increase = float(
+            C["input_data"].get("spore_count_percent_increase", 20)
+        )
 
 with tab2:
     fast_mode = st.radio("Fast mode:", options=[True, False], index=0)
@@ -344,7 +403,11 @@ with tab3:
 # ---------------------------------------------------------------------------
 # Resolve active file paths (uploaded > selected > config default)
 # ---------------------------------------------------------------------------
-active_meteo = new_input_meteo or input_meteo or C["input_data"].get("meteo", "") or ""
+active_meteo = (
+    ""
+    if automated_data_pull
+    else new_input_meteo or input_meteo or C["input_data"].get("meteo", "") or ""
+)
 active_spores = (
     new_input_spores or input_spores or C["input_data"].get("spore_counts", "") or ""
 )
@@ -355,11 +418,21 @@ active_spores = (
 # ---------------------------------------------------------------------------
 manual_markdown = read_text_file("MANUAL.md")
 readme_markdown = read_text_file("README.md")
+auto_pull_markdown = read_text_file("AUTOMATED_DATA_PULL_README.md")
+support_tool_markdown = read_text_file("SUPPORT_DECISION_TOOL_README.md")
 
 with st.sidebar.popover("Click to view **:red[MANUAL]**", use_container_width=True):
     st.markdown(manual_markdown, unsafe_allow_html=True)
 with st.sidebar.popover("Click to view **:red[README]**", use_container_width=True):
     st.markdown(readme_markdown, unsafe_allow_html=True)
+with st.sidebar.popover(
+    "Click to view **:red[AUTOMATED DATA PULL README]**", use_container_width=True
+):
+    st.markdown(auto_pull_markdown, unsafe_allow_html=True)
+with st.sidebar.popover(
+    "Click to view **:red[SUPPORT DECISION TOOL README]**", use_container_width=True
+):
+    st.markdown(support_tool_markdown, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +464,31 @@ def build_hydra_overrides():
     ov.append(
         f"input_data.spore_counts={_q(active_spores) if active_spores else 'null'}"
     )
+
+    # Automated data pulls
+    ov.append(
+        f"input_data.automated_data_pull={'true' if automated_data_pull else 'false'}"
+    )
+    ov.append(
+        f"input_data.weather_api_query="
+        f"{_q(weather_api_query) if weather_api_query else 'null'}"
+    )
+    ov.append(
+        f"input_data.automated_spore_pull={'true' if automated_spore_pull else 'false'}"
+    )
+    ov.append(
+        f"input_data.spore_counts_api_query="
+        f"{_q(spore_counts_api_query) if spore_counts_api_query else 'null'}"
+    )
+
+    # Support decision tool
+    ov.append(
+        f"input_data.support_decision_tool_enabled="
+        f"{'true' if support_decision_tool_enabled else 'false'}"
+    )
+    ov.append(f"input_data.spore_count_threshold={spore_count_threshold}")
+    ov.append(f"input_data.spore_count_lookback_days={spore_count_lookback_days}")
+    ov.append(f"input_data.spore_count_percent_increase={spore_count_percent_increase}")
 
     # Site
     ov.append(f"site.latitude={latitude}")
@@ -540,9 +638,9 @@ if start_button:
 # ---------------------------------------------------------------------------
 # Results display
 # ---------------------------------------------------------------------------
-if active_meteo:
+if active_meteo or automated_data_pull:
     output_files = utils.create_output_filenames(
-        active_meteo,
+        active_meteo or None,
         active_spores or None,
         output_dir=C.get("output", {}).get("directory"),
         run_name=C.get("output", {}).get("run_name"),
@@ -611,4 +709,7 @@ if active_meteo:
         st.info("No corresponding simulation found, run a new one.")
 
 else:
-    st.info("Select stored data or run a new prediction with the RUN MODEL button.")
+    st.info(
+        "Select a weather data file (or enable automated pull) "
+        "and run a new prediction with the RUN MODEL button."
+    )
