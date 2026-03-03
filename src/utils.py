@@ -650,6 +650,7 @@ def plot_spore_infection_overview(  # noqa: C901
     output_html_path,
     model_parameters=None,
     spore_counts_result=None,
+    spore_counts_path=None,
     title="Spore counts & infection overview",
 ):
     """
@@ -690,22 +691,29 @@ def plot_spore_infection_overview(  # noqa: C901
     # ------------------------------------------------------------------ #
     sc_x, sc_y = [], []
     sc_days: set = set()
-    if model_parameters is not None:
-        spore_path = model_parameters["input_data"]["spore_counts"]
-        if spore_path:
-            try:
-                sc = pd.read_csv(spore_path, sep=";")
-                _dc, _cc = sc.columns[0], sc.columns[1]
-                fmt = model_parameters["data_columns"]["format_columns"][0]
-                sc[_dc] = pd.to_datetime(sc[_dc], format=fmt, errors="coerce")
-                sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
-                sc.columns = [_dc, _cc]
-                sc[_dc] = pd.to_datetime(sc[_dc])
-                sc_x = sc[_dc].tolist()
-                sc_y = sc[_cc].tolist()
-                sc_days = {ts.date() for ts in sc_x}
-            except Exception:
-                pass
+    spore_path = spore_counts_path or (
+        model_parameters["input_data"]["spore_counts"]
+        if model_parameters is not None
+        else None
+    )
+    if spore_path:
+        try:
+            sc = pd.read_csv(spore_path, sep=";")
+            _dc, _cc = sc.columns[0], sc.columns[1]
+            fmt = (
+                model_parameters["data_columns"]["format_columns"][0]
+                if model_parameters is not None
+                else "%d.%m.%Y %H:%M"
+            )
+            sc[_dc] = pd.to_datetime(sc[_dc], format=fmt, errors="coerce")
+            sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
+            sc.columns = [_dc, _cc]
+            sc[_dc] = pd.to_datetime(sc[_dc])
+            sc_x = sc[_dc].tolist()
+            sc_y = sc[_cc].tolist()
+            sc_days = {ts.date() for ts in sc_x}
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ #
     # Build event and condition date sets                                 #
@@ -725,21 +733,24 @@ def plot_spore_infection_overview(  # noqa: C901
             condition_dates.add(pd.Timestamp(raw).date())
 
     # ------------------------------------------------------------------ #
-    # Grey days: within simulation period but missing spore count data    #
+    # Grey days: within the full plotted range but missing spore data    #
     # ------------------------------------------------------------------ #
     grey_days: set = set()
     if sc_days:
-        sim_start = None
+        # Start from the earliest available sc_day (covers the whole x-range
+        # of the plot), optionally extending back to the simulation start if
+        # that is even earlier.
+        range_start = min(sc_days)
         if "start" in df.columns and df["start"].notna().any():
-            sim_start = df["start"].dropna().min().date()
+            col_start = df["start"].dropna().min().date()
+            range_start = min(range_start, col_start)
         all_endpoint_dates = list(infection_dates) + [ts.date() for ts in sc_x]
-        sim_end = max(all_endpoint_dates) if all_endpoint_dates else None
-        if sim_start and sim_end:
-            cur = sim_start
-            while cur <= sim_end:
-                if cur not in sc_days:
-                    grey_days.add(cur)
-                cur += _dt.timedelta(days=1)
+        range_end = max(all_endpoint_dates) if all_endpoint_dates else max(sc_days)
+        cur = range_start
+        while cur <= range_end:
+            if cur not in sc_days:
+                grey_days.add(cur)
+            cur += _dt.timedelta(days=1)
 
     # ------------------------------------------------------------------ #
     # Assign background colour per day                                    #
@@ -749,11 +760,16 @@ def plot_spore_infection_overview(  # noqa: C901
     # Grey only on days not already coloured by an event/condition
     effective_grey = grey_days - red_days - yellow_days
 
-    _color_opacity = {"red": 0.35, "yellow": 0.25, "grey": 0.2}
+    green_days = sc_days - red_days - yellow_days
+
+    today = _dt.date.today()
+    _color_opacity_hist = {"red": 0.6, "yellow": 0.45, "grey": 0.35, "green": 0.45}
+    _color_opacity_fcst = {"red": 0.35, "yellow": 0.25, "grey": 0.2, "green": 0.25}
     day_color = (
         {d: "red" for d in red_days}
         | {d: "yellow" for d in yellow_days}
         | {d: "grey" for d in effective_grey}
+        | {d: "green" for d in green_days}
     )
 
     # ------------------------------------------------------------------ #
@@ -761,32 +777,39 @@ def plot_spore_infection_overview(  # noqa: C901
     # ------------------------------------------------------------------ #
     fig = go.Figure()
 
-    # Background colour rectangles (grouped by consecutive same-colour days)
+    # Background colour rectangles (grouped by consecutive same-colour + same-period days)
     if day_color:
         sorted_days = sorted(day_color)
         group_start = sorted_days[0]
         group_col = day_color[sorted_days[0]]
+        group_is_fcst = sorted_days[0] > today
         for day in sorted_days[1:] + [None]:
             next_col = day_color.get(day) if day is not None else None
+            next_is_fcst = (day > today) if day is not None else None
             idx = sorted_days.index(day) if day is not None else len(sorted_days)
             consecutive = (
                 day is not None
                 and (day - sorted_days[idx - 1]) == _dt.timedelta(days=1)
                 and next_col == group_col
+                and next_is_fcst == group_is_fcst
             )
             if not consecutive:
                 end_day = sorted_days[idx - 1] if day is not None else sorted_days[-1]
+                opacity_map = (
+                    _color_opacity_fcst if group_is_fcst else _color_opacity_hist
+                )
                 fig.add_vrect(
                     x0=pd.Timestamp(group_start),
                     x1=pd.Timestamp(end_day) + pd.Timedelta(days=1),
                     fillcolor=group_col,
-                    opacity=_color_opacity.get(group_col, 0.25),
+                    opacity=opacity_map.get(group_col, 0.35),
                     layer="below",
                     line_width=0,
                 )
                 if day is not None:
                     group_start = day
                     group_col = next_col
+                    group_is_fcst = next_is_fcst
 
     # Spore counts bars (primary y-axis)
     if sc_x:
@@ -800,38 +823,11 @@ def plot_spore_infection_overview(  # noqa: C901
             )
         )
 
-    # Top-of-chart markers on hidden secondary y-axis ([0, 1] range)
-    # Circle = infection model event; diamond = spore count condition
-    model_marker_days = [pd.Timestamp(d) for d in sorted(infection_dates)]
-    cond_marker_days = [pd.Timestamp(d) for d in sorted(condition_dates)]
-
-    if model_marker_days:
-        fig.add_trace(
-            go.Scatter(
-                x=model_marker_days,
-                y=[1.0] * len(model_marker_days),
-                mode="markers",
-                marker={"symbol": "circle", "size": 10, "color": "darkred"},
-                name="infection model event",
-                yaxis="y2",
-            )
-        )
-    if cond_marker_days:
-        fig.add_trace(
-            go.Scatter(
-                x=cond_marker_days,
-                y=[0.88] * len(cond_marker_days),
-                mode="markers",
-                marker={"symbol": "diamond", "size": 10, "color": "darkorange"},
-                name="spore count condition",
-                yaxis="y2",
-            )
-        )
-
     # Invisible legend swatches for background colours
     legend_items = [
-        ("red", 0.4, "infection AND spore count condition"),
-        ("yellow", 0.35, "infection OR spore count condition (not both)"),
+        ("red", 0.4, "high risk"),
+        ("yellow", 0.35, "medium risk"),
+        ("green", 0.35, "low risk"),
         ("grey", 0.3, "spore counts data missing"),
     ]
     for color, opacity, label in legend_items:
@@ -866,14 +862,6 @@ def plot_spore_infection_overview(  # noqa: C901
         yaxis={
             "title": "Daily spore counts",
             "showgrid": True,
-        },
-        yaxis2={
-            "range": [0, 1.15],
-            "overlaying": "y",
-            "showticklabels": False,
-            "showgrid": False,
-            "zeroline": False,
-            "fixedrange": True,
         },
         legend={
             "orientation": "h",

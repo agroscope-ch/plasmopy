@@ -149,12 +149,39 @@ def process_data(  # noqa: C901
             logf.write(
                 f"\nData Formatting ValueError: could not parse values of '{standard_colnames[i]}'.\n"
             )
-    # Filling NaN values (from missing data or from out-range-values) by interpolation between previous and following values.
+    # Filling NaN values (from missing data or from out-range-values) by interpolation between
+    # previous and following values, but only for gaps <= 6 hours.  Larger gaps are left as NaN.
     nan_count = processed_data.isnull().sum().sum()
+
+    measurement_interval = model_parameters["run_settings"]["measurement_time_interval"]
+    max_gap_rows = int(6 * 60 / measurement_interval)  # 6 h expressed in number of rows
+
+    # Pre-compute which positions belong to a gap larger than the threshold.
+    large_gap_mask = pd.DataFrame(
+        False, index=processed_data.index, columns=processed_data.columns
+    )
+    for col in processed_data.columns[1:]:  # skip datetime column
+        is_nan = processed_data[col].isna()
+        if is_nan.any():
+            nan_groups = is_nan.ne(is_nan.shift()).cumsum()
+            gap_sizes = is_nan.groupby(nan_groups).transform("sum")
+            large_gap_mask[col] = is_nan & (gap_sizes > max_gap_rows)
+
+    large_gap_count = int(large_gap_mask.values.sum())
+
+    # Interpolate (fills all NaN, including large-gap positions temporarily).
     processed_data = processed_data.interpolate(method="linear")
-    actual_missing_values_count = nan_count - outofrange_counter
+
+    # Restore NaN for positions that belong to gaps exceeding the 6-hour threshold.
+    for col in processed_data.columns[1:]:
+        if large_gap_mask[col].any():
+            processed_data.loc[large_gap_mask[col], col] = np.nan
+
+    actual_missing_values_count = nan_count - outofrange_counter - large_gap_count
     logf.write(
-        f"\n\n{outofrange_counter} out-of-range and {actual_missing_values_count} missing values replaced by interpolated values.\n"
+        f"\n\n{outofrange_counter} out-of-range and {actual_missing_values_count} missing values "
+        f"replaced by interpolated values. "
+        f"{large_gap_count} missing values in gaps > 6 h left as NaN.\n"
     )
 
     try:

@@ -2,7 +2,6 @@
 Script calling the specific infection algorithm submodules and functions.
 
 """
-import sys
 
 import pandas as pd
 from infection_functions import (
@@ -121,11 +120,11 @@ def get_oospore_maturation_date(
             )
 
     if oospore_maturation_date is None:
-        log_message = "\nWARNING: threshold conditions for oospore maturation not reached. Date of oospore maturation could not be determined. Model run interrupted.\n"
+        log_message = "\nWARNING: threshold conditions for oospore maturation not reached. Normal model loop will be skipped; spore count shortcut events will still be processed if available.\n"
         with open(logfile, "a") as logf:
             logf.write(log_message)
         print(log_message)
-        sys.exit()
+        return None, None
     else:
         with open(logfile, "a") as logf:
             logf.write(

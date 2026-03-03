@@ -11,14 +11,14 @@ from datetime import datetime
 import pandas as pd
 
 
-def fetch_spore_counts(api_query_url, logfile=None):
+def fetch_spore_counts(api_query_url, logfile=None):  # noqa: C901
     """
     Fetch spore counts from an online API and return as CSV string.
 
-    The API returns a JSON object with a ``datetime_str_list`` array whose
-    entries (format ``YYYYMMDD_HHMMSS``) each represent one spore-detection
-    event recorded by the trap camera.  The function aggregates these events
-    into daily totals and returns a semicolon-delimited CSV with columns
+    The API returns a JSON object with a ``Mildiou`` key containing two
+    parallel arrays: ``date`` (timestamps in format ``YYYYMMDD_HHMMSS``) and
+    ``count`` (integer spore counts per observation).  The function aggregates
+    these into daily totals and returns a semicolon-delimited CSV with columns
     ``Date;Counts`` (date format ``DD.MM.YYYY HH:MM``) compatible with
     ``check_spore_counts``.  Returns None if the request or parsing fails.
     """
@@ -39,16 +39,29 @@ def fetch_spore_counts(api_query_url, logfile=None):
         resp.raise_for_status()
         data = resp.json()
 
-        datetime_list = data.get("datetime_str_list", [])
+        mildiou = data.get("Mildiou", {})
+        datetime_list = mildiou.get("date", [])
+        mildiou_list = mildiou.get("count", [])
         if not datetime_list:
-            log_message("No datetime_str_list found in spore counts API response.")
+            log_message("No Mildiou.date found in spore counts API response.")
             return None
+        if not mildiou_list:
+            log_message("No Mildiou.count found in spore counts API response.")
+            return None
+        if len(datetime_list) != len(mildiou_list):
+            log_message(
+                f"Length mismatch: Mildiou.date ({len(datetime_list)}) vs "
+                f"Mildiou.count ({len(mildiou_list)}). Truncating to shortest."
+            )
+            min_len = min(len(datetime_list), len(mildiou_list))
+            datetime_list = datetime_list[:min_len]
+            mildiou_list = mildiou_list[:min_len]
 
         # Parse YYYYMMDD_HHMMSS timestamps; skip malformed entries.
         parsed = []
-        for dt_str in datetime_list:
+        for dt_str, count in zip(datetime_list, mildiou_list, strict=False):
             try:
-                parsed.append(datetime.strptime(dt_str, "%Y%m%d_%H%M%S"))
+                parsed.append((datetime.strptime(dt_str, "%Y%m%d_%H%M%S"), count))
             except ValueError:
                 continue
 
@@ -56,10 +69,10 @@ def fetch_spore_counts(api_query_url, logfile=None):
             log_message("No valid datetimes parsed from spore counts API response.")
             return None
 
-        # Aggregate: count detection events per calendar day.
-        df = pd.DataFrame({"datetime": parsed})
+        # Aggregate: sum n_mildiou_list counts per calendar day.
+        df = pd.DataFrame(parsed, columns=["datetime", "mildiou_count"])
         df["date"] = df["datetime"].dt.date
-        daily = df.groupby("date").size().reset_index(name="Counts")
+        daily = df.groupby("date")["mildiou_count"].sum().reset_index(name="Counts")
         daily["Date"] = pd.to_datetime(daily["date"]).dt.strftime("%d.%m.%Y") + " 00:00"
         result_df = daily[["Date", "Counts"]]
 

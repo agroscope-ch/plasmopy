@@ -248,7 +248,7 @@ def main(config: DictConfig):  # noqa: C901
         if config.input_data.get("automated_spore_pull", False):
             api_query = config.input_data.get("spore_counts_api_query")
             if api_query:
-                tmpfile = "data/tmp/auto_spore_counts.csv"
+                tmpfile = "data/input/auto_spore_counts.csv"
                 Path(tmpfile).parent.mkdir(parents=True, exist_ok=True)
                 try:
                     csvtext = support_decision_tool.fetch_spore_counts(
@@ -258,12 +258,17 @@ def main(config: DictConfig):  # noqa: C901
                         with open(tmpfile, "w") as f:
                             f.write(csvtext)
                         input_spore_file = tmpfile
+                        msg = f"Spore counts saved to {tmpfile}"
+                        print(msg)
+                        logf.write(f"\n{msg}\n")
                     else:
-                        logf.write(
-                            "\nUnable to fetch spore counts from API; running normal flow.\n"
-                        )
+                        msg = "Unable to fetch spore counts from API; running normal flow."
+                        print(msg)
+                        logf.write(f"\n{msg}\n")
                 except Exception as e:
-                    logf.write(f"\nError pulling spore counts: {e}\n")
+                    msg = f"Error pulling spore counts: {e}"
+                    print(msg)
+                    logf.write(f"\n{msg}\n")
             else:
                 logf.write(
                     "\nAutomated spore pull enabled but no API query provided.\n"
@@ -328,9 +333,11 @@ def main(config: DictConfig):  # noqa: C901
 
     # Extract the oospore maturation date from the processed datetime column,
     # so to make sure that the format is the same as in the other infection datetimes.
-    oospore_maturation_datetime = processed_data["datetime"][
-        oospore_maturation_datetime_rowindex
-    ]
+    oospore_maturation_datetime = (
+        processed_data["datetime"][oospore_maturation_datetime_rowindex]
+        if oospore_maturation_datetime_rowindex is not None
+        else None
+    )
 
     algorithmic_time_steps = int(config.run_settings.algorithmic_time_steps // 1)
     if algorithmic_time_steps < 1:
@@ -344,6 +351,48 @@ def main(config: DictConfig):  # noqa: C901
             "WARNING: computational time-step cannot be lower than 1. Running model at 1 time-step intervals..."
         )
         computational_time_steps = 1
+
+    # Clearing the output file content. We need to clear it before hand to avoid later "appending"
+    # results from previous model runs.
+
+    # For temporary oospore_infection_datetime processing:
+    oospore_infection_datetimes = "data/tmp/oospore_infection_datetimes.csv"
+    f = open(oospore_infection_datetimes, "w")
+    f.close()
+
+    # For result events output file:
+    f = open(output_files.events_text, "w")
+    f.close()
+
+    # And for infection results output file.
+    with open(output_files.infection_datetimes, "w") as f:
+        header_str = (
+            "id"
+            + ","
+            + "start"
+            + ","
+            + "oospore_maturation"
+            + ","
+            + "oospore_germination"
+            + ","
+            + "oospore_dispersion"
+            + ","
+            + "oospore_infection"
+            + ","
+            + "completed_incubation"
+            + ","
+            + "sporulation"
+            + ","
+            + "sporangia_density"
+            + ","
+            + "secondary_infection"
+            + "\n"
+        )
+        f.write(header_str)
+
+    infection_predictions = []
+    infection_events = []
+
     if oospore_maturation_datetime_rowindex is not None:
         progress_bar = tqdm(
             range(
@@ -352,47 +401,6 @@ def main(config: DictConfig):  # noqa: C901
                 computational_time_steps,
             )
         )
-
-        # Clearing the output file content. We need to clear it before hand to avoid later "appending"
-        # results from previous model runs.
-
-        # For temporary oospore_infection_datetime processing:
-        oospore_infection_datetimes = "data/tmp/oospore_infection_datetimes.csv"
-        f = open(oospore_infection_datetimes, "w")
-        f.close()
-
-        # For result events output file:
-        f = open(output_files.events_text, "w")
-        f.close()
-
-        # And for infection results output file.
-        with open(output_files.infection_datetimes, "w") as f:
-            header_str = (
-                "id"
-                + ","
-                + "start"
-                + ","
-                + "oospore_maturation"
-                + ","
-                + "oospore_germination"
-                + ","
-                + "oospore_dispersion"
-                + ","
-                + "oospore_infection"
-                + ","
-                + "completed_incubation"
-                + ","
-                + "sporulation"
-                + ","
-                + "sporangia_density"
-                + ","
-                + "secondary_infection"
-                + "\n"
-            )
-            f.write(header_str)
-
-        infection_predictions = []
-        infection_events = []
 
         # Progress bar output on terminal.
         for i in progress_bar:
@@ -520,188 +528,196 @@ def main(config: DictConfig):  # noqa: C901
                             + "\n"
                         )
 
-        # ------------------------------------------------------------------ #
-        # Inject supplementary shortcut events from spore count conditions.  #
-        # These add events that bypass early infection stages based on spore  #
-        # trap data, without replacing the normal model events above.         #
-        # ------------------------------------------------------------------ #
-        if spore_counts_result is not None:
-            # One entry per triggering datetime, each activating only one
-            # condition so run_infection_model takes the correct branch.
-            _sc_to_inject = []
-            for _sc_dt in spore_counts_result.get("sporulation_datetimes", []):
-                _sc_to_inject.append(
-                    {
-                        **spore_counts_result,
-                        "skip_to_sporulation": True,
-                        "skip_to_dispersion": False,
-                        "sporulation_datetime": _sc_dt,
-                    }
-                )
-            for _sc_dt in spore_counts_result.get("dispersion_datetimes", []):
-                _sc_to_inject.append(
-                    {
-                        **spore_counts_result,
-                        "skip_to_sporulation": False,
-                        "skip_to_dispersion": True,
-                        "dispersion_datetime": _sc_dt,
-                    }
-                )
-
-            for _sc_result in _sc_to_inject:
-                _anchor_raw = (
-                    _sc_result.get("sporulation_datetime")
-                    if _sc_result.get("skip_to_sporulation")
-                    else _sc_result.get("dispersion_datetime")
-                )
-                if _anchor_raw is None:
-                    continue
-                _sc_dt = pd.to_datetime(_anchor_raw)
-                if (
-                    processed_data["datetime"].dt.tz is not None
-                    and _sc_dt.tzinfo is None
-                ):
-                    _sc_dt = _sc_dt.tz_localize(timezone)
-                _closest = (processed_data["datetime"] - _sc_dt).abs().argmin()
-                _sc_rowindex = processed_data.index.get_loc(
-                    processed_data.index[_closest]
-                )
-
-                _sc_event = infection_event.InfectionEvent(
-                    processed_data,
-                    config,
-                    _sc_rowindex,
-                    oospore_maturation_datetime,
-                    daily_mean_temperatures,
-                    algorithmic_time_steps,
-                    logfile,
-                    oospore_infection_datetimes,
-                    _sc_result,
-                )
-                _sc_event.predict_infection()
-                infection_events.append(_sc_event.infection_events)
-                infection_predictions.append(_sc_event)
-
-                with open(output_files.events_text, "a") as f:
-                    f.write(str(_sc_event) + "\n")
-
-                with open(output_files.infection_datetimes, "a") as f:
-                    _sc_ev = _sc_event.infection_events
-                    if _sc_ev["oospore_infection"] is not None:
-                        _sc_sec = _sc_ev.get("secondary_infections") or []
-                        _sc_spor = _sc_ev.get("sporulations") or []
-                        _sc_dens = _sc_ev.get("sporangia_densities") or []
-                        _sc_rows = max(1, len(_sc_sec), len(_sc_spor))
-                        for _sc_ri in range(_sc_rows):
-                            f.write(
-                                str(_sc_event.start_event_rowindex)
-                                + ","
-                                + str(_sc_event.start_event_datetime)
-                                + ","
-                                + str(_sc_ev["oospore_maturation"])
-                                + ","
-                                + str(_sc_ev["oospore_germination"])
-                                + ","
-                                + str(_sc_ev["oospore_dispersion"])
-                                + ","
-                                + str(_sc_ev["oospore_infection"])
-                                + ","
-                                + str(_sc_ev["completed_incubation"])
-                                + ","
-                                + str(
-                                    _sc_spor[_sc_ri] if _sc_ri < len(_sc_spor) else "NA"
-                                )
-                                + ","
-                                + str(
-                                    _sc_dens[_sc_ri] if _sc_ri < len(_sc_dens) else "NA"
-                                )
-                                + ","
-                                + str(
-                                    _sc_sec[_sc_ri] if _sc_ri < len(_sc_sec) else "NA"
-                                )
-                                + "\n"
-                            )
-
+    else:
         logf.write(
-            "\nModel run complete. Infection events details and summary of predicted infection datetimes are stored in 'data/output/'.\n"
+            "\nOospore maturation conditions not reached. Normal model loop skipped; "
+            "processing spore count shortcut events only.\n"
         )
 
-        # End the timer.
+    # ------------------------------------------------------------------ #
+    # Inject supplementary shortcut events from spore count conditions.  #
+    # These add events that bypass early infection stages based on spore  #
+    # trap data, without replacing the normal model events above.         #
+    # ------------------------------------------------------------------ #
+    if spore_counts_result is not None:
+        # One entry per triggering datetime, each activating only one
+        # condition so run_infection_model takes the correct branch.
+        _sc_to_inject = []
+        for _sc_dt in spore_counts_result.get("sporulation_datetimes", []):
+            _sc_to_inject.append(
+                {
+                    **spore_counts_result,
+                    "skip_to_sporulation": True,
+                    "skip_to_dispersion": False,
+                    "sporulation_datetime": _sc_dt,
+                }
+            )
+        for _sc_dt in spore_counts_result.get("dispersion_datetimes", []):
+            _sc_to_inject.append(
+                {
+                    **spore_counts_result,
+                    "skip_to_sporulation": False,
+                    "skip_to_dispersion": True,
+                    "dispersion_datetime": _sc_dt,
+                }
+            )
+
+        for _sc_result in _sc_to_inject:
+            _anchor_raw = (
+                _sc_result.get("sporulation_datetime")
+                if _sc_result.get("skip_to_sporulation")
+                else _sc_result.get("dispersion_datetime")
+            )
+            if _anchor_raw is None:
+                continue
+            _sc_dt = pd.to_datetime(_anchor_raw)
+            if processed_data["datetime"].dt.tz is not None and _sc_dt.tzinfo is None:
+                _sc_dt = _sc_dt.tz_localize(timezone)
+            _closest = (processed_data["datetime"] - _sc_dt).abs().argmin()
+            _sc_rowindex = processed_data.index.get_loc(processed_data.index[_closest])
+
+            _sc_event = infection_event.InfectionEvent(
+                processed_data,
+                config,
+                _sc_rowindex,
+                oospore_maturation_datetime,
+                daily_mean_temperatures,
+                algorithmic_time_steps,
+                logfile,
+                oospore_infection_datetimes,
+                _sc_result,
+            )
+            _sc_event.predict_infection()
+            infection_events.append(_sc_event.infection_events)
+            infection_predictions.append(_sc_event)
+
+            with open(output_files.events_text, "a") as f:
+                f.write(str(_sc_event) + "\n")
+
+            with open(output_files.infection_datetimes, "a") as f:
+                _sc_ev = _sc_event.infection_events
+                if _sc_ev["oospore_infection"] is not None:
+                    _sc_sec = _sc_ev.get("secondary_infections") or []
+                    _sc_spor = _sc_ev.get("sporulations") or []
+                    _sc_dens = _sc_ev.get("sporangia_densities") or []
+                    _sc_rows = max(1, len(_sc_sec), len(_sc_spor))
+                    for _sc_ri in range(_sc_rows):
+                        f.write(
+                            str(_sc_event.start_event_rowindex)
+                            + ","
+                            + str(_sc_event.start_event_datetime)
+                            + ","
+                            + str(_sc_ev["oospore_maturation"])
+                            + ","
+                            + str(_sc_ev["oospore_germination"])
+                            + ","
+                            + str(_sc_ev["oospore_dispersion"])
+                            + ","
+                            + str(_sc_ev["oospore_infection"])
+                            + ","
+                            + str(_sc_ev["completed_incubation"])
+                            + ","
+                            + str(_sc_spor[_sc_ri] if _sc_ri < len(_sc_spor) else "NA")
+                            + ","
+                            + str(_sc_dens[_sc_ri] if _sc_ri < len(_sc_dens) else "NA")
+                            + ","
+                            + str(_sc_sec[_sc_ri] if _sc_ri < len(_sc_sec) else "NA")
+                            + "\n"
+                        )
+
+    if not infection_events:
+        logf.write(
+            "\nNo infection events produced (no maturation and no spore count shortcuts triggered).\n"
+        )
         t_end = datetime.now()
-        logf.write(f"Runtime end: {t_end}\n")
-
-        # Calculate the elapsed time.
-        t_diff = t_end - t_start
-        logf.write(f"Runtime total: {t_diff}\n")
-
-        # Stop automated data pull if it was started
+        logf.write(f"Runtime end: {t_end}\nRuntime total: {t_end - t_start}\n")
         if data_pull_stop_event is not None:
-            logf.write("\nStopping automated weather data pull thread...\n")
             data_pull_stop_event.set()
             if data_pull_thread is not None and data_pull_thread.is_alive():
                 data_pull_thread.join(timeout=5)
-
-        # Close the log file.
         logf.close()
+        return
 
-        # Plot infection events predictions.
-        utils.plot_events(
-            infection_events, config, [output_files.pdf_graph, output_files.html_graph]
-        )
+    logf.write(
+        "\nModel run complete. Infection events details and summary of predicted infection datetimes are stored in 'data/output/'.\n"
+    )
 
-        with open(output_files.events_dict, "wb") as pickle_file:
-            pickle.dump(infection_events, pickle_file)
-        with open(output_files.model_params, "wb") as pickle_file:
-            pickle.dump(config, pickle_file)
+    # End the timer.
+    t_end = datetime.now()
+    logf.write(f"Runtime end: {t_end}\n")
 
-        ### WRITE CSV "DATAFRAME" OF ALL INFECTION EVENTS DATETIMES
-        with open(output_files.events_dataframe, "w") as f:
-            event_columns = list(infection_events[0].keys())
-            event_columns.insert(0, "id")
-            event_columns.insert(1, "start")
-            wr = csv.writer(f, quoting=csv.QUOTE_NONE)
-            wr.writerow(event_columns)
-            event_id = 0
-            for event in infection_events:
-                start_time = infection_predictions[event_id].start_event_datetime
-                id = infection_predictions[event_id].id
-                f.write(str(id) + "," + str(start_time) + ",")
-                event_id += 1
-                n_events = len(event.keys())
-                i = 0
-                for key, item in event.items():  # noqa: B007
-                    i += 1
-                    if isinstance(item, list):
-                        if item:
-                            if i < n_events:
-                                f.write(str(item[0]) + ",")
-                            else:
-                                f.write(str(item[0]))
-                    else:
+    # Calculate the elapsed time.
+    t_diff = t_end - t_start
+    logf.write(f"Runtime total: {t_diff}\n")
+
+    # Stop automated data pull if it was started
+    if data_pull_stop_event is not None:
+        logf.write("\nStopping automated weather data pull thread...\n")
+        data_pull_stop_event.set()
+        if data_pull_thread is not None and data_pull_thread.is_alive():
+            data_pull_thread.join(timeout=5)
+
+    # Close the log file.
+    logf.close()
+
+    # Plot infection events predictions.
+    utils.plot_events(
+        infection_events, config, [output_files.pdf_graph, output_files.html_graph]
+    )
+
+    with open(output_files.events_dict, "wb") as pickle_file:
+        pickle.dump(infection_events, pickle_file)
+    with open(output_files.model_params, "wb") as pickle_file:
+        pickle.dump(config, pickle_file)
+
+    ### WRITE CSV "DATAFRAME" OF ALL INFECTION EVENTS DATETIMES
+    with open(output_files.events_dataframe, "w") as f:
+        event_columns = list(infection_events[0].keys())
+        event_columns.insert(0, "id")
+        event_columns.insert(1, "start")
+        wr = csv.writer(f, quoting=csv.QUOTE_NONE)
+        wr.writerow(event_columns)
+        event_id = 0
+        for event in infection_events:
+            start_time = infection_predictions[event_id].start_event_datetime
+            id = infection_predictions[event_id].id
+            f.write(str(id) + "," + str(start_time) + ",")
+            event_id += 1
+            n_events = len(event.keys())
+            i = 0
+            for key, item in event.items():  # noqa: B007
+                i += 1
+                if isinstance(item, list):
+                    if item:
                         if i < n_events:
-                            f.write(str(item) + ",")
+                            f.write(str(item[0]) + ",")
                         else:
-                            f.write(str(item))
-                f.write("\n")
+                            f.write(str(item[0]))
+                else:
+                    if i < n_events:
+                        f.write(str(item) + ",")
+                    else:
+                        f.write(str(item))
+            f.write("\n")
 
-        # Plot analysis graph (Rplot.R equivalent).
-        utils.plot_infection_analysis(
-            output_files.events_dataframe,
-            output_files.analysis_html,
-            model_parameters=config,
-            title="Infection analysis: "
-            + (config.input_data.meteo or "automated pull"),
-        )
+    # Plot analysis graph (Rplot.R equivalent).
+    utils.plot_infection_analysis(
+        output_files.events_dataframe,
+        output_files.analysis_html,
+        model_parameters=config,
+        title="Infection analysis: " + (config.input_data.meteo or "automated pull"),
+    )
 
-        # Plot spore counts overview with infection event background colours.
-        utils.plot_spore_infection_overview(
-            output_files.events_dataframe,
-            output_files.overview_html,
-            model_parameters=config,
-            spore_counts_result=spore_counts_result,
-            title="Spore counts & infection overview: "
-            + (config.input_data.meteo or "automated pull"),
-        )
+    # Plot spore counts overview with infection event background colours.
+    utils.plot_spore_infection_overview(
+        output_files.events_dataframe,
+        output_files.overview_html,
+        model_parameters=config,
+        spore_counts_result=spore_counts_result,
+        spore_counts_path=input_spore_file,
+        title="Spore counts & infection overview: "
+        + (config.input_data.meteo or "automated pull"),
+    )
 
 
 if __name__ == "__main__":

@@ -3,11 +3,11 @@ Secondary infection algorithms.
 
 """
 
-from math import ceil, floor
+from math import ceil, floor, isnan
 from statistics import mean
 
 
-def secondary_infection(
+def secondary_infection(  # noqa: C901
     processed_data,
     sporulation_datetime_rowindex,
     spore_lifespan,
@@ -27,6 +27,11 @@ def secondary_infection(
 
     secondary_infection_datetimes = []
     secondary_infection_datetime_rowindexes = []
+
+    # If spore lifespan is NaN (e.g. weather data missing for the whole gap),
+    # there is nothing to compute.
+    if isnan(spore_lifespan):
+        return secondary_infection_datetimes, secondary_infection_datetime_rowindexes
 
     # Finding rowindex for end of spore lifespan, from the lifespan in days computed in the spore death algorithm.
     # We need to convert from days to hours (* 24) and to minutes (* 60) and
@@ -52,6 +57,10 @@ def secondary_infection(
     ):
         temperature = processed_data["temperature"][i]
         leaf_wetness = processed_data["leaf_wetness"][i]
+
+        # Skip rows where weather data is missing (large gap left as NaN).
+        if isnan(temperature) or isnan(leaf_wetness):
+            continue
 
         # Temperature thresholds
         if (
@@ -80,11 +89,16 @@ def secondary_infection(
                     0, i - floor(60 / measurement_time_interval)
                 )
                 stop_hourly_rowindex = min(i + 1, len(processed_data.index))
-                mean_hourly_temperature = mean(
-                    processed_data["temperature"][
+                hourly_temps = [
+                    t
+                    for t in processed_data["temperature"][
                         start_hourly_rowindex:stop_hourly_rowindex
                     ]
-                )
+                    if not isnan(t)
+                ]
+                if not hourly_temps:
+                    continue
+                mean_hourly_temperature = mean(hourly_temps)
                 sum_degree_hours += mean_hourly_temperature
                 if sum_degree_hours >= secondary_infection_sum_degree_hours_threshold:
                     secondary_infection_datetime = processed_data["datetime"][i]
