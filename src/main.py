@@ -705,6 +705,7 @@ def main(config: DictConfig):  # noqa: C901
         output_files.events_dataframe,
         output_files.analysis_html,
         model_parameters=config,
+        spore_counts_path=input_spore_file,
         title="Infection analysis: " + (config.input_data.meteo or "automated pull"),
     )
 

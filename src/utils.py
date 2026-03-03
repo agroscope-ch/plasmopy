@@ -403,6 +403,7 @@ def plot_infection_analysis(  # noqa: C901
     events_dataframe_path,
     output_html_path,
     model_parameters=None,
+    spore_counts_path=None,
     title="Infection analysis",
 ):
     """
@@ -454,15 +455,24 @@ def plot_infection_analysis(  # noqa: C901
         df["oospore_dispersion"].notna() | df["sporulations"].notna()
     )
 
-    # Fixed y positions (matching Rplot.R yvalues)
-    event_y = {
-        "oospore_germination": 0,
-        "oospore_dispersion": 75_000,
-        "oospore_infection": 150_000,
-        "completed_incubation": 225_000,
-        "sporulations": 300_000,
-        "secondary_infections": 325_000,
-    }
+    # Read max sporangia density from config (fallback 360 000)
+    max_density = (
+        float(model_parameters["sporangia"]["max_density"])
+        if model_parameters is not None
+        else 360_000
+    )
+
+    # Evenly-spaced y positions: germination at 0, secondary infection at max_density
+    _event_keys = [
+        "oospore_germination",
+        "oospore_dispersion",
+        "oospore_infection",
+        "completed_incubation",
+        "sporulations",
+        "secondary_infections",
+    ]
+    _step = max_density / (len(_event_keys) - 1)
+    event_y = {col: round(i * _step) for i, col in enumerate(_event_keys)}
     event_symbols = {
         "oospore_germination": "circle",
         "oospore_dispersion": "triangle-up",
@@ -486,7 +496,7 @@ def plot_infection_analysis(  # noqa: C901
     # Background: daily spore counts (right y-axis)                      #
     # ------------------------------------------------------------------ #
     if model_parameters is not None:
-        spore_path = model_parameters["input_data"]["spore_counts"]
+        spore_path = spore_counts_path or model_parameters["input_data"]["spore_counts"]
         if spore_path:
             try:
                 sc = pd.read_csv(spore_path, sep=";")
@@ -525,11 +535,12 @@ def plot_infection_analysis(  # noqa: C901
                 mode="lines",
                 line={"color": "darkblue", "width": 2},
                 name="sporangia density",
+                yaxis="y3",
             )
         )
 
     # ------------------------------------------------------------------ #
-    # Oospore maturation single point (green square at y=0)              #
+    # Oospore maturation single point (down-arrow at y=0)                #
     # ------------------------------------------------------------------ #
     mat = df["oospore_maturation"].dropna()
     if not mat.empty:
@@ -538,7 +549,12 @@ def plot_infection_analysis(  # noqa: C901
                 x=[mat.iloc[0]],
                 y=[0],
                 mode="markers",
-                marker={"symbol": "square", "color": "darkgreen", "size": 12},
+                marker={
+                    "symbol": "arrow-down",
+                    "color": "#3cb371",
+                    "size": 18,
+                    "opacity": 1,
+                },
                 name="maturation",
             )
         )
@@ -595,7 +611,7 @@ def plot_infection_analysis(  # noqa: C901
                     marker={"symbol": event_symbols[col], "size": 8, "color": color},
                     name=label,
                     legendgroup=_chain_legend[shortcut_flag],
-                    showlegend=False,  # chain line trace already owns this legend entry
+                    showlegend=False,
                     hovertemplate="%{x}<extra>" + label + "</extra>",
                 )
             )
@@ -603,9 +619,6 @@ def plot_infection_analysis(  # noqa: C901
     # ------------------------------------------------------------------ #
     # Layout                                                              #
     # ------------------------------------------------------------------ #
-    y_tick_vals = list(event_y.values())
-    y_tick_text = [event_labels[c] for c in event_y]
-
     fig.update_layout(
         title=title,
         width=1600,
@@ -619,10 +632,9 @@ def plot_infection_analysis(  # noqa: C901
             "showgrid": True,
         },
         yaxis={
-            "title": "Leaf sporangia density [sporangia / cm²]",
-            "range": [0, 360_000],
-            "tickvals": y_tick_vals,
-            "ticktext": y_tick_text,
+            "title": "",
+            "range": [-max_density * 0.04, max_density * 1.08],
+            "showticklabels": False,
             "showgrid": True,
         },
         yaxis2={
@@ -630,6 +642,19 @@ def plot_infection_analysis(  # noqa: C901
             "overlaying": "y",
             "side": "right",
             "showticklabels": True,
+            "showgrid": False,
+        },
+        yaxis3={
+            "title": {
+                "text": "Leaf sporangia density [sporangia / cm²]",
+                "font": {"color": "darkblue"},
+            },
+            "overlaying": "y",
+            "side": "left",
+            "autoshift": True,
+            "range": [-max_density * 0.04, max_density * 1.08],
+            "tickcolor": "darkblue",
+            "tickfont": {"color": "darkblue"},
             "showgrid": False,
         },
         legend={
