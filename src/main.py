@@ -85,10 +85,23 @@ def main(config: DictConfig):  # noqa: C901
     # resolve meteorological file path for potential auto-pull
     meteo_file_path = config.input_data.meteo
     from pathlib import Path
+    from urllib.parse import parse_qs, urlparse
 
     if not meteo_file_path or meteo_file_path.strip() == "":
         if config.input_data.get("automated_data_pull", False):
-            meteo_file_path = "data/input/automated_meteo.csv"
+            # Build a coordinate-keyed filename so data fetched for different
+            # site coordinates are never merged into the same file.
+            _api_q = config.input_data.get("weather_api_query", "") or ""
+            _automated_meteo_path = "data/input/automated_meteo.csv"
+            if _api_q:
+                _qs = parse_qs(urlparse(_api_q).query)
+                _lat = (_qs.get("lat") or _qs.get("latitude") or [None])[0]
+                _lon = (_qs.get("lon") or _qs.get("longitude") or [None])[0]
+                if _lat and _lon:
+                    _automated_meteo_path = (
+                        f"data/input/automated_meteo_lat{_lat}_lon{_lon}.csv"
+                    )
+            meteo_file_path = _automated_meteo_path
             Path(meteo_file_path).parent.mkdir(parents=True, exist_ok=True)
             if not Path(meteo_file_path).exists():
                 open(meteo_file_path, "w").close()
@@ -100,8 +113,6 @@ def main(config: DictConfig):  # noqa: C901
 
         # verify coordinates (and elevation) match between config and API url
         if api_query is not None:
-            from urllib.parse import parse_qs, urlparse
-
             parsed = urlparse(api_query)
             qs = parse_qs(parsed.query)
             try:
@@ -169,11 +180,14 @@ def main(config: DictConfig):  # noqa: C901
     # been computed above to take into account the possibility of an empty
     # configuration value and the automated pull fall‑back.
     input_meteo_file = meteo_file_path
-    from pathlib import Path
 
     if not input_meteo_file or input_meteo_file.strip() == "":
         if config.input_data.get("automated_data_pull", False):
-            input_meteo_file = "data/input/automated_meteo.csv"
+            # Reuse the coordinate-keyed path derived above, falling back to
+            # the generic name only if the earlier block was never reached.
+            input_meteo_file = locals().get(
+                "_automated_meteo_path", "data/input/automated_meteo.csv"
+            )
             Path(input_meteo_file).parent.mkdir(parents=True, exist_ok=True)
             if not Path(input_meteo_file).exists():
                 # create placeholder with header row so pandas can read columns
