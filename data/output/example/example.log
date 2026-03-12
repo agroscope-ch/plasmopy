@@ -1,0 +1,111 @@
+©Plasmopy        
+
+Python implementation of Vitimeteo Plasmopara        
+
+Livio Ruzzante        
+Agroscope Changins (CH), 2023        
+version 1.0        
+
+Runtime start: 2026-03-12 12:00:32.655424
+
+Loading timeseries data from: data/input/2025_meteo_changins.csv
+
+Number of rows: 34986
+	CHANGINS - Température moy. +2 m (°C): min=-4.3; max=36.1
+	CHANGINS - Humidité moy. (%): min=20; max=100
+	CHANGINS - Précipitations intensité (mm/h): min=0.0; max=30.6
+	CHANGINS - Humectage du feuillage (min): min=0.0; max=10.0
+
+Using selected columns as specified in config file: 
+	Date
+	CHANGINS - Température moy. +2 m (°C)
+	CHANGINS - Humidité moy. (%)
+	CHANGINS - Précipitations intensité (mm/h)
+	CHANGINS - Humectage du feuillage (min)
+
+Renaming columns to: {0: 'datetime', 1: 'temperature', 2: 'humidity', 3: 'rainfall', 4: 'leaf_wetness'}
+
+Formatting columns to: {0: '%d.%m.%Y %H:%M', 1: [-20, 50], 2: [0, 100], 3: [0, 200], 4: [0, 10]}
+
+Meterological timeseries range of provided input data: 242 days 22:50:00.        
+Start: 2025-01-01 00:00:00+01:00. End: 2025-08-31 23:50:00+02:00.
+
+Setting non-numeric values to NaN (datetime not considered).
+
+
+0 out-of-range and 0 missing values replaced by interpolated values. 0 missing values in gaps > 6 h left as NaN.
+
+Formatted data stored in: /home/lruzzant/plasmopy/data/output/example/example.processed.csv
+
+Spore count analysis (full dataset, 58 days):
+Condition 1 – flat threshold (any day > 40): True → 6 surge(s) detected
+Condition 2 – percent increase (30%+ over 5-day window): True → 7 triggering window(s) detected
+
+No pre-set oospore maturation date.
+Oospore maturation date computationally determined on day: 2025-04-26
+
+Percent-increase condition met: skipping directly to sporulation stage.
+Sporulation stage start datetime: 2025-04-23 00:00:00+02:00
+
+Percent-increase condition met: skipping directly to sporulation stage.
+Sporulation stage start datetime: 2025-05-21 00:00:00+02:00
+
+Percent-increase condition met: skipping directly to sporulation stage.
+Sporulation stage start datetime: 2025-06-04 00:00:00+02:00
+
+Percent-increase condition met: skipping directly to sporulation stage.
+Sporulation stage start datetime: 2025-06-18 00:00:00+02:00
+
+Percent-increase condition met: skipping directly to sporulation stage.
+Sporulation stage start datetime: 2025-07-04 00:00:00+02:00
+
+Percent-increase condition met: skipping directly to sporulation stage.
+Sporulation stage start datetime: 2025-07-18 00:00:00+02:00
+
+Percent-increase condition met: skipping directly to sporulation stage.
+Sporulation stage start datetime: 2025-07-30 00:00:00+02:00
+
+Flat-threshold condition met: skipping to oospore dispersion stage.
+Dispersion stage anchored at datetime: 2025-05-23 00:00:00+02:00
+
+Flat-threshold condition met: skipping to oospore dispersion stage.
+Dispersion stage anchored at datetime: 2025-05-30 00:00:00+02:00
+
+Flat-threshold condition met: skipping to oospore dispersion stage.
+Dispersion stage anchored at datetime: 2025-06-04 00:00:00+02:00
+
+Flat-threshold condition met: skipping to oospore dispersion stage.
+Dispersion stage anchored at datetime: 2025-06-25 00:00:00+02:00
+
+Flat-threshold condition met: skipping to oospore dispersion stage.
+Dispersion stage anchored at datetime: 2025-07-04 00:00:00+02:00
+
+Flat-threshold condition met: skipping to oospore dispersion stage.
+Dispersion stage anchored at datetime: 2025-08-18 00:00:00+02:00
+
+Running infection model...
+
+Model parameters:
+	input_data: {'meteo': 'data/input/2025_meteo_changins.csv', 'spore_counts': 'data/input/2025_qPCR_changins.labo.exterieur.csv', 'decision_support_tool_enabled': True, 'automated_spore_pull': False, 'spore_counts_api_query': None, 'spore_count_threshold': 40, 'spore_count_lookback_days': 5, 'spore_count_percent_increase': 30, 'automated_weather_pull': False, 'weather_api_query': None}
+	output: {'directory': 'data/output', 'run_name': 'example'}
+	site: {'latitude': 46.4, 'longitude': 6.2, 'elevation': 439.0, 'timezone': 'Europe/Zurich'}
+	run_settings: {'algorithmic_time_steps': 1, 'computational_time_steps': 18, 'measurement_time_interval': 10, 'fast_mode': True}
+	data_columns: {'use_columns': [0, 1, 2, 3, 4], 'rename_columns': {0: 'datetime', 1: 'temperature', 2: 'humidity', 3: 'rainfall', 4: 'leaf_wetness'}, 'format_columns': {0: '%d.%m.%Y %H:%M', 1: [-20, 50], 2: [0, 100], 3: [0, 200], 4: [0, 10]}}
+	oospore_maturation: {'date': None, 'base_temperature': 8.0, 'sum_degree_days_threshold': 140.0}
+	oospore_germination: {'algorithm': 2, 'base_temperature': 8, 'base_duration': 8, 'leaf_wetness_threshold': 10, 'relative_humidity_threshold': 80, 'moisturization_temperature_threshold': 8.0, 'moisturization_rainfall_threshold': 5.0, 'moisturization_rainfall_period': 48}
+	oospore_dispersion: {'rainfall_threshold': 3.0, 'latency': 6.0}
+	primary_infection: {'base_temperature': 8.0, 'leaf_wetness_latency': 6.0, 'sum_degree_hours_threshold': 50.0}
+	sporulation: {'leaf_wetness_threshold': 0, 'min_humidity': 92.0, 'min_temperature': 12.0, 'min_darkness_hours': 4.0}
+	sporangia: {'latency': 4.0, 'max_density': 300000.0, 'max_temperature': 17.5, 'min_temperature': 11.0}
+	spore_lifespan: {'constant': 11.35, 'saturation_vapor_pressure': None}
+	secondary_infection: {'min_temperature': 3.0, 'max_temperature': 29.0, 'leaf_wetness_latency': 60.0, 'sum_degree_hours_threshold': 50.0}
+
+Support decision tool enabled. Checking spore counts file for decision support...
+
+Spore counts flat threshold exceeded. Model will jump to oospore dispersion stage.
+
+Spore counts percent-increase threshold exceeded. Model will jump to sporulation stage.
+
+Model run complete. Infection events details and summary of predicted infection datetimes are stored in 'data/output/'.
+Runtime end: 2026-03-12 12:01:19.006224
+Runtime total: 0:00:46.350800
