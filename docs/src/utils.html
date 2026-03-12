@@ -38,7 +38,6 @@ from statistics import mean
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from suntimes import SunTimes
@@ -118,8 +117,10 @@ def create_output_filenames(
     events_dict = output_basename.with_suffix(&#34;.events.obj&#34;).resolve()
     events_text = output_basename.with_suffix(&#34;.events.csv&#34;).resolve()
     events_dataframe = output_basename.with_suffix(&#34;.events_dataframe.csv&#34;).resolve()
-    infection_datetimes = output_basename.with_suffix(&#34;.infection_datetimes.csv&#34;).resolve()
-    pdf_graph = output_basename.with_suffix(&#34;.pdf&#34;).resolve()
+    infection_datetimes = output_basename.with_suffix(
+        &#34;.infection_datetimes.csv&#34;
+    ).resolve()
+    pdf_graph = Path(str(output_basename) + &#34;.basic.pdf&#34;).resolve()
     html_graph = output_basename.with_suffix(&#34;.html&#34;).resolve()
     analysis_html = output_basename.with_suffix(&#34;.analysis.html&#34;).resolve()
     overview_html = output_basename.with_suffix(&#34;.overview.html&#34;).resolve()
@@ -190,10 +191,10 @@ def get_daily_mean_measurements(processed_data, variable):
     return daily_mean_measurements
 
 
-def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
+def plot_events(infection_events, model_parameters, pdf_path):  # noqa: C901
     # Sample data: Dates and corresponding events for multiple categories
 
-    graphs = {&#34;pdf&#34;: graphs[0], &#34;html&#34;: graphs[1]}
+    graphs = {&#34;pdf&#34;: pdf_path}
 
     scatter_height_factor = 1
     n_events = 6
@@ -357,79 +358,14 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
 
     # Store the plot
     plt.savefig(graphs[&#34;pdf&#34;])
-
-    # Create the Plotly figure
-    fig = go.Figure()
-
-    # Add the line plot
-    colour_n = 0
-    for category in category_data.keys():
-        fig.add_trace(
-            go.Scatter(
-                x=category_datetimes[category],
-                y=category_events[category],
-                mode=&#34;markers&#34;,
-                marker={&#34;size&#34;: 10, &#34;color&#34;: event_colours[colour_n]},
-                name=category,
-                opacity=1,
-                hovertext=category_events[category],
-            )
-        )
-        colour_n += 1
-
-    if model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;] is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=spore_counts.iloc[:, 0],
-                y=spore_counts.iloc[:, 1],
-                line={&#34;color&#34;: &#34;royalblue&#34;, &#34;width&#34;: 1, &#34;dash&#34;: &#34;dot&#34;},
-                name=&#34;spore counts&#34;,
-                opacity=1,
-                hovertext=spore_counts.iloc[:, 1],
-                yaxis=&#34;y2&#34;,
-            )
-        )
-
-    fig.update_layout(
-        width=1600,
-        height=600,
-        paper_bgcolor=&#34;white&#34;,
-        plot_bgcolor=&#34;white&#34;,
-        yaxis={&#34;visible&#34;: True, &#34;showticklabels&#34;: False},
-        yaxis2={
-            &#34;visible&#34;: True,
-            &#34;showticklabels&#34;: True,
-            &#34;overlaying&#34;: &#34;y&#34;,
-            &#34;side&#34;: &#34;right&#34;,
-        },
-        xaxis={&#34;tickformat&#34;: &#34;%d/%m/%y %H:%M&#34;},
-        title=&#34;Input data: &#34; + (model_parameters[&#34;input_data&#34;][&#34;meteo&#34;] or &#34;automated pull&#34;),
-        legend={
-            &#34;orientation&#34;: &#34;h&#34;,
-            &#34;entrywidthmode&#34;: &#34;fraction&#34;,
-            &#34;entrywidth&#34;: 0.2,
-            &#34;yanchor&#34;: &#34;bottom&#34;,
-            &#34;y&#34;: 1.02,
-            &#34;xanchor&#34;: &#34;auto&#34;,
-            &#34;x&#34;: 0,
-        },
-    )
-
-    fig.update_yaxes(showline=False, linewidth=2, linecolor=&#34;black&#34;, showgrid=True)
-    fig.update_xaxes(
-        showline=False, linewidth=2, linecolor=&#34;black&#34;, tickangle=-90, showgrid=True
-    )
-    fig.update_xaxes(rangeslider_visible=True)
-
-    fig.write_html(graphs[&#34;html&#34;])
-
-    return fig
+    plt.close()
 
 
 def plot_infection_analysis(  # noqa: C901
     events_dataframe_path,
     output_html_path,
     model_parameters=None,
+    spore_counts_path=None,
     title=&#34;Infection analysis&#34;,
 ):
     &#34;&#34;&#34;
@@ -454,13 +390,18 @@ def plot_infection_analysis(  # noqa: C901
     df = pd.read_csv(events_dataframe_path)
 
     dt_cols = [
-        &#34;start&#34;, &#34;oospore_maturation&#34;, &#34;oospore_germination&#34;,
-        &#34;oospore_dispersion&#34;, &#34;oospore_infection&#34;, &#34;completed_incubation&#34;,
-        &#34;sporulations&#34;, &#34;secondary_infections&#34;,
+        &#34;start&#34;,
+        &#34;oospore_maturation&#34;,
+        &#34;oospore_germination&#34;,
+        &#34;oospore_dispersion&#34;,
+        &#34;oospore_infection&#34;,
+        &#34;completed_incubation&#34;,
+        &#34;sporulations&#34;,
+        &#34;secondary_infections&#34;,
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;)
+            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
 
     if &#34;sporangia_densities&#34; in df.columns:
         df[&#34;sporangia_densities&#34;] = pd.to_numeric(
@@ -476,29 +417,38 @@ def plot_infection_analysis(  # noqa: C901
         df[&#34;oospore_dispersion&#34;].notna() | df[&#34;sporulations&#34;].notna()
     )
 
-    # Fixed y positions (matching Rplot.R yvalues)
-    event_y = {
-        &#34;oospore_germination&#34;:  0,
-        &#34;oospore_dispersion&#34;:   75_000,
-        &#34;oospore_infection&#34;:    150_000,
-        &#34;completed_incubation&#34;: 225_000,
-        &#34;sporulations&#34;:         300_000,
-        &#34;secondary_infections&#34;: 325_000,
-    }
+    # Read max sporangia density from config (fallback 360 000)
+    max_density = (
+        float(model_parameters[&#34;sporangia&#34;][&#34;max_density&#34;])
+        if model_parameters is not None
+        else 360_000
+    )
+
+    # Evenly-spaced y positions: germination at 0, secondary infection at max_density
+    _event_keys = [
+        &#34;oospore_germination&#34;,
+        &#34;oospore_dispersion&#34;,
+        &#34;oospore_infection&#34;,
+        &#34;completed_incubation&#34;,
+        &#34;sporulations&#34;,
+        &#34;secondary_infections&#34;,
+    ]
+    _step = max_density / (len(_event_keys) - 1)
+    event_y = {col: round(i * _step) for i, col in enumerate(_event_keys)}
     event_symbols = {
-        &#34;oospore_germination&#34;:  &#34;circle&#34;,
-        &#34;oospore_dispersion&#34;:   &#34;triangle-up&#34;,
-        &#34;oospore_infection&#34;:    &#34;cross&#34;,
+        &#34;oospore_germination&#34;: &#34;circle&#34;,
+        &#34;oospore_dispersion&#34;: &#34;triangle-up&#34;,
+        &#34;oospore_infection&#34;: &#34;cross&#34;,
         &#34;completed_incubation&#34;: &#34;x&#34;,
-        &#34;sporulations&#34;:         &#34;triangle-down&#34;,
+        &#34;sporulations&#34;: &#34;triangle-down&#34;,
         &#34;secondary_infections&#34;: &#34;diamond&#34;,
     }
     event_labels = {
-        &#34;oospore_germination&#34;:  &#34;germination&#34;,
-        &#34;oospore_dispersion&#34;:   &#34;dispersion&#34;,
-        &#34;oospore_infection&#34;:    &#34;primary infection&#34;,
+        &#34;oospore_germination&#34;: &#34;germination&#34;,
+        &#34;oospore_dispersion&#34;: &#34;dispersion&#34;,
+        &#34;oospore_infection&#34;: &#34;primary infection&#34;,
         &#34;completed_incubation&#34;: &#34;completed incubation&#34;,
-        &#34;sporulations&#34;:         &#34;sporulation&#34;,
+        &#34;sporulations&#34;: &#34;sporulation&#34;,
         &#34;secondary_infections&#34;: &#34;secondary infection&#34;,
     }
 
@@ -508,7 +458,7 @@ def plot_infection_analysis(  # noqa: C901
     # Background: daily spore counts (right y-axis)                      #
     # ------------------------------------------------------------------ #
     if model_parameters is not None:
-        spore_path = model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
+        spore_path = spore_counts_path or model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
         if spore_path:
             try:
                 sc = pd.read_csv(spore_path, sep=&#34;;&#34;)
@@ -518,14 +468,16 @@ def plot_infection_analysis(  # noqa: C901
                 sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
                 sc.columns = [_dc, _cc]
                 sc[_dc] = pd.to_datetime(sc[_dc])
-                fig.add_trace(go.Bar(
-                    x=sc[_dc],
-                    y=sc[_cc],
-                    name=&#34;daily spore counts&#34;,
-                    marker_color=&#34;lightsteelblue&#34;,
-                    opacity=0.45,
-                    yaxis=&#34;y2&#34;,
-                ))
+                fig.add_trace(
+                    go.Bar(
+                        x=sc[_dc],
+                        y=sc[_cc],
+                        name=&#34;daily spore counts&#34;,
+                        marker_color=&#34;lightsteelblue&#34;,
+                        opacity=0.45,
+                        yaxis=&#34;y2&#34;,
+                    )
+                )
             except Exception:
                 pass
 
@@ -538,24 +490,36 @@ def plot_infection_analysis(  # noqa: C901
         for _, row in spor.iterrows():
             x_bars += [row[&#34;sporulations&#34;], row[&#34;sporulations&#34;], None]
             y_bars += [0, row[&#34;sporangia_densities&#34;], None]
-        fig.add_trace(go.Scatter(
-            x=x_bars, y=y_bars,
-            mode=&#34;lines&#34;,
-            line={&#34;color&#34;: &#34;darkblue&#34;, &#34;width&#34;: 2},
-            name=&#34;sporangia density&#34;,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=x_bars,
+                y=y_bars,
+                mode=&#34;lines&#34;,
+                line={&#34;color&#34;: &#34;darkblue&#34;, &#34;width&#34;: 2},
+                name=&#34;sporangia density&#34;,
+                yaxis=&#34;y3&#34;,
+            )
+        )
 
     # ------------------------------------------------------------------ #
-    # Oospore maturation single point (green square at y=0)              #
+    # Oospore maturation single point (down-arrow at y=0)                #
     # ------------------------------------------------------------------ #
     mat = df[&#34;oospore_maturation&#34;].dropna()
     if not mat.empty:
-        fig.add_trace(go.Scatter(
-            x=[mat.iloc[0]], y=[0],
-            mode=&#34;markers&#34;,
-            marker={&#34;symbol&#34;: &#34;square&#34;, &#34;color&#34;: &#34;darkgreen&#34;, &#34;size&#34;: 12},
-            name=&#34;maturation&#34;,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[mat.iloc[0]],
+                y=[0],
+                mode=&#34;markers&#34;,
+                marker={
+                    &#34;symbol&#34;: &#34;arrow-down&#34;,
+                    &#34;color&#34;: &#34;#3cb371&#34;,
+                    &#34;size&#34;: 18,
+                    &#34;opacity&#34;: 1,
+                },
+                name=&#34;maturation&#34;,
+            )
+        )
 
     # ------------------------------------------------------------------ #
     # Infection-chain dotted lines (one trace per shortcut group)        #
@@ -563,7 +527,7 @@ def plot_infection_analysis(  # noqa: C901
     event_cols_ordered = list(event_y.keys())
     _chain_legend = {
         False: &#34;normal model event&#34;,
-        True:  &#34;spore count condition (shortcut)&#34;,
+        True: &#34;spore count condition (shortcut)&#34;,
     }
     for shortcut_flag, color in [(False, &#34;black&#34;), (True, &#34;red&#34;)]:
         group = df[df[&#34;_shortcut&#34;] == shortcut_flag]
@@ -579,14 +543,17 @@ def plot_infection_analysis(  # noqa: C901
             x_lines.append(None)
             y_lines.append(None)
         # First segment of each group doubles as the legend entry
-        fig.add_trace(go.Scatter(
-            x=x_lines, y=y_lines,
-            mode=&#34;lines&#34;,
-            line={&#34;color&#34;: color, &#34;width&#34;: 0.5, &#34;dash&#34;: &#34;dot&#34;},
-            name=_chain_legend[shortcut_flag],
-            legendgroup=_chain_legend[shortcut_flag],
-            hoverinfo=&#34;skip&#34;,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=x_lines,
+                y=y_lines,
+                mode=&#34;lines&#34;,
+                line={&#34;color&#34;: color, &#34;width&#34;: 0.5, &#34;dash&#34;: &#34;dot&#34;},
+                name=_chain_legend[shortcut_flag],
+                legendgroup=_chain_legend[shortcut_flag],
+                hoverinfo=&#34;skip&#34;,
+            )
+        )
 
     # ------------------------------------------------------------------ #
     # Event-stage markers (one trace per stage, split by shortcut so     #
@@ -598,27 +565,24 @@ def plot_infection_analysis(  # noqa: C901
             if col_df.empty:
                 continue
             label = event_labels[col]
-            fig.add_trace(go.Scatter(
-                x=col_df[col],
-                y=[event_y[col]] * len(col_df),
-                mode=&#34;markers&#34;,
-                marker={&#34;symbol&#34;: event_symbols[col], &#34;size&#34;: 8, &#34;color&#34;: color},
-                name=label,
-                legendgroup=_chain_legend[shortcut_flag],
-                showlegend=False,  # chain line trace already owns this legend entry
-                hovertemplate=&#34;%{x}&lt;extra&gt;&#34; + label + &#34;&lt;/extra&gt;&#34;,
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=col_df[col],
+                    y=[event_y[col]] * len(col_df),
+                    mode=&#34;markers&#34;,
+                    marker={&#34;symbol&#34;: event_symbols[col], &#34;size&#34;: 8, &#34;color&#34;: color},
+                    name=label,
+                    legendgroup=_chain_legend[shortcut_flag],
+                    showlegend=False,
+                    hovertemplate=&#34;%{x}&lt;extra&gt;&#34; + label + &#34;&lt;/extra&gt;&#34;,
+                )
+            )
 
     # ------------------------------------------------------------------ #
     # Layout                                                              #
     # ------------------------------------------------------------------ #
-    y_tick_vals = list(event_y.values())
-    y_tick_text = [event_labels[c] for c in event_y]
-
     fig.update_layout(
         title=title,
-        width=1600,
-        height=700,
         paper_bgcolor=&#34;white&#34;,
         plot_bgcolor=&#34;white&#34;,
         xaxis={
@@ -628,10 +592,9 @@ def plot_infection_analysis(  # noqa: C901
             &#34;showgrid&#34;: True,
         },
         yaxis={
-            &#34;title&#34;: &#34;Leaf sporangia density [sporangia / cm²]&#34;,
-            &#34;range&#34;: [0, 360_000],
-            &#34;tickvals&#34;: y_tick_vals,
-            &#34;ticktext&#34;: y_tick_text,
+            &#34;title&#34;: &#34;&#34;,
+            &#34;range&#34;: [-max_density * 0.04, max_density * 1.08],
+            &#34;showticklabels&#34;: False,
             &#34;showgrid&#34;: True,
         },
         yaxis2={
@@ -639,6 +602,19 @@ def plot_infection_analysis(  # noqa: C901
             &#34;overlaying&#34;: &#34;y&#34;,
             &#34;side&#34;: &#34;right&#34;,
             &#34;showticklabels&#34;: True,
+            &#34;showgrid&#34;: False,
+        },
+        yaxis3={
+            &#34;title&#34;: {
+                &#34;text&#34;: &#34;Leaf sporangia density [sporangia / cm²]&#34;,
+                &#34;font&#34;: {&#34;color&#34;: &#34;darkblue&#34;},
+            },
+            &#34;overlaying&#34;: &#34;y&#34;,
+            &#34;side&#34;: &#34;left&#34;,
+            &#34;autoshift&#34;: True,
+            &#34;range&#34;: [-max_density * 0.04, max_density * 1.08],
+            &#34;tickcolor&#34;: &#34;darkblue&#34;,
+            &#34;tickfont&#34;: {&#34;color&#34;: &#34;darkblue&#34;},
             &#34;showgrid&#34;: False,
         },
         legend={
@@ -652,13 +628,15 @@ def plot_infection_analysis(  # noqa: C901
     )
     fig.update_xaxes(rangeslider_visible=True)
     fig.write_html(output_html_path)
+    return fig
 
 
-def plot_spore_infection_overview(
+def plot_spore_infection_overview(  # noqa: C901
     events_dataframe_path,
     output_html_path,
     model_parameters=None,
     spore_counts_result=None,
+    spore_counts_path=None,
     title=&#34;Spore counts &amp; infection overview&#34;,
 ):
     &#34;&#34;&#34;
@@ -684,34 +662,44 @@ def plot_spore_infection_overview(
     df = pd.read_csv(events_dataframe_path)
 
     dt_cols = [
-        &#34;start&#34;, &#34;oospore_dispersion&#34;, &#34;oospore_infection&#34;,
-        &#34;sporulations&#34;, &#34;secondary_infections&#34;,
+        &#34;start&#34;,
+        &#34;oospore_dispersion&#34;,
+        &#34;oospore_infection&#34;,
+        &#34;sporulations&#34;,
+        &#34;secondary_infections&#34;,
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;)
+            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
 
     # ------------------------------------------------------------------ #
     # Load and aggregate daily spore counts                               #
     # ------------------------------------------------------------------ #
     sc_x, sc_y = [], []
     sc_days: set = set()
-    if model_parameters is not None:
-        spore_path = model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
-        if spore_path:
-            try:
-                sc = pd.read_csv(spore_path, sep=&#34;;&#34;)
-                _dc, _cc = sc.columns[0], sc.columns[1]
-                fmt = model_parameters[&#34;data_columns&#34;][&#34;format_columns&#34;][0]
-                sc[_dc] = pd.to_datetime(sc[_dc], format=fmt, errors=&#34;coerce&#34;)
-                sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
-                sc.columns = [_dc, _cc]
-                sc[_dc] = pd.to_datetime(sc[_dc])
-                sc_x = sc[_dc].tolist()
-                sc_y = sc[_cc].tolist()
-                sc_days = {ts.date() for ts in sc_x}
-            except Exception:
-                pass
+    spore_path = spore_counts_path or (
+        model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
+        if model_parameters is not None
+        else None
+    )
+    if spore_path:
+        try:
+            sc = pd.read_csv(spore_path, sep=&#34;;&#34;)
+            _dc, _cc = sc.columns[0], sc.columns[1]
+            fmt = (
+                model_parameters[&#34;data_columns&#34;][&#34;format_columns&#34;][0]
+                if model_parameters is not None
+                else &#34;%d.%m.%Y %H:%M&#34;
+            )
+            sc[_dc] = pd.to_datetime(sc[_dc], format=fmt, errors=&#34;coerce&#34;)
+            sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
+            sc.columns = [_dc, _cc]
+            sc[_dc] = pd.to_datetime(sc[_dc])
+            sc_x = sc[_dc].tolist()
+            sc_y = sc[_cc].tolist()
+            sc_days = {ts.date() for ts in sc_x}
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ #
     # Build event and condition date sets                                 #
@@ -731,21 +719,33 @@ def plot_spore_infection_overview(
             condition_dates.add(pd.Timestamp(raw).date())
 
     # ------------------------------------------------------------------ #
-    # Grey days: within simulation period but missing spore count data    #
+    # Grey days: within the full plotted range but missing spore data    #
     # ------------------------------------------------------------------ #
     grey_days: set = set()
     if sc_days:
-        sim_start = None
+        # Start from the earliest available sc_day (covers the whole x-range
+        # of the plot), optionally extending back to the simulation start if
+        # that is even earlier.
+        range_start = min(sc_days)
         if &#34;start&#34; in df.columns and df[&#34;start&#34;].notna().any():
-            sim_start = df[&#34;start&#34;].dropna().min().date()
-        all_endpoint_dates = list(infection_dates) + [ts.date() for ts in sc_x]
-        sim_end = max(all_endpoint_dates) if all_endpoint_dates else None
-        if sim_start and sim_end:
-            cur = sim_start
-            while cur &lt;= sim_end:
-                if cur not in sc_days:
-                    grey_days.add(cur)
-                cur += _dt.timedelta(days=1)
+            col_start = df[&#34;start&#34;].dropna().min().date()
+            range_start = min(range_start, col_start)
+        # Also include all df datetime columns (start, dispersion, sporulation,
+        # infection events) so the range extends to the latest processed/forecast date
+        # even when no spore counts data is available beyond that point.
+        df_dates = []
+        for col in dt_cols:
+            if col in df.columns:
+                df_dates += [ts.date() for ts in df[col].dropna()]
+        all_endpoint_dates = (
+            list(infection_dates) + [ts.date() for ts in sc_x] + df_dates
+        )
+        range_end = max(all_endpoint_dates) if all_endpoint_dates else max(sc_days)
+        cur = range_start
+        while cur &lt;= range_end:
+            if cur not in sc_days:
+                grey_days.add(cur)
+            cur += _dt.timedelta(days=1)
 
     # ------------------------------------------------------------------ #
     # Assign background colour per day                                    #
@@ -755,11 +755,16 @@ def plot_spore_infection_overview(
     # Grey only on days not already coloured by an event/condition
     effective_grey = grey_days - red_days - yellow_days
 
-    _color_opacity = {&#34;red&#34;: 0.35, &#34;yellow&#34;: 0.25, &#34;grey&#34;: 0.2}
+    green_days = sc_days - red_days - yellow_days
+
+    today = _dt.date.today()
+    _color_opacity_hist = {&#34;red&#34;: 0.6, &#34;yellow&#34;: 0.45, &#34;grey&#34;: 0.35, &#34;green&#34;: 0.45}
+    _color_opacity_fcst = {&#34;red&#34;: 0.35, &#34;yellow&#34;: 0.25, &#34;grey&#34;: 0.2, &#34;green&#34;: 0.25}
     day_color = (
         {d: &#34;red&#34; for d in red_days}
         | {d: &#34;yellow&#34; for d in yellow_days}
         | {d: &#34;grey&#34; for d in effective_grey}
+        | {d: &#34;green&#34; for d in green_days}
     )
 
     # ------------------------------------------------------------------ #
@@ -767,86 +772,78 @@ def plot_spore_infection_overview(
     # ------------------------------------------------------------------ #
     fig = go.Figure()
 
-    # Background colour rectangles (grouped by consecutive same-colour days)
+    # Background colour rectangles (grouped by consecutive same-colour + same-period days)
     if day_color:
         sorted_days = sorted(day_color)
         group_start = sorted_days[0]
         group_col = day_color[sorted_days[0]]
+        group_is_fcst = sorted_days[0] &gt; today
         for day in sorted_days[1:] + [None]:
             next_col = day_color.get(day) if day is not None else None
+            next_is_fcst = (day &gt; today) if day is not None else None
             idx = sorted_days.index(day) if day is not None else len(sorted_days)
             consecutive = (
                 day is not None
                 and (day - sorted_days[idx - 1]) == _dt.timedelta(days=1)
                 and next_col == group_col
+                and next_is_fcst == group_is_fcst
             )
             if not consecutive:
                 end_day = sorted_days[idx - 1] if day is not None else sorted_days[-1]
+                opacity_map = (
+                    _color_opacity_fcst if group_is_fcst else _color_opacity_hist
+                )
                 fig.add_vrect(
                     x0=pd.Timestamp(group_start),
                     x1=pd.Timestamp(end_day) + pd.Timedelta(days=1),
                     fillcolor=group_col,
-                    opacity=_color_opacity.get(group_col, 0.25),
+                    opacity=opacity_map.get(group_col, 0.35),
                     layer=&#34;below&#34;,
                     line_width=0,
                 )
                 if day is not None:
                     group_start = day
                     group_col = next_col
+                    group_is_fcst = next_is_fcst
 
     # Spore counts bars (primary y-axis)
     if sc_x:
-        fig.add_trace(go.Bar(
-            x=sc_x,
-            y=sc_y,
-            name=&#34;daily spore counts&#34;,
-            marker_color=&#34;steelblue&#34;,
-            opacity=0.8,
-        ))
-
-    # Top-of-chart markers on hidden secondary y-axis ([0, 1] range)
-    # Circle = infection model event; diamond = spore count condition
-    model_marker_days = [pd.Timestamp(d) for d in sorted(infection_dates)]
-    cond_marker_days = [pd.Timestamp(d) for d in sorted(condition_dates)]
-
-    if model_marker_days:
-        fig.add_trace(go.Scatter(
-            x=model_marker_days,
-            y=[1.0] * len(model_marker_days),
-            mode=&#34;markers&#34;,
-            marker={&#34;symbol&#34;: &#34;circle&#34;, &#34;size&#34;: 10, &#34;color&#34;: &#34;darkred&#34;},
-            name=&#34;infection model event&#34;,
-            yaxis=&#34;y2&#34;,
-        ))
-    if cond_marker_days:
-        fig.add_trace(go.Scatter(
-            x=cond_marker_days,
-            y=[0.88] * len(cond_marker_days),
-            mode=&#34;markers&#34;,
-            marker={&#34;symbol&#34;: &#34;diamond&#34;, &#34;size&#34;: 10, &#34;color&#34;: &#34;darkorange&#34;},
-            name=&#34;spore count condition&#34;,
-            yaxis=&#34;y2&#34;,
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=sc_x,
+                y=sc_y,
+                name=&#34;daily spore counts&#34;,
+                marker_color=&#34;steelblue&#34;,
+                opacity=0.8,
+            )
+        )
 
     # Invisible legend swatches for background colours
     legend_items = [
-        (&#34;red&#34;,    0.4,  &#34;infection AND spore count condition&#34;),
-        (&#34;yellow&#34;, 0.35, &#34;infection OR spore count condition (not both)&#34;),
-        (&#34;grey&#34;,   0.3,  &#34;spore counts data missing&#34;),
+        (&#34;red&#34;, 0.4, &#34;high risk&#34;),
+        (&#34;yellow&#34;, 0.35, &#34;medium risk&#34;),
+        (&#34;green&#34;, 0.35, &#34;low risk&#34;),
+        (&#34;grey&#34;, 0.3, &#34;spore counts data missing&#34;),
     ]
     for color, opacity, label in legend_items:
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None],
-            mode=&#34;markers&#34;,
-            marker={&#34;symbol&#34;: &#34;square&#34;, &#34;size&#34;: 14, &#34;color&#34;: color, &#34;opacity&#34;: opacity},
-            name=label,
-            showlegend=True,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode=&#34;markers&#34;,
+                marker={
+                    &#34;symbol&#34;: &#34;square&#34;,
+                    &#34;size&#34;: 14,
+                    &#34;color&#34;: color,
+                    &#34;opacity&#34;: opacity,
+                },
+                name=label,
+                showlegend=True,
+            )
+        )
 
     fig.update_layout(
         title=title,
-        width=1600,
-        height=500,
         paper_bgcolor=&#34;white&#34;,
         plot_bgcolor=&#34;white&#34;,
         xaxis={
@@ -859,14 +856,6 @@ def plot_spore_infection_overview(
             &#34;title&#34;: &#34;Daily spore counts&#34;,
             &#34;showgrid&#34;: True,
         },
-        yaxis2={
-            &#34;range&#34;: [0, 1.15],
-            &#34;overlaying&#34;: &#34;y&#34;,
-            &#34;showticklabels&#34;: False,
-            &#34;showgrid&#34;: False,
-            &#34;zeroline&#34;: False,
-            &#34;fixedrange&#34;: True,
-        },
         legend={
             &#34;orientation&#34;: &#34;h&#34;,
             &#34;yanchor&#34;: &#34;bottom&#34;,
@@ -877,7 +866,80 @@ def plot_spore_infection_overview(
         bargroupgap=0,
     )
     fig.update_xaxes(rangeslider_visible=True)
-    fig.write_html(output_html_path)</code></pre>
+    fig.write_html(output_html_path)
+    return fig
+
+
+def write_combined_html(overview_fig, analysis_fig, output_path):
+    &#34;&#34;&#34;
+    Write a single HTML file with the overview plot as the default view and a
+    toggle button (top-left) that switches to the analysis plot.
+    &#34;&#34;&#34;
+    overview_div = overview_fig.to_html(full_html=False, include_plotlyjs=False)
+    analysis_div = analysis_fig.to_html(full_html=False, include_plotlyjs=False)
+
+    html = f&#34;&#34;&#34;&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;meta charset=&#34;utf-8&#34; /&gt;
+  &lt;script src=&#34;https://cdn.plot.ly/plotly-latest.min.js&#34;&gt;&lt;/script&gt;
+  &lt;style&gt;
+    body {{ margin: 0; padding: 0; font-family: sans-serif; }}
+    #toggle-btn {{
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      padding: 6px 14px;
+      background: #2c7bb6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }}
+    #toggle-btn:hover {{ background: #1a5276; }}
+    .plot-view {{ display: none; width: 100%; }}
+    .plot-view.active {{ display: block; }}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;button id=&#34;toggle-btn&#34; onclick=&#34;toggleView()&#34;&gt;Show Analysis&lt;/button&gt;
+  &lt;div id=&#34;overview-view&#34; class=&#34;plot-view active&#34;&gt;
+    {overview_div}
+  &lt;/div&gt;
+  &lt;div id=&#34;analysis-view&#34; class=&#34;plot-view&#34;&gt;
+    {analysis_div}
+  &lt;/div&gt;
+  &lt;script&gt;
+    function resizeActivePlots() {{
+      document.querySelectorAll(&#39;.plot-view.active .js-plotly-plot&#39;).forEach(function(el) {{
+        Plotly.Plots.resize(el);
+      }});
+    }}
+    function toggleView() {{
+      var ov = document.getElementById(&#39;overview-view&#39;);
+      var av = document.getElementById(&#39;analysis-view&#39;);
+      var btn = document.getElementById(&#39;toggle-btn&#39;);
+      if (ov.classList.contains(&#39;active&#39;)) {{
+        ov.classList.remove(&#39;active&#39;);
+        av.classList.add(&#39;active&#39;);
+        btn.textContent = &#39;Show Overview&#39;;
+      }} else {{
+        av.classList.remove(&#39;active&#39;);
+        ov.classList.add(&#39;active&#39;);
+        btn.textContent = &#39;Show Analysis&#39;;
+      }}
+      resizeActivePlots();
+    }}
+    window.addEventListener(&#39;resize&#39;, resizeActivePlots);
+    window.addEventListener(&#39;load&#39;, resizeActivePlots);
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;&#34;&#34;&#34;
+
+    with open(output_path, &#34;w&#34;, encoding=&#34;utf-8&#34;) as f:
+        f.write(html)</code></pre>
 </details>
 </section>
 <section>
@@ -953,8 +1015,10 @@ happen).</p></div>
     events_dict = output_basename.with_suffix(&#34;.events.obj&#34;).resolve()
     events_text = output_basename.with_suffix(&#34;.events.csv&#34;).resolve()
     events_dataframe = output_basename.with_suffix(&#34;.events_dataframe.csv&#34;).resolve()
-    infection_datetimes = output_basename.with_suffix(&#34;.infection_datetimes.csv&#34;).resolve()
-    pdf_graph = output_basename.with_suffix(&#34;.pdf&#34;).resolve()
+    infection_datetimes = output_basename.with_suffix(
+        &#34;.infection_datetimes.csv&#34;
+    ).resolve()
+    pdf_graph = Path(str(output_basename) + &#34;.basic.pdf&#34;).resolve()
     html_graph = output_basename.with_suffix(&#34;.html&#34;).resolve()
     analysis_html = output_basename.with_suffix(&#34;.analysis.html&#34;).resolve()
     overview_html = output_basename.with_suffix(&#34;.overview.html&#34;).resolve()
@@ -1055,7 +1119,7 @@ can occur. Required inputs are the site coordinates and date.</p></div>
 </details>
 </dd>
 <dt id="src.utils.plot_events"><code class="name flex">
-<span>def <span class="ident">plot_events</span></span>(<span>infection_events, model_parameters, graphs)</span>
+<span>def <span class="ident">plot_events</span></span>(<span>infection_events, model_parameters, pdf_path)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -1063,10 +1127,10 @@ can occur. Required inputs are the site coordinates and date.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
+<pre><code class="python">def plot_events(infection_events, model_parameters, pdf_path):  # noqa: C901
     # Sample data: Dates and corresponding events for multiple categories
 
-    graphs = {&#34;pdf&#34;: graphs[0], &#34;html&#34;: graphs[1]}
+    graphs = {&#34;pdf&#34;: pdf_path}
 
     scatter_height_factor = 1
     n_events = 6
@@ -1230,77 +1294,11 @@ can occur. Required inputs are the site coordinates and date.</p></div>
 
     # Store the plot
     plt.savefig(graphs[&#34;pdf&#34;])
-
-    # Create the Plotly figure
-    fig = go.Figure()
-
-    # Add the line plot
-    colour_n = 0
-    for category in category_data.keys():
-        fig.add_trace(
-            go.Scatter(
-                x=category_datetimes[category],
-                y=category_events[category],
-                mode=&#34;markers&#34;,
-                marker={&#34;size&#34;: 10, &#34;color&#34;: event_colours[colour_n]},
-                name=category,
-                opacity=1,
-                hovertext=category_events[category],
-            )
-        )
-        colour_n += 1
-
-    if model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;] is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=spore_counts.iloc[:, 0],
-                y=spore_counts.iloc[:, 1],
-                line={&#34;color&#34;: &#34;royalblue&#34;, &#34;width&#34;: 1, &#34;dash&#34;: &#34;dot&#34;},
-                name=&#34;spore counts&#34;,
-                opacity=1,
-                hovertext=spore_counts.iloc[:, 1],
-                yaxis=&#34;y2&#34;,
-            )
-        )
-
-    fig.update_layout(
-        width=1600,
-        height=600,
-        paper_bgcolor=&#34;white&#34;,
-        plot_bgcolor=&#34;white&#34;,
-        yaxis={&#34;visible&#34;: True, &#34;showticklabels&#34;: False},
-        yaxis2={
-            &#34;visible&#34;: True,
-            &#34;showticklabels&#34;: True,
-            &#34;overlaying&#34;: &#34;y&#34;,
-            &#34;side&#34;: &#34;right&#34;,
-        },
-        xaxis={&#34;tickformat&#34;: &#34;%d/%m/%y %H:%M&#34;},
-        title=&#34;Input data: &#34; + (model_parameters[&#34;input_data&#34;][&#34;meteo&#34;] or &#34;automated pull&#34;),
-        legend={
-            &#34;orientation&#34;: &#34;h&#34;,
-            &#34;entrywidthmode&#34;: &#34;fraction&#34;,
-            &#34;entrywidth&#34;: 0.2,
-            &#34;yanchor&#34;: &#34;bottom&#34;,
-            &#34;y&#34;: 1.02,
-            &#34;xanchor&#34;: &#34;auto&#34;,
-            &#34;x&#34;: 0,
-        },
-    )
-
-    fig.update_yaxes(showline=False, linewidth=2, linecolor=&#34;black&#34;, showgrid=True)
-    fig.update_xaxes(
-        showline=False, linewidth=2, linecolor=&#34;black&#34;, tickangle=-90, showgrid=True
-    )
-    fig.update_xaxes(rangeslider_visible=True)
-
-    fig.write_html(graphs[&#34;html&#34;])
-
-    return fig</code></pre>
+    plt.close()</code></pre>
 </details>
 </dd>
 <dt id="src.utils.plot_infection_analysis"><code class="name flex">
-<span>def <span class="ident">plot_infection_analysis</span></span>(<span>events_dataframe_path, output_html_path, model_parameters=None, title='Infection analysis')</span>
+<span>def <span class="ident">plot_infection_analysis</span></span>(<span>events_dataframe_path, output_html_path, model_parameters=None, spore_counts_path=None, title='Infection analysis')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Interactive HTML plot reproducing the Rplot.R visualisation.</p>
@@ -1323,6 +1321,7 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
     events_dataframe_path,
     output_html_path,
     model_parameters=None,
+    spore_counts_path=None,
     title=&#34;Infection analysis&#34;,
 ):
     &#34;&#34;&#34;
@@ -1347,13 +1346,18 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
     df = pd.read_csv(events_dataframe_path)
 
     dt_cols = [
-        &#34;start&#34;, &#34;oospore_maturation&#34;, &#34;oospore_germination&#34;,
-        &#34;oospore_dispersion&#34;, &#34;oospore_infection&#34;, &#34;completed_incubation&#34;,
-        &#34;sporulations&#34;, &#34;secondary_infections&#34;,
+        &#34;start&#34;,
+        &#34;oospore_maturation&#34;,
+        &#34;oospore_germination&#34;,
+        &#34;oospore_dispersion&#34;,
+        &#34;oospore_infection&#34;,
+        &#34;completed_incubation&#34;,
+        &#34;sporulations&#34;,
+        &#34;secondary_infections&#34;,
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;)
+            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
 
     if &#34;sporangia_densities&#34; in df.columns:
         df[&#34;sporangia_densities&#34;] = pd.to_numeric(
@@ -1369,29 +1373,38 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
         df[&#34;oospore_dispersion&#34;].notna() | df[&#34;sporulations&#34;].notna()
     )
 
-    # Fixed y positions (matching Rplot.R yvalues)
-    event_y = {
-        &#34;oospore_germination&#34;:  0,
-        &#34;oospore_dispersion&#34;:   75_000,
-        &#34;oospore_infection&#34;:    150_000,
-        &#34;completed_incubation&#34;: 225_000,
-        &#34;sporulations&#34;:         300_000,
-        &#34;secondary_infections&#34;: 325_000,
-    }
+    # Read max sporangia density from config (fallback 360 000)
+    max_density = (
+        float(model_parameters[&#34;sporangia&#34;][&#34;max_density&#34;])
+        if model_parameters is not None
+        else 360_000
+    )
+
+    # Evenly-spaced y positions: germination at 0, secondary infection at max_density
+    _event_keys = [
+        &#34;oospore_germination&#34;,
+        &#34;oospore_dispersion&#34;,
+        &#34;oospore_infection&#34;,
+        &#34;completed_incubation&#34;,
+        &#34;sporulations&#34;,
+        &#34;secondary_infections&#34;,
+    ]
+    _step = max_density / (len(_event_keys) - 1)
+    event_y = {col: round(i * _step) for i, col in enumerate(_event_keys)}
     event_symbols = {
-        &#34;oospore_germination&#34;:  &#34;circle&#34;,
-        &#34;oospore_dispersion&#34;:   &#34;triangle-up&#34;,
-        &#34;oospore_infection&#34;:    &#34;cross&#34;,
+        &#34;oospore_germination&#34;: &#34;circle&#34;,
+        &#34;oospore_dispersion&#34;: &#34;triangle-up&#34;,
+        &#34;oospore_infection&#34;: &#34;cross&#34;,
         &#34;completed_incubation&#34;: &#34;x&#34;,
-        &#34;sporulations&#34;:         &#34;triangle-down&#34;,
+        &#34;sporulations&#34;: &#34;triangle-down&#34;,
         &#34;secondary_infections&#34;: &#34;diamond&#34;,
     }
     event_labels = {
-        &#34;oospore_germination&#34;:  &#34;germination&#34;,
-        &#34;oospore_dispersion&#34;:   &#34;dispersion&#34;,
-        &#34;oospore_infection&#34;:    &#34;primary infection&#34;,
+        &#34;oospore_germination&#34;: &#34;germination&#34;,
+        &#34;oospore_dispersion&#34;: &#34;dispersion&#34;,
+        &#34;oospore_infection&#34;: &#34;primary infection&#34;,
         &#34;completed_incubation&#34;: &#34;completed incubation&#34;,
-        &#34;sporulations&#34;:         &#34;sporulation&#34;,
+        &#34;sporulations&#34;: &#34;sporulation&#34;,
         &#34;secondary_infections&#34;: &#34;secondary infection&#34;,
     }
 
@@ -1401,7 +1414,7 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
     # Background: daily spore counts (right y-axis)                      #
     # ------------------------------------------------------------------ #
     if model_parameters is not None:
-        spore_path = model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
+        spore_path = spore_counts_path or model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
         if spore_path:
             try:
                 sc = pd.read_csv(spore_path, sep=&#34;;&#34;)
@@ -1411,14 +1424,16 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
                 sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
                 sc.columns = [_dc, _cc]
                 sc[_dc] = pd.to_datetime(sc[_dc])
-                fig.add_trace(go.Bar(
-                    x=sc[_dc],
-                    y=sc[_cc],
-                    name=&#34;daily spore counts&#34;,
-                    marker_color=&#34;lightsteelblue&#34;,
-                    opacity=0.45,
-                    yaxis=&#34;y2&#34;,
-                ))
+                fig.add_trace(
+                    go.Bar(
+                        x=sc[_dc],
+                        y=sc[_cc],
+                        name=&#34;daily spore counts&#34;,
+                        marker_color=&#34;lightsteelblue&#34;,
+                        opacity=0.45,
+                        yaxis=&#34;y2&#34;,
+                    )
+                )
             except Exception:
                 pass
 
@@ -1431,24 +1446,36 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
         for _, row in spor.iterrows():
             x_bars += [row[&#34;sporulations&#34;], row[&#34;sporulations&#34;], None]
             y_bars += [0, row[&#34;sporangia_densities&#34;], None]
-        fig.add_trace(go.Scatter(
-            x=x_bars, y=y_bars,
-            mode=&#34;lines&#34;,
-            line={&#34;color&#34;: &#34;darkblue&#34;, &#34;width&#34;: 2},
-            name=&#34;sporangia density&#34;,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=x_bars,
+                y=y_bars,
+                mode=&#34;lines&#34;,
+                line={&#34;color&#34;: &#34;darkblue&#34;, &#34;width&#34;: 2},
+                name=&#34;sporangia density&#34;,
+                yaxis=&#34;y3&#34;,
+            )
+        )
 
     # ------------------------------------------------------------------ #
-    # Oospore maturation single point (green square at y=0)              #
+    # Oospore maturation single point (down-arrow at y=0)                #
     # ------------------------------------------------------------------ #
     mat = df[&#34;oospore_maturation&#34;].dropna()
     if not mat.empty:
-        fig.add_trace(go.Scatter(
-            x=[mat.iloc[0]], y=[0],
-            mode=&#34;markers&#34;,
-            marker={&#34;symbol&#34;: &#34;square&#34;, &#34;color&#34;: &#34;darkgreen&#34;, &#34;size&#34;: 12},
-            name=&#34;maturation&#34;,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[mat.iloc[0]],
+                y=[0],
+                mode=&#34;markers&#34;,
+                marker={
+                    &#34;symbol&#34;: &#34;arrow-down&#34;,
+                    &#34;color&#34;: &#34;#3cb371&#34;,
+                    &#34;size&#34;: 18,
+                    &#34;opacity&#34;: 1,
+                },
+                name=&#34;maturation&#34;,
+            )
+        )
 
     # ------------------------------------------------------------------ #
     # Infection-chain dotted lines (one trace per shortcut group)        #
@@ -1456,7 +1483,7 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
     event_cols_ordered = list(event_y.keys())
     _chain_legend = {
         False: &#34;normal model event&#34;,
-        True:  &#34;spore count condition (shortcut)&#34;,
+        True: &#34;spore count condition (shortcut)&#34;,
     }
     for shortcut_flag, color in [(False, &#34;black&#34;), (True, &#34;red&#34;)]:
         group = df[df[&#34;_shortcut&#34;] == shortcut_flag]
@@ -1472,14 +1499,17 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
             x_lines.append(None)
             y_lines.append(None)
         # First segment of each group doubles as the legend entry
-        fig.add_trace(go.Scatter(
-            x=x_lines, y=y_lines,
-            mode=&#34;lines&#34;,
-            line={&#34;color&#34;: color, &#34;width&#34;: 0.5, &#34;dash&#34;: &#34;dot&#34;},
-            name=_chain_legend[shortcut_flag],
-            legendgroup=_chain_legend[shortcut_flag],
-            hoverinfo=&#34;skip&#34;,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=x_lines,
+                y=y_lines,
+                mode=&#34;lines&#34;,
+                line={&#34;color&#34;: color, &#34;width&#34;: 0.5, &#34;dash&#34;: &#34;dot&#34;},
+                name=_chain_legend[shortcut_flag],
+                legendgroup=_chain_legend[shortcut_flag],
+                hoverinfo=&#34;skip&#34;,
+            )
+        )
 
     # ------------------------------------------------------------------ #
     # Event-stage markers (one trace per stage, split by shortcut so     #
@@ -1491,27 +1521,24 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
             if col_df.empty:
                 continue
             label = event_labels[col]
-            fig.add_trace(go.Scatter(
-                x=col_df[col],
-                y=[event_y[col]] * len(col_df),
-                mode=&#34;markers&#34;,
-                marker={&#34;symbol&#34;: event_symbols[col], &#34;size&#34;: 8, &#34;color&#34;: color},
-                name=label,
-                legendgroup=_chain_legend[shortcut_flag],
-                showlegend=False,  # chain line trace already owns this legend entry
-                hovertemplate=&#34;%{x}&lt;extra&gt;&#34; + label + &#34;&lt;/extra&gt;&#34;,
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=col_df[col],
+                    y=[event_y[col]] * len(col_df),
+                    mode=&#34;markers&#34;,
+                    marker={&#34;symbol&#34;: event_symbols[col], &#34;size&#34;: 8, &#34;color&#34;: color},
+                    name=label,
+                    legendgroup=_chain_legend[shortcut_flag],
+                    showlegend=False,
+                    hovertemplate=&#34;%{x}&lt;extra&gt;&#34; + label + &#34;&lt;/extra&gt;&#34;,
+                )
+            )
 
     # ------------------------------------------------------------------ #
     # Layout                                                              #
     # ------------------------------------------------------------------ #
-    y_tick_vals = list(event_y.values())
-    y_tick_text = [event_labels[c] for c in event_y]
-
     fig.update_layout(
         title=title,
-        width=1600,
-        height=700,
         paper_bgcolor=&#34;white&#34;,
         plot_bgcolor=&#34;white&#34;,
         xaxis={
@@ -1521,10 +1548,9 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
             &#34;showgrid&#34;: True,
         },
         yaxis={
-            &#34;title&#34;: &#34;Leaf sporangia density [sporangia / cm²]&#34;,
-            &#34;range&#34;: [0, 360_000],
-            &#34;tickvals&#34;: y_tick_vals,
-            &#34;ticktext&#34;: y_tick_text,
+            &#34;title&#34;: &#34;&#34;,
+            &#34;range&#34;: [-max_density * 0.04, max_density * 1.08],
+            &#34;showticklabels&#34;: False,
             &#34;showgrid&#34;: True,
         },
         yaxis2={
@@ -1532,6 +1558,19 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
             &#34;overlaying&#34;: &#34;y&#34;,
             &#34;side&#34;: &#34;right&#34;,
             &#34;showticklabels&#34;: True,
+            &#34;showgrid&#34;: False,
+        },
+        yaxis3={
+            &#34;title&#34;: {
+                &#34;text&#34;: &#34;Leaf sporangia density [sporangia / cm²]&#34;,
+                &#34;font&#34;: {&#34;color&#34;: &#34;darkblue&#34;},
+            },
+            &#34;overlaying&#34;: &#34;y&#34;,
+            &#34;side&#34;: &#34;left&#34;,
+            &#34;autoshift&#34;: True,
+            &#34;range&#34;: [-max_density * 0.04, max_density * 1.08],
+            &#34;tickcolor&#34;: &#34;darkblue&#34;,
+            &#34;tickfont&#34;: {&#34;color&#34;: &#34;darkblue&#34;},
             &#34;showgrid&#34;: False,
         },
         legend={
@@ -1544,11 +1583,12 @@ completed incubation=225 000, sporulation=300 000, secondary infection=325 000.<
         bargroupgap=0,
     )
     fig.update_xaxes(rangeslider_visible=True)
-    fig.write_html(output_html_path)</code></pre>
+    fig.write_html(output_html_path)
+    return fig</code></pre>
 </details>
 </dd>
 <dt id="src.utils.plot_spore_infection_overview"><code class="name flex">
-<span>def <span class="ident">plot_spore_infection_overview</span></span>(<span>events_dataframe_path, output_html_path, model_parameters=None, spore_counts_result=None, title='Spore counts & infection overview')</span>
+<span>def <span class="ident">plot_spore_infection_overview</span></span>(<span>events_dataframe_path, output_html_path, model_parameters=None, spore_counts_result=None, spore_counts_path=None, title='Spore counts & infection overview')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Interactive HTML overview plot showing daily spore counts with day-level
@@ -1570,11 +1610,12 @@ diamond – spore count condition triggered (threshold or % increase)</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def plot_spore_infection_overview(
+<pre><code class="python">def plot_spore_infection_overview(  # noqa: C901
     events_dataframe_path,
     output_html_path,
     model_parameters=None,
     spore_counts_result=None,
+    spore_counts_path=None,
     title=&#34;Spore counts &amp; infection overview&#34;,
 ):
     &#34;&#34;&#34;
@@ -1600,34 +1641,44 @@ diamond – spore count condition triggered (threshold or % increase)</p></div>
     df = pd.read_csv(events_dataframe_path)
 
     dt_cols = [
-        &#34;start&#34;, &#34;oospore_dispersion&#34;, &#34;oospore_infection&#34;,
-        &#34;sporulations&#34;, &#34;secondary_infections&#34;,
+        &#34;start&#34;,
+        &#34;oospore_dispersion&#34;,
+        &#34;oospore_infection&#34;,
+        &#34;sporulations&#34;,
+        &#34;secondary_infections&#34;,
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;)
+            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
 
     # ------------------------------------------------------------------ #
     # Load and aggregate daily spore counts                               #
     # ------------------------------------------------------------------ #
     sc_x, sc_y = [], []
     sc_days: set = set()
-    if model_parameters is not None:
-        spore_path = model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
-        if spore_path:
-            try:
-                sc = pd.read_csv(spore_path, sep=&#34;;&#34;)
-                _dc, _cc = sc.columns[0], sc.columns[1]
-                fmt = model_parameters[&#34;data_columns&#34;][&#34;format_columns&#34;][0]
-                sc[_dc] = pd.to_datetime(sc[_dc], format=fmt, errors=&#34;coerce&#34;)
-                sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
-                sc.columns = [_dc, _cc]
-                sc[_dc] = pd.to_datetime(sc[_dc])
-                sc_x = sc[_dc].tolist()
-                sc_y = sc[_cc].tolist()
-                sc_days = {ts.date() for ts in sc_x}
-            except Exception:
-                pass
+    spore_path = spore_counts_path or (
+        model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
+        if model_parameters is not None
+        else None
+    )
+    if spore_path:
+        try:
+            sc = pd.read_csv(spore_path, sep=&#34;;&#34;)
+            _dc, _cc = sc.columns[0], sc.columns[1]
+            fmt = (
+                model_parameters[&#34;data_columns&#34;][&#34;format_columns&#34;][0]
+                if model_parameters is not None
+                else &#34;%d.%m.%Y %H:%M&#34;
+            )
+            sc[_dc] = pd.to_datetime(sc[_dc], format=fmt, errors=&#34;coerce&#34;)
+            sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
+            sc.columns = [_dc, _cc]
+            sc[_dc] = pd.to_datetime(sc[_dc])
+            sc_x = sc[_dc].tolist()
+            sc_y = sc[_cc].tolist()
+            sc_days = {ts.date() for ts in sc_x}
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ #
     # Build event and condition date sets                                 #
@@ -1647,21 +1698,33 @@ diamond – spore count condition triggered (threshold or % increase)</p></div>
             condition_dates.add(pd.Timestamp(raw).date())
 
     # ------------------------------------------------------------------ #
-    # Grey days: within simulation period but missing spore count data    #
+    # Grey days: within the full plotted range but missing spore data    #
     # ------------------------------------------------------------------ #
     grey_days: set = set()
     if sc_days:
-        sim_start = None
+        # Start from the earliest available sc_day (covers the whole x-range
+        # of the plot), optionally extending back to the simulation start if
+        # that is even earlier.
+        range_start = min(sc_days)
         if &#34;start&#34; in df.columns and df[&#34;start&#34;].notna().any():
-            sim_start = df[&#34;start&#34;].dropna().min().date()
-        all_endpoint_dates = list(infection_dates) + [ts.date() for ts in sc_x]
-        sim_end = max(all_endpoint_dates) if all_endpoint_dates else None
-        if sim_start and sim_end:
-            cur = sim_start
-            while cur &lt;= sim_end:
-                if cur not in sc_days:
-                    grey_days.add(cur)
-                cur += _dt.timedelta(days=1)
+            col_start = df[&#34;start&#34;].dropna().min().date()
+            range_start = min(range_start, col_start)
+        # Also include all df datetime columns (start, dispersion, sporulation,
+        # infection events) so the range extends to the latest processed/forecast date
+        # even when no spore counts data is available beyond that point.
+        df_dates = []
+        for col in dt_cols:
+            if col in df.columns:
+                df_dates += [ts.date() for ts in df[col].dropna()]
+        all_endpoint_dates = (
+            list(infection_dates) + [ts.date() for ts in sc_x] + df_dates
+        )
+        range_end = max(all_endpoint_dates) if all_endpoint_dates else max(sc_days)
+        cur = range_start
+        while cur &lt;= range_end:
+            if cur not in sc_days:
+                grey_days.add(cur)
+            cur += _dt.timedelta(days=1)
 
     # ------------------------------------------------------------------ #
     # Assign background colour per day                                    #
@@ -1671,11 +1734,16 @@ diamond – spore count condition triggered (threshold or % increase)</p></div>
     # Grey only on days not already coloured by an event/condition
     effective_grey = grey_days - red_days - yellow_days
 
-    _color_opacity = {&#34;red&#34;: 0.35, &#34;yellow&#34;: 0.25, &#34;grey&#34;: 0.2}
+    green_days = sc_days - red_days - yellow_days
+
+    today = _dt.date.today()
+    _color_opacity_hist = {&#34;red&#34;: 0.6, &#34;yellow&#34;: 0.45, &#34;grey&#34;: 0.35, &#34;green&#34;: 0.45}
+    _color_opacity_fcst = {&#34;red&#34;: 0.35, &#34;yellow&#34;: 0.25, &#34;grey&#34;: 0.2, &#34;green&#34;: 0.25}
     day_color = (
         {d: &#34;red&#34; for d in red_days}
         | {d: &#34;yellow&#34; for d in yellow_days}
         | {d: &#34;grey&#34; for d in effective_grey}
+        | {d: &#34;green&#34; for d in green_days}
     )
 
     # ------------------------------------------------------------------ #
@@ -1683,86 +1751,78 @@ diamond – spore count condition triggered (threshold or % increase)</p></div>
     # ------------------------------------------------------------------ #
     fig = go.Figure()
 
-    # Background colour rectangles (grouped by consecutive same-colour days)
+    # Background colour rectangles (grouped by consecutive same-colour + same-period days)
     if day_color:
         sorted_days = sorted(day_color)
         group_start = sorted_days[0]
         group_col = day_color[sorted_days[0]]
+        group_is_fcst = sorted_days[0] &gt; today
         for day in sorted_days[1:] + [None]:
             next_col = day_color.get(day) if day is not None else None
+            next_is_fcst = (day &gt; today) if day is not None else None
             idx = sorted_days.index(day) if day is not None else len(sorted_days)
             consecutive = (
                 day is not None
                 and (day - sorted_days[idx - 1]) == _dt.timedelta(days=1)
                 and next_col == group_col
+                and next_is_fcst == group_is_fcst
             )
             if not consecutive:
                 end_day = sorted_days[idx - 1] if day is not None else sorted_days[-1]
+                opacity_map = (
+                    _color_opacity_fcst if group_is_fcst else _color_opacity_hist
+                )
                 fig.add_vrect(
                     x0=pd.Timestamp(group_start),
                     x1=pd.Timestamp(end_day) + pd.Timedelta(days=1),
                     fillcolor=group_col,
-                    opacity=_color_opacity.get(group_col, 0.25),
+                    opacity=opacity_map.get(group_col, 0.35),
                     layer=&#34;below&#34;,
                     line_width=0,
                 )
                 if day is not None:
                     group_start = day
                     group_col = next_col
+                    group_is_fcst = next_is_fcst
 
     # Spore counts bars (primary y-axis)
     if sc_x:
-        fig.add_trace(go.Bar(
-            x=sc_x,
-            y=sc_y,
-            name=&#34;daily spore counts&#34;,
-            marker_color=&#34;steelblue&#34;,
-            opacity=0.8,
-        ))
-
-    # Top-of-chart markers on hidden secondary y-axis ([0, 1] range)
-    # Circle = infection model event; diamond = spore count condition
-    model_marker_days = [pd.Timestamp(d) for d in sorted(infection_dates)]
-    cond_marker_days = [pd.Timestamp(d) for d in sorted(condition_dates)]
-
-    if model_marker_days:
-        fig.add_trace(go.Scatter(
-            x=model_marker_days,
-            y=[1.0] * len(model_marker_days),
-            mode=&#34;markers&#34;,
-            marker={&#34;symbol&#34;: &#34;circle&#34;, &#34;size&#34;: 10, &#34;color&#34;: &#34;darkred&#34;},
-            name=&#34;infection model event&#34;,
-            yaxis=&#34;y2&#34;,
-        ))
-    if cond_marker_days:
-        fig.add_trace(go.Scatter(
-            x=cond_marker_days,
-            y=[0.88] * len(cond_marker_days),
-            mode=&#34;markers&#34;,
-            marker={&#34;symbol&#34;: &#34;diamond&#34;, &#34;size&#34;: 10, &#34;color&#34;: &#34;darkorange&#34;},
-            name=&#34;spore count condition&#34;,
-            yaxis=&#34;y2&#34;,
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=sc_x,
+                y=sc_y,
+                name=&#34;daily spore counts&#34;,
+                marker_color=&#34;steelblue&#34;,
+                opacity=0.8,
+            )
+        )
 
     # Invisible legend swatches for background colours
     legend_items = [
-        (&#34;red&#34;,    0.4,  &#34;infection AND spore count condition&#34;),
-        (&#34;yellow&#34;, 0.35, &#34;infection OR spore count condition (not both)&#34;),
-        (&#34;grey&#34;,   0.3,  &#34;spore counts data missing&#34;),
+        (&#34;red&#34;, 0.4, &#34;high risk&#34;),
+        (&#34;yellow&#34;, 0.35, &#34;medium risk&#34;),
+        (&#34;green&#34;, 0.35, &#34;low risk&#34;),
+        (&#34;grey&#34;, 0.3, &#34;spore counts data missing&#34;),
     ]
     for color, opacity, label in legend_items:
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None],
-            mode=&#34;markers&#34;,
-            marker={&#34;symbol&#34;: &#34;square&#34;, &#34;size&#34;: 14, &#34;color&#34;: color, &#34;opacity&#34;: opacity},
-            name=label,
-            showlegend=True,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode=&#34;markers&#34;,
+                marker={
+                    &#34;symbol&#34;: &#34;square&#34;,
+                    &#34;size&#34;: 14,
+                    &#34;color&#34;: color,
+                    &#34;opacity&#34;: opacity,
+                },
+                name=label,
+                showlegend=True,
+            )
+        )
 
     fig.update_layout(
         title=title,
-        width=1600,
-        height=500,
         paper_bgcolor=&#34;white&#34;,
         plot_bgcolor=&#34;white&#34;,
         xaxis={
@@ -1775,14 +1835,6 @@ diamond – spore count condition triggered (threshold or % increase)</p></div>
             &#34;title&#34;: &#34;Daily spore counts&#34;,
             &#34;showgrid&#34;: True,
         },
-        yaxis2={
-            &#34;range&#34;: [0, 1.15],
-            &#34;overlaying&#34;: &#34;y&#34;,
-            &#34;showticklabels&#34;: False,
-            &#34;showgrid&#34;: False,
-            &#34;zeroline&#34;: False,
-            &#34;fixedrange&#34;: True,
-        },
         legend={
             &#34;orientation&#34;: &#34;h&#34;,
             &#34;yanchor&#34;: &#34;bottom&#34;,
@@ -1793,7 +1845,90 @@ diamond – spore count condition triggered (threshold or % increase)</p></div>
         bargroupgap=0,
     )
     fig.update_xaxes(rangeslider_visible=True)
-    fig.write_html(output_html_path)</code></pre>
+    fig.write_html(output_html_path)
+    return fig</code></pre>
+</details>
+</dd>
+<dt id="src.utils.write_combined_html"><code class="name flex">
+<span>def <span class="ident">write_combined_html</span></span>(<span>overview_fig, analysis_fig, output_path)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Write a single HTML file with the overview plot as the default view and a
+toggle button (top-left) that switches to the analysis plot.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def write_combined_html(overview_fig, analysis_fig, output_path):
+    &#34;&#34;&#34;
+    Write a single HTML file with the overview plot as the default view and a
+    toggle button (top-left) that switches to the analysis plot.
+    &#34;&#34;&#34;
+    overview_div = overview_fig.to_html(full_html=False, include_plotlyjs=False)
+    analysis_div = analysis_fig.to_html(full_html=False, include_plotlyjs=False)
+
+    html = f&#34;&#34;&#34;&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;meta charset=&#34;utf-8&#34; /&gt;
+  &lt;script src=&#34;https://cdn.plot.ly/plotly-latest.min.js&#34;&gt;&lt;/script&gt;
+  &lt;style&gt;
+    body {{ margin: 0; padding: 0; font-family: sans-serif; }}
+    #toggle-btn {{
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      padding: 6px 14px;
+      background: #2c7bb6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }}
+    #toggle-btn:hover {{ background: #1a5276; }}
+    .plot-view {{ display: none; width: 100%; }}
+    .plot-view.active {{ display: block; }}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;button id=&#34;toggle-btn&#34; onclick=&#34;toggleView()&#34;&gt;Show Analysis&lt;/button&gt;
+  &lt;div id=&#34;overview-view&#34; class=&#34;plot-view active&#34;&gt;
+    {overview_div}
+  &lt;/div&gt;
+  &lt;div id=&#34;analysis-view&#34; class=&#34;plot-view&#34;&gt;
+    {analysis_div}
+  &lt;/div&gt;
+  &lt;script&gt;
+    function resizeActivePlots() {{
+      document.querySelectorAll(&#39;.plot-view.active .js-plotly-plot&#39;).forEach(function(el) {{
+        Plotly.Plots.resize(el);
+      }});
+    }}
+    function toggleView() {{
+      var ov = document.getElementById(&#39;overview-view&#39;);
+      var av = document.getElementById(&#39;analysis-view&#39;);
+      var btn = document.getElementById(&#39;toggle-btn&#39;);
+      if (ov.classList.contains(&#39;active&#39;)) {{
+        ov.classList.remove(&#39;active&#39;);
+        av.classList.add(&#39;active&#39;);
+        btn.textContent = &#39;Show Overview&#39;;
+      }} else {{
+        av.classList.remove(&#39;active&#39;);
+        ov.classList.add(&#39;active&#39;);
+        btn.textContent = &#39;Show Analysis&#39;;
+      }}
+      resizeActivePlots();
+    }}
+    window.addEventListener(&#39;resize&#39;, resizeActivePlots);
+    window.addEventListener(&#39;load&#39;, resizeActivePlots);
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;&#34;&#34;&#34;
+
+    with open(output_path, &#34;w&#34;, encoding=&#34;utf-8&#34;) as f:
+        f.write(html)</code></pre>
 </details>
 </dd>
 </dl>
@@ -1862,6 +1997,7 @@ diamond – spore count condition triggered (threshold or % increase)</p></div>
 <li><code><a title="src.utils.plot_events" href="#src.utils.plot_events">plot_events</a></code></li>
 <li><code><a title="src.utils.plot_infection_analysis" href="#src.utils.plot_infection_analysis">plot_infection_analysis</a></code></li>
 <li><code><a title="src.utils.plot_spore_infection_overview" href="#src.utils.plot_spore_infection_overview">plot_spore_infection_overview</a></code></li>
+<li><code><a title="src.utils.write_combined_html" href="#src.utils.write_combined_html">write_combined_html</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>

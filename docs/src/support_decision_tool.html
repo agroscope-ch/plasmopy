@@ -38,18 +38,19 @@ if the infection model simulation should continue from the sporulation stage
 based on spore count thresholds and trends.
 &#34;&#34;&#34;
 
-from datetime import datetime, timedelta
+from datetime import datetime
+
 import pandas as pd
 
 
-def fetch_spore_counts(api_query_url, logfile=None):
+def fetch_spore_counts(api_query_url, logfile=None):  # noqa: C901
     &#34;&#34;&#34;
     Fetch spore counts from an online API and return as CSV string.
 
-    The API returns a JSON object with a ``datetime_str_list`` array whose
-    entries (format ``YYYYMMDD_HHMMSS``) each represent one spore-detection
-    event recorded by the trap camera.  The function aggregates these events
-    into daily totals and returns a semicolon-delimited CSV with columns
+    The API returns a JSON object with a ``Mildiou`` key containing two
+    parallel arrays: ``date`` (timestamps in format ``YYYYMMDD_HHMMSS``) and
+    ``count`` (integer spore counts per observation).  The function aggregates
+    these into daily totals and returns a semicolon-delimited CSV with columns
     ``Date;Counts`` (date format ``DD.MM.YYYY HH:MM``) compatible with
     ``check_spore_counts``.  Returns None if the request or parsing fails.
     &#34;&#34;&#34;
@@ -70,16 +71,29 @@ def fetch_spore_counts(api_query_url, logfile=None):
         resp.raise_for_status()
         data = resp.json()
 
-        datetime_list = data.get(&#34;datetime_str_list&#34;, [])
+        mildiou = data.get(&#34;Mildiou&#34;, {})
+        datetime_list = mildiou.get(&#34;date&#34;, [])
+        mildiou_list = mildiou.get(&#34;count&#34;, [])
         if not datetime_list:
-            log_message(&#34;No datetime_str_list found in spore counts API response.&#34;)
+            log_message(&#34;No Mildiou.date found in spore counts API response.&#34;)
             return None
+        if not mildiou_list:
+            log_message(&#34;No Mildiou.count found in spore counts API response.&#34;)
+            return None
+        if len(datetime_list) != len(mildiou_list):
+            log_message(
+                f&#34;Length mismatch: Mildiou.date ({len(datetime_list)}) vs &#34;
+                f&#34;Mildiou.count ({len(mildiou_list)}). Truncating to shortest.&#34;
+            )
+            min_len = min(len(datetime_list), len(mildiou_list))
+            datetime_list = datetime_list[:min_len]
+            mildiou_list = mildiou_list[:min_len]
 
         # Parse YYYYMMDD_HHMMSS timestamps; skip malformed entries.
         parsed = []
-        for dt_str in datetime_list:
+        for dt_str, count in zip(datetime_list, mildiou_list, strict=False):
             try:
-                parsed.append(datetime.strptime(dt_str, &#34;%Y%m%d_%H%M%S&#34;))
+                parsed.append((datetime.strptime(dt_str, &#34;%Y%m%d_%H%M%S&#34;), count))
             except ValueError:
                 continue
 
@@ -87,14 +101,10 @@ def fetch_spore_counts(api_query_url, logfile=None):
             log_message(&#34;No valid datetimes parsed from spore counts API response.&#34;)
             return None
 
-        # Aggregate: count detection events per calendar day.
-        df = pd.DataFrame({&#34;datetime&#34;: parsed})
+        # Aggregate: sum n_mildiou_list counts per calendar day.
+        df = pd.DataFrame(parsed, columns=[&#34;datetime&#34;, &#34;mildiou_count&#34;])
         df[&#34;date&#34;] = df[&#34;datetime&#34;].dt.date
-        daily = (
-            df.groupby(&#34;date&#34;)
-            .size()
-            .reset_index(name=&#34;Counts&#34;)
-        )
+        daily = df.groupby(&#34;date&#34;)[&#34;mildiou_count&#34;].sum().reset_index(name=&#34;Counts&#34;)
         daily[&#34;Date&#34;] = pd.to_datetime(daily[&#34;date&#34;]).dt.strftime(&#34;%d.%m.%Y&#34;) + &#34; 00:00&#34;
         result_df = daily[[&#34;Date&#34;, &#34;Counts&#34;]]
 
@@ -109,7 +119,7 @@ def fetch_spore_counts(api_query_url, logfile=None):
         return None
 
 
-def check_spore_counts(
+def check_spore_counts(  # noqa: C901
     spore_counts_filepath,
     logfile=None,
     spore_count_threshold=10,
@@ -231,7 +241,7 @@ def check_spore_counts(
         # ------------------------------------------------------------------ #
         dispersion_datetimes: list = []
         _prev_above = False
-        for count, dt in zip(totals, datetimes):
+        for count, dt in zip(totals, datetimes, strict=False):
             if count &gt; spore_count_threshold:
                 if not _prev_above:
                     dispersion_datetimes.append(dt)
@@ -365,7 +375,7 @@ Message describing the analysis results.</dd>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def check_spore_counts(
+<pre><code class="python">def check_spore_counts(  # noqa: C901
     spore_counts_filepath,
     logfile=None,
     spore_count_threshold=10,
@@ -487,7 +497,7 @@ Message describing the analysis results.</dd>
         # ------------------------------------------------------------------ #
         dispersion_datetimes: list = []
         _prev_above = False
-        for count, dt in zip(totals, datetimes):
+        for count, dt in zip(totals, datetimes, strict=False):
             if count &gt; spore_count_threshold:
                 if not _prev_above:
                     dispersion_datetimes.append(dt)
@@ -561,11 +571,11 @@ Message describing the analysis results.</dd>
 </code></dt>
 <dd>
 <div class="desc"><p>Fetch spore counts from an online API and return as CSV string.</p>
-<p>The API returns a JSON object with a <code>datetime_str_list</code> array whose
-entries (format <code>YYYYMMDD_HHMMSS</code>) each represent one spore-detection
-event recorded by the trap camera.
-The function aggregates these events
-into daily totals and returns a semicolon-delimited CSV with columns
+<p>The API returns a JSON object with a <code>Mildiou</code> key containing two
+parallel arrays: <code>date</code> (timestamps in format <code>YYYYMMDD_HHMMSS</code>) and
+<code>count</code> (integer spore counts per observation).
+The function aggregates
+these into daily totals and returns a semicolon-delimited CSV with columns
 <code>Date;Counts</code> (date format <code>DD.MM.YYYY HH:MM</code>) compatible with
 <code><a title="src.support_decision_tool.check_spore_counts" href="#src.support_decision_tool.check_spore_counts">check_spore_counts()</a></code>.
 Returns None if the request or parsing fails.</p></div>
@@ -573,14 +583,14 @@ Returns None if the request or parsing fails.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def fetch_spore_counts(api_query_url, logfile=None):
+<pre><code class="python">def fetch_spore_counts(api_query_url, logfile=None):  # noqa: C901
     &#34;&#34;&#34;
     Fetch spore counts from an online API and return as CSV string.
 
-    The API returns a JSON object with a ``datetime_str_list`` array whose
-    entries (format ``YYYYMMDD_HHMMSS``) each represent one spore-detection
-    event recorded by the trap camera.  The function aggregates these events
-    into daily totals and returns a semicolon-delimited CSV with columns
+    The API returns a JSON object with a ``Mildiou`` key containing two
+    parallel arrays: ``date`` (timestamps in format ``YYYYMMDD_HHMMSS``) and
+    ``count`` (integer spore counts per observation).  The function aggregates
+    these into daily totals and returns a semicolon-delimited CSV with columns
     ``Date;Counts`` (date format ``DD.MM.YYYY HH:MM``) compatible with
     ``check_spore_counts``.  Returns None if the request or parsing fails.
     &#34;&#34;&#34;
@@ -601,16 +611,29 @@ Returns None if the request or parsing fails.</p></div>
         resp.raise_for_status()
         data = resp.json()
 
-        datetime_list = data.get(&#34;datetime_str_list&#34;, [])
+        mildiou = data.get(&#34;Mildiou&#34;, {})
+        datetime_list = mildiou.get(&#34;date&#34;, [])
+        mildiou_list = mildiou.get(&#34;count&#34;, [])
         if not datetime_list:
-            log_message(&#34;No datetime_str_list found in spore counts API response.&#34;)
+            log_message(&#34;No Mildiou.date found in spore counts API response.&#34;)
             return None
+        if not mildiou_list:
+            log_message(&#34;No Mildiou.count found in spore counts API response.&#34;)
+            return None
+        if len(datetime_list) != len(mildiou_list):
+            log_message(
+                f&#34;Length mismatch: Mildiou.date ({len(datetime_list)}) vs &#34;
+                f&#34;Mildiou.count ({len(mildiou_list)}). Truncating to shortest.&#34;
+            )
+            min_len = min(len(datetime_list), len(mildiou_list))
+            datetime_list = datetime_list[:min_len]
+            mildiou_list = mildiou_list[:min_len]
 
         # Parse YYYYMMDD_HHMMSS timestamps; skip malformed entries.
         parsed = []
-        for dt_str in datetime_list:
+        for dt_str, count in zip(datetime_list, mildiou_list, strict=False):
             try:
-                parsed.append(datetime.strptime(dt_str, &#34;%Y%m%d_%H%M%S&#34;))
+                parsed.append((datetime.strptime(dt_str, &#34;%Y%m%d_%H%M%S&#34;), count))
             except ValueError:
                 continue
 
@@ -618,14 +641,10 @@ Returns None if the request or parsing fails.</p></div>
             log_message(&#34;No valid datetimes parsed from spore counts API response.&#34;)
             return None
 
-        # Aggregate: count detection events per calendar day.
-        df = pd.DataFrame({&#34;datetime&#34;: parsed})
+        # Aggregate: sum n_mildiou_list counts per calendar day.
+        df = pd.DataFrame(parsed, columns=[&#34;datetime&#34;, &#34;mildiou_count&#34;])
         df[&#34;date&#34;] = df[&#34;datetime&#34;].dt.date
-        daily = (
-            df.groupby(&#34;date&#34;)
-            .size()
-            .reset_index(name=&#34;Counts&#34;)
-        )
+        daily = df.groupby(&#34;date&#34;)[&#34;mildiou_count&#34;].sum().reset_index(name=&#34;Counts&#34;)
         daily[&#34;Date&#34;] = pd.to_datetime(daily[&#34;date&#34;]).dt.strftime(&#34;%d.%m.%Y&#34;) + &#34; 00:00&#34;
         result_df = daily[[&#34;Date&#34;, &#34;Counts&#34;]]
 
