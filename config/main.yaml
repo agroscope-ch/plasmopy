@@ -4,7 +4,7 @@ hydra:
     dir: .
   job_logging:
     handlers:
-      file: null
+      file: logs/main.log
 
 # -----------------------------------------------------------------------------
 # INPUT DATA
