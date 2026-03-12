@@ -95,5 +95,4 @@ target/
 
 # Other
 .Rproj.user
-data/output/
 poetry.lock
