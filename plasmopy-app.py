@@ -90,14 +90,14 @@ all_pandas_timezones = pytz.all_timezones
 with tab1:
     # ── Weather data ──────────────────────────────────────────────────────
     st.subheader("Weather data")
-    automated_data_pull = st.checkbox(
+    automated_weather_pull = st.checkbox(
         "Automated weather data pull",
-        value=bool(C["input_data"].get("automated_data_pull", False)),
+        value=bool(C["input_data"].get("automated_weather_pull", False)),
     )
     weather_api_query = ""
     input_meteo = ""
     new_input_meteo = ""
-    if automated_data_pull:
+    if automated_weather_pull:
         weather_api_query = st.text_input(
             "Weather API URL:",
             value=C["input_data"].get("weather_api_query", "") or "",
@@ -123,11 +123,11 @@ with tab1:
 
     # ── Support decision tool ─────────────────────────────────────────────
     st.subheader("Support decision tool")
-    support_decision_tool_enabled = st.checkbox(
+    decision_support_tool_enabled = st.checkbox(
         "Enable support decision tool",
-        value=bool(C["input_data"].get("support_decision_tool_enabled", False)),
+        value=bool(C["input_data"].get("decision_support_tool_enabled", False)),
     )
-    if support_decision_tool_enabled:
+    if decision_support_tool_enabled:
         spore_count_threshold = st.number_input(
             "Spore count flat-threshold *:gray[[any day exceeds this count]]*:",
             value=int(C["input_data"].get("spore_count_threshold", 10)),
@@ -405,7 +405,7 @@ with tab3:
 # ---------------------------------------------------------------------------
 active_meteo = (
     ""
-    if automated_data_pull
+    if automated_weather_pull
     else new_input_meteo or input_meteo or C["input_data"].get("meteo", "") or ""
 )
 active_spores = (
@@ -467,7 +467,7 @@ def build_hydra_overrides():
 
     # Automated data pulls
     ov.append(
-        f"input_data.automated_data_pull={'true' if automated_data_pull else 'false'}"
+        f"input_data.automated_weather_pull={'true' if automated_weather_pull else 'false'}"
     )
     ov.append(
         f"input_data.weather_api_query="
@@ -483,8 +483,8 @@ def build_hydra_overrides():
 
     # Support decision tool
     ov.append(
-        f"input_data.support_decision_tool_enabled="
-        f"{'true' if support_decision_tool_enabled else 'false'}"
+        f"input_data.decision_support_tool_enabled="
+        f"{'true' if decision_support_tool_enabled else 'false'}"
     )
     ov.append(f"input_data.spore_count_threshold={spore_count_threshold}")
     ov.append(f"input_data.spore_count_lookback_days={spore_count_lookback_days}")
@@ -638,7 +638,7 @@ if start_button:
 # ---------------------------------------------------------------------------
 # Results display
 # ---------------------------------------------------------------------------
-if active_meteo or automated_data_pull:
+if active_meteo or automated_weather_pull:
     output_files = utils.create_output_filenames(
         active_meteo or None,
         active_spores or None,

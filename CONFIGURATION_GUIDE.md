@@ -66,7 +66,7 @@ input_data:
   
   # FEATURE 1: Support Decision Tool
   # Enables conditional model flow based on observed spore counts
-  support_decision_tool_enabled: false
+  decision_support_tool_enabled: false
   # Set to true to use spore counts to trigger sporulation stage
   # Requires: spore_counts file must be specified above
   # Effect: If last 3 days show >10 total spores OR 20%+ increase,
@@ -74,10 +74,10 @@ input_data:
   
   # FEATURE 2: Automated Data Pull (weather)
   # Background thread periodically fetches and updates weather data
-  automated_data_pull: false
+  automated_weather_pull: false
   # Set to true to enable automatic weather data fetching from API
   
-  # API endpoint URL for weather data (required if automated_data_pull=true)
+  # API endpoint URL for weather data (required if automated_weather_pull=true)
   weather_api_query: null
   # Example: "https://api.meteo.example.com/data?station=changins&format=csv"
   # Mock API included for testing/demo purposes
@@ -197,7 +197,7 @@ Analyzes the last 3 days of observed spore counts and determines if the model sh
 ```yaml
 input_data:
   spore_counts: data/input/2024_qPCR_changins.chasselas.csv
-  support_decision_tool_enabled: false
+  decision_support_tool_enabled: false
 ```
 
 ### When to Enable
@@ -214,7 +214,7 @@ The model continues from sporulation stage when **either**:
 ```yaml
 input_data:
   spore_counts: data/input/2025_qPCR_changins.chasselas.csv
-  support_decision_tool_enabled: true
+  decision_support_tool_enabled: true
 ```
 Result: Model checks spore counts each run and may skip to sporulation stage.
 
@@ -222,7 +222,7 @@ Result: Model checks spore counts each run and may skip to sporulation stage.
 ```yaml
 input_data:
   spore_counts: data/input/2025_qPCR_changins.chasselas.csv
-  support_decision_tool_enabled: false
+  decision_support_tool_enabled: false
 ```
 Result: Spore counts file is ignored; model runs normal flow even if file exists.
 
@@ -235,7 +235,7 @@ Runs a background thread that periodically fetches fresh weather data from an AP
 ```yaml
 input_data:
   meteo: data/input/2024_meteo_changins.csv
-  automated_data_pull: false
+  automated_weather_pull: false
   weather_api_query: null
 ```
 
@@ -247,14 +247,14 @@ input_data:
 
 ### Configuration Parameters
 
-#### `automated_data_pull` (boolean)
+#### `automated_weather_pull` (boolean)
 - **Default**: `false`
 - **true**: Enables automatic data pulls at startup
 - **false**: Disables feature; API is not queried
 
 #### `weather_api_query` (string)
 - **Default**: `null`
-- **Required if**: `automated_data_pull=true`
+- **Required if**: `automated_weather_pull=true`
 - **Value**: Full URL to API endpoint that returns CSV weather data
 - **Example**: `"https://api.meteo.example.com/station?id=changins&format=csv"`
 - **Mock URL** (for testing): Leave as null or empty string; uses built-in mock data
@@ -268,7 +268,7 @@ input_data:
 ```yaml
 input_data:
   meteo: data/input/2024_meteo_changins.csv
-  automated_data_pull: false
+  automated_weather_pull: false
   weather_api_query: null
 ```
 - Uses static weather file
@@ -279,7 +279,7 @@ input_data:
 ```yaml
 input_data:
   meteo: data/input/2024_meteo_changins.csv
-  automated_data_pull: true
+  automated_weather_pull: true
   weather_api_query: "https://api.agro.example.com/changins/weather.csv"
 ```
 - Fetches new data during startup
@@ -290,7 +290,7 @@ input_data:
 ```yaml
 input_data:
   meteo: null
-  automated_data_pull: true
+  automated_weather_pull: true
   weather_api_query: "https://api.meteo.example.com/station/changins"
 ```
 - Creates placeholder file automatically
@@ -301,7 +301,7 @@ input_data:
 ```yaml
 input_data:
   meteo: data/input/2024_meteo_changins.csv
-  automated_data_pull: true
+  automated_weather_pull: true
   weather_api_query: "mock"  # Any non-null value triggers mock data
 ```
 - Uses built-in mock weather data
@@ -346,8 +346,8 @@ You can enable both features simultaneously:
 input_data:
   meteo: data/input/2024_meteo_changins.csv
   spore_counts: data/input/2024_qPCR_changins.chasselas.csv
-  support_decision_tool_enabled: true
-  automated_data_pull: true
+  decision_support_tool_enabled: true
+  automated_weather_pull: true
   weather_api_query: "https://api.meteo.example.com/changins"
 ```
 
@@ -364,8 +364,8 @@ This configuration:
 input_data:
   meteo: data/input/2024_meteo_changins.csv
   spore_counts: null
-  support_decision_tool_enabled: false
-  automated_data_pull: false
+  decision_support_tool_enabled: false
+  automated_weather_pull: false
   weather_api_query: null
 ```
 
@@ -374,8 +374,8 @@ input_data:
 input_data:
   meteo: data/input/2024_meteo_changins.csv
   spore_counts: data/input/2024_qPCR_changins.csv
-  support_decision_tool_enabled: true
-  automated_data_pull: false
+  decision_support_tool_enabled: true
+  automated_weather_pull: false
 ```
 
 ### Scenario 3: With Live Weather Updates
@@ -383,8 +383,8 @@ input_data:
 input_data:
   meteo: data/input/2024_meteo_changins.csv
   spore_counts: null
-  support_decision_tool_enabled: false
-  automated_data_pull: true
+  decision_support_tool_enabled: false
+  automated_weather_pull: true
   weather_api_query: "https://api.meteo.example.com/changins"
 ```
 
@@ -393,8 +393,8 @@ input_data:
 input_data:
   meteo: data/input/2024_meteo_changins.csv
   spore_counts: data/input/2024_qPCR_changins.csv
-  support_decision_tool_enabled: true
-  automated_data_pull: true
+  decision_support_tool_enabled: true
+  automated_weather_pull: true
   weather_api_query: "https://api.meteo.example.com/changins"
 ```
 
@@ -411,7 +411,7 @@ input_data:
 - Look for network/connection errors in logfile
 
 ### Data Not Updating
-- Verify `automated_data_pull: true`
+- Verify `automated_weather_pull: true`
 - Confirm `weather_api_query` is not null
 - Review logfile for API fetch failures
 
@@ -421,4 +421,4 @@ For detailed technical information:
 - See `SUPPORT_DECISION_TOOL_README.md` for spore count analysis details
 - See `AUTOMATED_DATA_PULL_README.md` for API integration and data merging details
 - Review `src/support_decision_tool.py` for Python implementation
-- Review `src/automated_data_pull.py` for data pull implementation
+- Review `src/automated_weather_pull.py` for data pull implementation

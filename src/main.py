@@ -9,7 +9,7 @@ import sys
 import threading
 from datetime import datetime
 
-import automated_data_pull
+import automated_weather_pull
 import hydra
 import infection_event
 import infection_model
@@ -88,7 +88,7 @@ def main(config: DictConfig):  # noqa: C901
     from urllib.parse import parse_qs, urlparse
 
     if not meteo_file_path or meteo_file_path.strip() == "":
-        if config.input_data.get("automated_data_pull", False):
+        if config.input_data.get("automated_weather_pull", False):
             # Build a coordinate-keyed filename so data fetched for different
             # site coordinates are never merged into the same file.
             _api_q = config.input_data.get("weather_api_query", "") or ""
@@ -108,7 +108,7 @@ def main(config: DictConfig):  # noqa: C901
         else:
             meteo_file_path = None
 
-    if config.input_data.get("automated_data_pull", False):
+    if config.input_data.get("automated_weather_pull", False):
         api_query = config.input_data.get("weather_api_query")
 
         # verify coordinates (and elevation) match between config and API url
@@ -165,9 +165,9 @@ def main(config: DictConfig):  # noqa: C901
                     )
 
     # Start periodic background thread only if enabled and has API query
-    if config.input_data.get("automated_data_pull", False) and api_query is not None:
+    if config.input_data.get("automated_weather_pull", False) and api_query is not None:
         data_pull_stop_event = threading.Event()
-        data_pull_thread = automated_data_pull.start_periodic_data_pull(
+        data_pull_thread = automated_weather_pull.start_periodic_data_pull(
             meteo_file_path=meteo_file_path,
             api_query_url=api_query,
             logfile=logfile,
@@ -182,7 +182,7 @@ def main(config: DictConfig):  # noqa: C901
     input_meteo_file = meteo_file_path
 
     if not input_meteo_file or input_meteo_file.strip() == "":
-        if config.input_data.get("automated_data_pull", False):
+        if config.input_data.get("automated_weather_pull", False):
             # Reuse the coordinate-keyed path derived above, falling back to
             # the generic name only if the earlier block was never reached.
             input_meteo_file = locals().get(
@@ -194,18 +194,22 @@ def main(config: DictConfig):  # noqa: C901
                 with open(input_meteo_file, "w") as fh:
                     fh.write("datetime;temperature;humidity;rainfall;leaf_wetness\n")
         else:
-            err = "\nERROR: no meteo input file provided and automated_data_pull is disabled."
+            err = "\nERROR: no meteo input file provided and automated_weather_pull is disabled."
             print(err)
             with open(logfile, "a") as logf:
                 logf.write(err + "\n")
             sys.exit(1)
     # If the automated pull is enabled, attempt one immediate fetch/merge.
     # log to stdout so the user can see progress before load_data runs.
-    if config.input_data.get("automated_data_pull", False) and api_query is not None:
+    if config.input_data.get("automated_weather_pull", False) and api_query is not None:
         print("Performing initial weather data fetch...")
-        csv_data = automated_data_pull.fetch_weather_data_from_api(api_query, logfile)
+        csv_data = automated_weather_pull.fetch_weather_data_from_api(
+            api_query, logfile
+        )
         if csv_data is not None:
-            automated_data_pull.merge_weather_data(input_meteo_file, csv_data, logfile)
+            automated_weather_pull.merge_weather_data(
+                input_meteo_file, csv_data, logfile
+            )
         else:
             print("Initial fetch returned no data; input file may remain empty.")
 
@@ -290,7 +294,7 @@ def main(config: DictConfig):  # noqa: C901
 
     # Check spore counts to determine if model should skip to sporulation stage
     if (
-        config.input_data.get("support_decision_tool_enabled", False)
+        config.input_data.get("decision_support_tool_enabled", False)
         and input_spore_file is not None
     ):
         logf.write(
@@ -318,7 +322,7 @@ def main(config: DictConfig):  # noqa: C901
                 "Model will jump to sporulation stage.\n"
             )
     else:
-        if config.input_data.get("support_decision_tool_enabled", False):
+        if config.input_data.get("decision_support_tool_enabled", False):
             logf.write(
                 "\nSupport decision tool enabled but no spore counts file available. Running normal model flow.\n"
             )
@@ -674,10 +678,8 @@ def main(config: DictConfig):  # noqa: C901
     # Close the log file.
     logf.close()
 
-    # Plot infection events predictions.
-    utils.plot_events(
-        infection_events, config, [output_files.pdf_graph, output_files.html_graph]
-    )
+    # Plot infection events predictions (PDF only).
+    utils.plot_events(infection_events, config, output_files.pdf_graph)
 
     with open(output_files.events_dict, "wb") as pickle_file:
         pickle.dump(infection_events, pickle_file)
@@ -715,7 +717,7 @@ def main(config: DictConfig):  # noqa: C901
             f.write("\n")
 
     # Plot analysis graph (Rplot.R equivalent).
-    utils.plot_infection_analysis(
+    analysis_fig = utils.plot_infection_analysis(
         output_files.events_dataframe,
         output_files.analysis_html,
         model_parameters=config,
@@ -724,7 +726,7 @@ def main(config: DictConfig):  # noqa: C901
     )
 
     # Plot spore counts overview with infection event background colours.
-    utils.plot_spore_infection_overview(
+    overview_fig = utils.plot_spore_infection_overview(
         output_files.events_dataframe,
         output_files.overview_html,
         model_parameters=config,
@@ -733,6 +735,9 @@ def main(config: DictConfig):  # noqa: C901
         title="Spore counts & infection overview: "
         + (config.input_data.meteo or "automated pull"),
     )
+
+    # Combined HTML: overview as default view, toggle button switches to analysis.
+    utils.write_combined_html(overview_fig, analysis_fig, output_files.html_graph)
 
 
 if __name__ == "__main__":

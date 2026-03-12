@@ -91,7 +91,7 @@ def create_output_filenames(
     infection_datetimes = output_basename.with_suffix(
         ".infection_datetimes.csv"
     ).resolve()
-    pdf_graph = output_basename.with_suffix(".pdf").resolve()
+    pdf_graph = Path(str(output_basename) + ".basic.pdf").resolve()
     html_graph = output_basename.with_suffix(".html").resolve()
     analysis_html = output_basename.with_suffix(".analysis.html").resolve()
     overview_html = output_basename.with_suffix(".overview.html").resolve()
@@ -162,10 +162,10 @@ def get_daily_mean_measurements(processed_data, variable):
     return daily_mean_measurements
 
 
-def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
+def plot_events(infection_events, model_parameters, pdf_path):  # noqa: C901
     # Sample data: Dates and corresponding events for multiple categories
 
-    graphs = {"pdf": graphs[0], "html": graphs[1]}
+    graphs = {"pdf": pdf_path}
 
     scatter_height_factor = 1
     n_events = 6
@@ -329,74 +329,7 @@ def plot_events(infection_events, model_parameters, graphs):  # noqa: C901
 
     # Store the plot
     plt.savefig(graphs["pdf"])
-
-    # Create the Plotly figure
-    fig = go.Figure()
-
-    # Add the line plot
-    colour_n = 0
-    for category in category_data.keys():
-        fig.add_trace(
-            go.Scatter(
-                x=category_datetimes[category],
-                y=category_events[category],
-                mode="markers",
-                marker={"size": 10, "color": event_colours[colour_n]},
-                name=category,
-                opacity=1,
-                hovertext=category_events[category],
-            )
-        )
-        colour_n += 1
-
-    if model_parameters["input_data"]["spore_counts"] is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=spore_counts.iloc[:, 0],
-                y=spore_counts.iloc[:, 1],
-                line={"color": "royalblue", "width": 1, "dash": "dot"},
-                name="spore counts",
-                opacity=1,
-                hovertext=spore_counts.iloc[:, 1],
-                yaxis="y2",
-            )
-        )
-
-    fig.update_layout(
-        width=1600,
-        height=600,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        yaxis={"visible": True, "showticklabels": False},
-        yaxis2={
-            "visible": True,
-            "showticklabels": True,
-            "overlaying": "y",
-            "side": "right",
-        },
-        xaxis={"tickformat": "%d/%m/%y %H:%M"},
-        title="Input data: "
-        + (model_parameters["input_data"]["meteo"] or "automated pull"),
-        legend={
-            "orientation": "h",
-            "entrywidthmode": "fraction",
-            "entrywidth": 0.2,
-            "yanchor": "bottom",
-            "y": 1.02,
-            "xanchor": "auto",
-            "x": 0,
-        },
-    )
-
-    fig.update_yaxes(showline=False, linewidth=2, linecolor="black", showgrid=True)
-    fig.update_xaxes(
-        showline=False, linewidth=2, linecolor="black", tickangle=-90, showgrid=True
-    )
-    fig.update_xaxes(rangeslider_visible=True)
-
-    fig.write_html(graphs["html"])
-
-    return fig
+    plt.close()
 
 
 def plot_infection_analysis(  # noqa: C901
@@ -621,8 +554,6 @@ def plot_infection_analysis(  # noqa: C901
     # ------------------------------------------------------------------ #
     fig.update_layout(
         title=title,
-        width=1600,
-        height=700,
         paper_bgcolor="white",
         plot_bgcolor="white",
         xaxis={
@@ -668,6 +599,7 @@ def plot_infection_analysis(  # noqa: C901
     )
     fig.update_xaxes(rangeslider_visible=True)
     fig.write_html(output_html_path)
+    return fig
 
 
 def plot_spore_infection_overview(  # noqa: C901
@@ -769,7 +701,16 @@ def plot_spore_infection_overview(  # noqa: C901
         if "start" in df.columns and df["start"].notna().any():
             col_start = df["start"].dropna().min().date()
             range_start = min(range_start, col_start)
-        all_endpoint_dates = list(infection_dates) + [ts.date() for ts in sc_x]
+        # Also include all df datetime columns (start, dispersion, sporulation,
+        # infection events) so the range extends to the latest processed/forecast date
+        # even when no spore counts data is available beyond that point.
+        df_dates = []
+        for col in dt_cols:
+            if col in df.columns:
+                df_dates += [ts.date() for ts in df[col].dropna()]
+        all_endpoint_dates = (
+            list(infection_dates) + [ts.date() for ts in sc_x] + df_dates
+        )
         range_end = max(all_endpoint_dates) if all_endpoint_dates else max(sc_days)
         cur = range_start
         while cur <= range_end:
@@ -874,8 +815,6 @@ def plot_spore_infection_overview(  # noqa: C901
 
     fig.update_layout(
         title=title,
-        width=1600,
-        height=500,
         paper_bgcolor="white",
         plot_bgcolor="white",
         xaxis={
@@ -899,3 +838,76 @@ def plot_spore_infection_overview(  # noqa: C901
     )
     fig.update_xaxes(rangeslider_visible=True)
     fig.write_html(output_html_path)
+    return fig
+
+
+def write_combined_html(overview_fig, analysis_fig, output_path):
+    """
+    Write a single HTML file with the overview plot as the default view and a
+    toggle button (top-left) that switches to the analysis plot.
+    """
+    overview_div = overview_fig.to_html(full_html=False, include_plotlyjs=False)
+    analysis_div = analysis_fig.to_html(full_html=False, include_plotlyjs=False)
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body {{ margin: 0; padding: 0; font-family: sans-serif; }}
+    #toggle-btn {{
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      padding: 6px 14px;
+      background: #2c7bb6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }}
+    #toggle-btn:hover {{ background: #1a5276; }}
+    .plot-view {{ display: none; width: 100%; }}
+    .plot-view.active {{ display: block; }}
+  </style>
+</head>
+<body>
+  <button id="toggle-btn" onclick="toggleView()">Show Analysis</button>
+  <div id="overview-view" class="plot-view active">
+    {overview_div}
+  </div>
+  <div id="analysis-view" class="plot-view">
+    {analysis_div}
+  </div>
+  <script>
+    function resizeActivePlots() {{
+      document.querySelectorAll('.plot-view.active .js-plotly-plot').forEach(function(el) {{
+        Plotly.Plots.resize(el);
+      }});
+    }}
+    function toggleView() {{
+      var ov = document.getElementById('overview-view');
+      var av = document.getElementById('analysis-view');
+      var btn = document.getElementById('toggle-btn');
+      if (ov.classList.contains('active')) {{
+        ov.classList.remove('active');
+        av.classList.add('active');
+        btn.textContent = 'Show Overview';
+      }} else {{
+        av.classList.remove('active');
+        ov.classList.add('active');
+        btn.textContent = 'Show Analysis';
+      }}
+      resizeActivePlots();
+    }}
+    window.addEventListener('resize', resizeActivePlots);
+    window.addEventListener('load', resizeActivePlots);
+  </script>
+</body>
+</html>"""
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html)

@@ -128,7 +128,7 @@ surges contributing multiple events.
 
 ## Workflow
 
-### Default flow (no spore counts file, or `support_decision_tool_enabled: false`)
+### Default flow (no spore counts file, or `decision_support_tool_enabled: false`)
 
 The model runs the full primary infection sequence for every datetime:
 
@@ -166,7 +166,7 @@ surges across the season.
 ```yaml
 input_data:
   spore_counts: null                         # path to flat CSV, or null
-  support_decision_tool_enabled: true        # enable/disable the tool
+  decision_support_tool_enabled: true        # enable/disable the tool
   automated_spore_pull: true                 # fetch counts from API if no file given
   spore_counts_api_query: "https://your.api/spores?site=changins"
   spore_count_threshold: 50                  # condition 1: flat daily count threshold
@@ -177,7 +177,7 @@ input_data:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `spore_counts` | `null` | Path to a manual spore counts CSV file |
-| `support_decision_tool_enabled` | `false` | Enable/disable `check_spore_counts` |
+| `decision_support_tool_enabled` | `false` | Enable/disable `check_spore_counts` |
 | `automated_spore_pull` | `false` | Fetch from API when no manual file is set |
 | `spore_counts_api_query` | `null` | API URL returning Mildiou JSON |
 | `spore_count_threshold` | `10` | Flat count threshold for condition 1 |
@@ -189,7 +189,7 @@ input_data:
 1. Explicit `spore_counts` path in config / Streamlit file selector.
 2. Automated pull (`automated_spore_pull: true`) → saved to
    `data/input/auto_spore_counts.csv`.
-3. No spore data → tool is skipped regardless of `support_decision_tool_enabled`.
+3. No spore data → tool is skipped regardless of `decision_support_tool_enabled`.
 
 ---
 

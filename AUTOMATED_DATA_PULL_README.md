@@ -10,7 +10,7 @@ the Streamlit app).
 
 ---
 
-## Module: `src/automated_data_pull.py`
+## Module: `src/automated_weather_pull.py`
 
 ### `fetch_weather_data_from_api(api_query_url, logfile=None)`
 
@@ -128,16 +128,16 @@ to continue in parallel with the API call on slow connections.
 ```yaml
 input_data:
   meteo: data/input/2025_meteo_changins.csv   # leave null to use automated pull only
-  automated_data_pull: false                  # set true to enable
+  automated_weather_pull: false                  # set true to enable
   weather_api_query: null                     # Meteoblue API URL
 ```
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `automated_data_pull` | bool | `false` | Enable/disable the feature |
+| `automated_weather_pull` | bool | `false` | Enable/disable the feature |
 | `weather_api_query` | str | `null` | Full Meteoblue API URL including coordinates and API key |
 
-> **Note:** `meteo` can be left `null` when `automated_data_pull: true`.  The
+> **Note:** `meteo` can be left `null` when `automated_weather_pull: true`.  The
 > model will create `data/input/automated_meteo.csv` as a placeholder and
 > populate it from the API before running.
 
@@ -233,7 +233,7 @@ already in the weather file.
 ## Troubleshooting
 
 **Weather file not updating**
-- Check `automated_data_pull: true` is set in the config.
+- Check `automated_weather_pull: true` is set in the config.
 - Verify `weather_api_query` is a valid Meteoblue URL with correct coordinates
   and API key.
 - Inspect the model logfile for API fetch errors.
