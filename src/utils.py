@@ -28,6 +28,7 @@ class output_files:
         html_graph,
         analysis_html,
         overview_html,
+        decision_support_html,
     ):
         self.logfile = logfile
         self.processed_file_meteo = processed_file_meteo
@@ -40,6 +41,7 @@ class output_files:
         self.html_graph = html_graph
         self.analysis_html = analysis_html
         self.overview_html = overview_html
+        self.decision_support_html = decision_support_html
 
 
 def create_output_filenames(
@@ -95,6 +97,9 @@ def create_output_filenames(
     html_graph = output_basename.with_suffix(".html").resolve()
     analysis_html = output_basename.with_suffix(".analysis.html").resolve()
     overview_html = output_basename.with_suffix(".overview.html").resolve()
+    decision_support_html = Path(
+        str(output_basename) + ".decision_support_tool.html"
+    ).resolve()
 
     output_filenames = output_files(
         logfile,
@@ -108,6 +113,7 @@ def create_output_filenames(
         html_graph,
         analysis_html,
         overview_html,
+        decision_support_html,
     )
     return output_filenames
 
@@ -160,6 +166,19 @@ def get_daily_mean_measurements(processed_data, variable):
         daily_mean = mean(daily_measurements[day].values())
         daily_mean_measurements[day] = daily_mean
     return daily_mean_measurements
+
+
+def compute_daily_infection_strength(processed_data, date, measurement_time_interval):
+    """
+    Returns the daily infection strength index for a given date:
+    sum of (temperature * measurement_time_interval / 60) for all timesteps
+    where leaf_wetness > 0.  Units: degree-hours.
+    """
+    mask = (processed_data["datetime"].dt.date == date) & (
+        processed_data["leaf_wetness"] > 0
+    )
+    temps = processed_data.loc[mask, "temperature"].dropna()
+    return float(temps.sum() * measurement_time_interval / 60)
 
 
 def plot_events(infection_events, model_parameters, pdf_path):  # noqa: C901
@@ -665,7 +684,7 @@ def plot_spore_infection_overview(  # noqa: C901
             sc[_dc] = pd.to_datetime(sc[_dc], format=fmt, errors="coerce")
             sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
             sc.columns = [_dc, _cc]
-            sc[_dc] = pd.to_datetime(sc[_dc])
+            sc[_dc] = pd.to_datetime(sc[_dc]) + pd.Timedelta(hours=12)
             sc_x = sc[_dc].tolist()
             sc_y = sc[_cc].tolist()
             sc_days = {ts.date() for ts in sc_x}
@@ -786,6 +805,7 @@ def plot_spore_infection_overview(  # noqa: C901
                 name="daily spore counts",
                 marker_color="steelblue",
                 opacity=0.8,
+                width=86400000,  # exactly 1 day in ms, matches vrect width
             )
         )
 
@@ -841,13 +861,282 @@ def plot_spore_infection_overview(  # noqa: C901
     return fig
 
 
-def write_combined_html(overview_fig, analysis_fig, output_path):
+def plot_decision_support_tool(  # noqa: C901
+    events_dataframe_path,
+    output_html_path,
+    model_parameters=None,
+    spore_counts_path=None,
+    title="Decision support tool",
+):
     """
-    Write a single HTML file with the overview plot as the default view and a
-    toggle button (top-left) that switches to the analysis plot.
+    Generate a three-row heatmap (Model / Spores / Risk) saved to
+    *output_html_path*.
+
+    Colour categories
+    -----------------
+    Model (daily infection strength, °C·h):
+        green          : strength < 50   (or no infection event that day)
+        very light pink: 50  <= strength < 100
+        salmon         : 100 <= strength < 200
+        red            : strength >= 200
+
+    Spores (daily spore count):
+        grey           : data missing
+        green          : count < 10
+        very light pink: 10 <= count < 20
+        salmon         : 20 <= count < 30
+        red            : count >= 30
+
+    Risk (infection_strength × daily_spore_count):
+        grey           : spore data missing
+        green          : product < 500   (50 × 10)
+        very light pink: 500  <= product < 2000  (100 × 20)
+        salmon         : 2000 <= product < 6000  (200 × 30)
+        red            : product >= 6000
     """
-    overview_div = overview_fig.to_html(full_html=False, include_plotlyjs=False)
-    analysis_div = analysis_fig.to_html(full_html=False, include_plotlyjs=False)
+    import datetime as _dt
+
+    # ------------------------------------------------------------------ #
+    # Load events dataframe                                               #
+    # ------------------------------------------------------------------ #
+    df = pd.read_csv(events_dataframe_path)
+    for col in ("oospore_infection", "secondary_infections"):
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
+    for col in ("oospore_infection_strength", "secondary_infection_strengths"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Build model_strength_by_day: date -> max infection strength across events
+    model_strength_by_day: dict = {}
+    if "oospore_infection" in df.columns:
+        for _, row in df.iterrows():
+            dt = row.get("oospore_infection")
+            s = row.get("oospore_infection_strength")
+            if pd.notna(dt) and pd.notna(s):
+                d = dt.date()
+                model_strength_by_day[d] = max(
+                    model_strength_by_day.get(d, 0.0), float(s)
+                )
+    if "secondary_infections" in df.columns:
+        for _, row in df.iterrows():
+            dt = row.get("secondary_infections")
+            s = row.get("secondary_infection_strengths")
+            if pd.notna(dt) and pd.notna(s):
+                d = dt.date()
+                model_strength_by_day[d] = max(
+                    model_strength_by_day.get(d, 0.0), float(s)
+                )
+
+    # ------------------------------------------------------------------ #
+    # Load and aggregate daily spore counts                               #
+    # ------------------------------------------------------------------ #
+    spore_count_by_day: dict = {}
+    spore_path = spore_counts_path or (
+        model_parameters["input_data"]["spore_counts"]
+        if model_parameters is not None
+        else None
+    )
+    if spore_path:
+        try:
+            sc = pd.read_csv(spore_path, sep=";")
+            _dc, _cc = sc.columns[0], sc.columns[1]
+            fmt = (
+                model_parameters["data_columns"]["format_columns"][0]
+                if model_parameters is not None
+                else "%d.%m.%Y %H:%M"
+            )
+            sc[_dc] = pd.to_datetime(sc[_dc], format=fmt, errors="coerce")
+            sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
+            sc.columns = [_dc, _cc]
+            for _, row in sc.iterrows():
+                spore_count_by_day[row[_dc]] = float(row[_cc])
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------ #
+    # Determine full date range                                           #
+    # ------------------------------------------------------------------ #
+    all_dates = set(model_strength_by_day.keys()) | set(spore_count_by_day.keys())
+    if not all_dates:
+        fig = go.Figure()
+        fig.write_html(output_html_path)
+        return fig
+
+    dates = []
+    cur = min(all_dates)
+    while cur <= max(all_dates):
+        dates.append(cur)
+        cur += _dt.timedelta(days=1)
+
+    # ------------------------------------------------------------------ #
+    # Category assignment  0=grey  1=green  2=v.light pink  3=salmon  4=red
+    # ------------------------------------------------------------------ #
+    def _model_cat(d):
+        s = model_strength_by_day.get(d, 0.0)
+        if s < 50:
+            return 1
+        elif s < 100:
+            return 2
+        elif s < 200:
+            return 3
+        return 4
+
+    def _spore_cat(d):
+        c = spore_count_by_day.get(d)
+        if c is None:
+            return 0
+        if c < 10:
+            return 1
+        elif c < 20:
+            return 2
+        elif c < 30:
+            return 3
+        return 4
+
+    def _risk_cat(d):
+        c = spore_count_by_day.get(d)
+        if c is None:
+            return 0
+        product = model_strength_by_day.get(d, 0.0) * c
+        if product < 500:
+            return 1
+        elif product < 2000:
+            return 2
+        elif product < 6000:
+            return 3
+        return 4
+
+    model_cats = [_model_cat(d) for d in dates]
+    spore_cats = [_spore_cat(d) for d in dates]
+    risk_cats = [_risk_cat(d) for d in dates]
+
+    # ------------------------------------------------------------------ #
+    # Hover text                                                          #
+    # ------------------------------------------------------------------ #
+    def _fmt_s(d):
+        s = model_strength_by_day.get(d)
+        return f"{s:.1f} °C·h" if s is not None else "0 °C·h"
+
+    def _fmt_c(d):
+        c = spore_count_by_day.get(d)
+        return str(int(c)) if c is not None else "—"
+
+    def _fmt_r(d):
+        c = spore_count_by_day.get(d)
+        if c is None:
+            return "—"
+        return f"{model_strength_by_day.get(d, 0.0) * c:.1f}"
+
+    hover_model = [
+        f"<b>{d.strftime('%Y-%m-%d')}</b><br>Infection strength: {_fmt_s(d)}"
+        for d in dates
+    ]
+    hover_spore = [
+        f"<b>{d.strftime('%Y-%m-%d')}</b><br>Spore count: {_fmt_c(d)}" for d in dates
+    ]
+    hover_risk = [
+        f"<b>{d.strftime('%Y-%m-%d')}</b><br>Risk index: {_fmt_r(d)}" for d in dates
+    ]
+
+    # ------------------------------------------------------------------ #
+    # Build figure                                                        #
+    # ------------------------------------------------------------------ #
+    # z rows in Plotly heatmap are bottom→top: Risk, Spores, Model
+    z = [risk_cats, spore_cats, model_cats]
+    customdata = [hover_risk, hover_spore, hover_model]
+    x_ts = [pd.Timestamp(d) + pd.Timedelta(hours=12) for d in dates]
+
+    # Discrete colorscale: 5 bands for categories 0–4
+    _cs = [
+        [0.00, "#C0C0C0"],
+        [0.20, "#C0C0C0"],  # 0 grey  (missing)
+        [0.20, "#90EE90"],
+        [0.40, "#90EE90"],  # 1 green
+        [0.40, "#FFD1DC"],
+        [0.60, "#FFD1DC"],  # 2 very light pink
+        [0.60, "#FA8072"],
+        [0.80, "#FA8072"],  # 3 salmon
+        [0.80, "#CC0000"],
+        [1.00, "#CC0000"],  # 4 red
+    ]
+
+    fig = go.Figure(
+        go.Heatmap(
+            x=x_ts,
+            y=["Risk", "Spores", "Model"],
+            z=z,
+            customdata=customdata,
+            hovertemplate="%{customdata}<extra></extra>",
+            colorscale=_cs,
+            zmin=0,
+            zmax=4,
+            showscale=False,
+            xgap=1,
+            ygap=2,
+        )
+    )
+
+    # Legend swatches
+    for color, label in [
+        ("#C0C0C0", "Data missing"),
+        ("#90EE90", "Low"),
+        ("#FFD1DC", "Moderate"),
+        ("#FA8072", "High"),
+        ("#CC0000", "Very high"),
+    ]:
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker={"symbol": "square", "size": 14, "color": color},
+                name=label,
+                showlegend=True,
+            )
+        )
+
+    fig.update_layout(
+        title=title,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        xaxis={
+            "tickangle": -90,
+            "tickformat": "%b %d",
+            "showgrid": False,
+            "type": "date",
+        },
+        yaxis={
+            "showgrid": False,
+            "tickfont": {"size": 13},
+        },
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.05,
+            "xanchor": "left",
+            "x": 0,
+        },
+        height=300,
+    )
+
+    fig.write_html(output_html_path)
+    return fig
+
+
+def write_combined_html(
+    primary_fig,
+    secondary_fig,
+    output_path,
+    primary_label="Decision Support",
+    secondary_label="Analysis",
+):
+    """
+    Write a single HTML file with *primary_fig* as the default view and a
+    toggle button (top-left) that switches to *secondary_fig*.
+    """
+    primary_div = primary_fig.to_html(full_html=False, include_plotlyjs=False)
+    secondary_div = secondary_fig.to_html(full_html=False, include_plotlyjs=False)
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -875,12 +1164,12 @@ def write_combined_html(overview_fig, analysis_fig, output_path):
   </style>
 </head>
 <body>
-  <button id="toggle-btn" onclick="toggleView()">Show Analysis</button>
-  <div id="overview-view" class="plot-view active">
-    {overview_div}
+  <button id="toggle-btn" onclick="toggleView()">Show {secondary_label}</button>
+  <div id="primary-view" class="plot-view active">
+    {primary_div}
   </div>
-  <div id="analysis-view" class="plot-view">
-    {analysis_div}
+  <div id="secondary-view" class="plot-view">
+    {secondary_div}
   </div>
   <script>
     function resizeActivePlots() {{
@@ -889,17 +1178,17 @@ def write_combined_html(overview_fig, analysis_fig, output_path):
       }});
     }}
     function toggleView() {{
-      var ov = document.getElementById('overview-view');
-      var av = document.getElementById('analysis-view');
+      var pv = document.getElementById('primary-view');
+      var sv = document.getElementById('secondary-view');
       var btn = document.getElementById('toggle-btn');
-      if (ov.classList.contains('active')) {{
-        ov.classList.remove('active');
-        av.classList.add('active');
-        btn.textContent = 'Show Overview';
+      if (pv.classList.contains('active')) {{
+        pv.classList.remove('active');
+        sv.classList.add('active');
+        btn.textContent = 'Show {primary_label}';
       }} else {{
-        av.classList.remove('active');
-        ov.classList.add('active');
-        btn.textContent = 'Show Analysis';
+        sv.classList.remove('active');
+        pv.classList.add('active');
+        btn.textContent = 'Show {secondary_label}';
       }}
       resizeActivePlots();
     }}

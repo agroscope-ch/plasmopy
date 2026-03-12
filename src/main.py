@@ -404,6 +404,10 @@ def main(config: DictConfig):  # noqa: C901
             + "sporangia_density"
             + ","
             + "secondary_infection"
+            + ","
+            + "oospore_infection_strength"
+            + ","
+            + "secondary_infection_strength"
             + "\n"
         )
         f.write(header_str)
@@ -532,6 +536,8 @@ def main(config: DictConfig):  # noqa: C901
                     _sec_infs = _ev.get("secondary_infections") or []
                     _sporuls = _ev.get("sporulations") or []
                     _spor_dens = _ev.get("sporangia_densities") or []
+                    _oosp_strength = _ev.get("oospore_infection_strength")
+                    _sec_strengths = _ev.get("secondary_infection_strengths") or []
                     _n_rows = max(1, len(_sec_infs), len(_sporuls))
                     for _ri in range(_n_rows):
                         f.write(
@@ -554,6 +560,16 @@ def main(config: DictConfig):  # noqa: C901
                             + str(_spor_dens[_ri] if _ri < len(_spor_dens) else "NA")
                             + ","
                             + str(_sec_infs[_ri] if _ri < len(_sec_infs) else "NA")
+                            + ","
+                            + str(
+                                _oosp_strength if _oosp_strength is not None else "NA"
+                            )
+                            + ","
+                            + str(
+                                _sec_strengths[_ri]
+                                if _ri < len(_sec_strengths)
+                                else "NA"
+                            )
                             + "\n"
                         )
 
@@ -629,6 +645,10 @@ def main(config: DictConfig):  # noqa: C901
                     _sc_sec = _sc_ev.get("secondary_infections") or []
                     _sc_spor = _sc_ev.get("sporulations") or []
                     _sc_dens = _sc_ev.get("sporangia_densities") or []
+                    _sc_oosp_strength = _sc_ev.get("oospore_infection_strength")
+                    _sc_sec_strengths = (
+                        _sc_ev.get("secondary_infection_strengths") or []
+                    )
                     _sc_rows = max(1, len(_sc_sec), len(_sc_spor))
                     for _sc_ri in range(_sc_rows):
                         f.write(
@@ -651,6 +671,18 @@ def main(config: DictConfig):  # noqa: C901
                             + str(_sc_dens[_sc_ri] if _sc_ri < len(_sc_dens) else "NA")
                             + ","
                             + str(_sc_sec[_sc_ri] if _sc_ri < len(_sc_sec) else "NA")
+                            + ","
+                            + str(
+                                _sc_oosp_strength
+                                if _sc_oosp_strength is not None
+                                else "NA"
+                            )
+                            + ","
+                            + str(
+                                _sc_sec_strengths[_sc_ri]
+                                if _sc_ri < len(_sc_sec_strengths)
+                                else "NA"
+                            )
                             + "\n"
                         )
 
@@ -747,8 +779,23 @@ def main(config: DictConfig):  # noqa: C901
         + (config.input_data.meteo or "automated pull"),
     )
 
-    # Combined HTML: overview as default view, toggle button switches to analysis.
-    utils.write_combined_html(overview_fig, analysis_fig, output_files.html_graph)
+    # Decision support tool heatmap (default view in combined HTML).
+    decision_support_fig = utils.plot_decision_support_tool(
+        output_files.events_dataframe,
+        output_files.decision_support_html,
+        model_parameters=config,
+        spore_counts_path=input_spore_file,
+        title="Decision support tool: " + (config.input_data.meteo or "automated pull"),
+    )
+
+    # Combined HTML: decision support as default view, toggle switches to analysis.
+    utils.write_combined_html(
+        decision_support_fig,
+        analysis_fig,
+        output_files.html_graph,
+        primary_label="Decision Support",
+        secondary_label="Analysis",
+    )
 
 
 if __name__ == "__main__":
