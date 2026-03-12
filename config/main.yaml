@@ -7,17 +7,16 @@ hydra:
 # INPUT DATA
 # -----------------------------------------------------------------------------
 input_data:
-  meteo: data/input/2023_meteo_changins.csv
-  spore_counts: data/input/2023_qPCR_changins.labo.exterieur.csv
-  support_decision_tool_enabled: true
+  meteo: data/input/2025_meteo_changins.csv
+  spore_counts: data/input/2025_qPCR_changins.labo.exterieur.csv
+  decision_support_tool_enabled: true
   automated_spore_pull: false
   spore_counts_api_query: 
-  spore_count_threshold: 5          # condition 1: any day's total exceeds this count
-  spore_count_lookback_days: 3       # condition 2: number of days to consider for percent increase
-  spore_count_percent_increase: 20   # condition 2: minimum percent increase over the lookback window
-  automated_data_pull: false
+  spore_count_threshold: 40          # condition 1: any day's total exceeds this count
+  spore_count_lookback_days: 5       # condition 2: number of days to consider for percent increase
+  spore_count_percent_increase: 30   # condition 2: minimum percent increase over the lookback window
+  automated_weather_pull: false
   weather_api_query: 
-
 # -----------------------------------------------------------------------------
 # OUTPUT / RUN IDENTIFIER
 # -----------------------------------------------------------------------------
@@ -29,7 +28,7 @@ input_data:
 # when running multiple experiments with identical input paths.
 output:
   directory: data/output       # base directory for results (can be overridden)
-  run_name: test_changins_2023       # custom run name (null to derive from meteo file)
+  run_name: 2025_changins       # custom run name (null to derive from meteo file)
 
 # -----------------------------------------------------------------------------
 # SITE PARAMETERS
@@ -45,7 +44,7 @@ site:
 # -----------------------------------------------------------------------------
 run_settings:
   algorithmic_time_steps: 1 # number of time steps to compute per measurement interval (e.g. 1 = 4-hour steps)
-  computational_time_steps: 6 # number of time steps to simulate (e.g. 6 = 1 day with 4-hour steps)
+  computational_time_steps: 18 # number of time steps to simulate (e.g. 6 = 1 day with 4-hour steps)
   measurement_time_interval: 10 # minutes between consecutive measurements in the input data
   fast_mode: true
 
