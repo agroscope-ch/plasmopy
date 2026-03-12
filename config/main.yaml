@@ -28,7 +28,7 @@ input_data:
 # when running multiple experiments with identical input paths.
 output:
   directory: data/output       # base directory for results (can be overridden)
-  run_name: 2025_changins       # custom run name (null to derive from meteo file)
+  run_name: example       # custom run name (null to derive from meteo file)
 
 # -----------------------------------------------------------------------------
 # SITE PARAMETERS
