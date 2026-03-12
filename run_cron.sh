@@ -14,7 +14,45 @@ LOGDIR="$PLASMOPY_DIR/logs"
 LOGFILE="$LOGDIR/cron.log"
 INTERVAL=$((3 * 3600))   # 3 hours in seconds
 
+FTP_HOST="WEB SERVER HOSTNAME (e.g. www.example.com)"
+FTP_USER="USERNAME"
+FTP_PASS="PASSWORD"
+
 mkdir -p "$LOGDIR"
+
+# Returns the path to the combined HTML output file by reading config/main.yaml.
+get_html_output_path() {
+    cd "$PLASMOPY_DIR"
+    poetry run python3 - <<'EOF'
+import yaml, pathlib
+with open("config/main.yaml") as f:
+    cfg = yaml.safe_load(f)
+out      = cfg.get("output", {})
+out_dir  = (out.get("directory") or "data/output").strip()
+run_name = (out.get("run_name") or "").strip()
+meteo    = (cfg.get("input_data", {}).get("meteo") or "").strip()
+basename = run_name or (pathlib.Path(meteo).stem if meteo else "")
+if basename:
+    print(pathlib.Path(out_dir) / basename / (basename + ".html"))
+EOF
+}
+
+upload_html() {
+    local html_file="$1"
+    if [ ! -f "$html_file" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] FTP upload skipped: HTML file not found ($html_file)" >> "$LOGFILE"
+        return 1
+    fi
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading $(basename "$html_file") to ftp://$FTP_HOST/ ..." >> "$LOGFILE"
+    if curl --silent --show-error \
+            -T "$html_file" \
+            "ftp://$FTP_HOST/$(basename "$html_file")" \
+            --user "$FTP_USER:$FTP_PASS" >> "$LOGFILE" 2>&1; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] FTP upload successful" >> "$LOGFILE"
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] FTP upload FAILED" >> "$LOGFILE"
+    fi
+}
 
 run_model() {
     echo "----------------------------------------" >> "$LOGFILE"
@@ -22,6 +60,12 @@ run_model() {
     cd "$PLASMOPY_DIR"
     if make run >> "$LOGFILE" 2>&1; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Run completed successfully" >> "$LOGFILE"
+        HTML_FILE=$(get_html_output_path)
+        if [ -n "$HTML_FILE" ]; then
+            upload_html "$PLASMOPY_DIR/$HTML_FILE"
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] FTP upload skipped: could not resolve HTML output path from config" >> "$LOGFILE"
+        fi
     else
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Run FAILED (exit code $?)" >> "$LOGFILE"
     fi

@@ -2,9 +2,6 @@ hydra:
   output_subdir: null
   run:
     dir: .
-  job_logging:
-    handlers:
-      file: logs/main.log
 
 # -----------------------------------------------------------------------------
 # INPUT DATA

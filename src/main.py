@@ -412,12 +412,23 @@ def main(config: DictConfig):  # noqa: C901
     infection_events = []
 
     if oospore_maturation_datetime_rowindex is not None:
-        progress_bar = tqdm(
+        _n_steps = len(
             range(
                 oospore_maturation_datetime_rowindex,
                 len(processed_data.index),
                 computational_time_steps,
             )
+        )
+        _interactive = sys.stderr.isatty()
+        if not _interactive:
+            print(f"Running infection model: {_n_steps} steps...", flush=True)
+        progress_bar = tqdm(
+            range(
+                oospore_maturation_datetime_rowindex,
+                len(processed_data.index),
+                computational_time_steps,
+            ),
+            disable=not _interactive,
         )
 
         # Progress bar output on terminal.
