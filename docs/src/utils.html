@@ -110,21 +110,23 @@ def create_output_filenames(
     output_folder.mkdir(parents=True, exist_ok=True)
     output_basename = output_folder / basename
 
-    # build full paths using pathlib to keep semantics clear
-    logfile = output_basename.with_suffix(&#34;.log&#34;).resolve()
-    processed_file_meteo = output_basename.with_suffix(&#34;.processed.csv&#34;).resolve()
-    model_params = output_basename.with_suffix(&#34;.model_params.obj&#34;).resolve()
-    events_dict = output_basename.with_suffix(&#34;.events.obj&#34;).resolve()
-    events_text = output_basename.with_suffix(&#34;.events_log.csv&#34;).resolve()
-    events_dataframe = output_basename.with_suffix(&#34;.events_table.csv&#34;).resolve()
-    infection_datetimes = output_basename.with_suffix(
-        &#34;.infection_datetimes.csv&#34;
-    ).resolve()
-    analysis_pdf = output_basename.with_suffix(&#34;.analysis.pdf&#34;).resolve()
-    html_graph = output_basename.with_suffix(&#34;.combined.html&#34;).resolve()
-    analysis_html = output_basename.with_suffix(&#34;.analysis.html&#34;).resolve()
-    overview_html = output_basename.with_suffix(&#34;.overview.html&#34;).resolve()
-    decision_support_html = output_basename.with_suffix(&#34;.heatmap.html&#34;).resolve()
+    # build full paths by appending extensions to the full basename string so
+    # that dots inside the basename (e.g. &#34;test.changins.2026&#34;) are preserved.
+    def _p(ext):
+        return Path(str(output_basename) + ext).resolve()
+
+    logfile = _p(&#34;.log&#34;)
+    processed_file_meteo = _p(&#34;.processed.csv&#34;)
+    model_params = _p(&#34;.model_params.obj&#34;)
+    events_dict = _p(&#34;.events.obj&#34;)
+    events_text = _p(&#34;.events_log.csv&#34;)
+    events_dataframe = _p(&#34;.events_table.csv&#34;)
+    infection_datetimes = _p(&#34;.infection_datetimes.csv&#34;)
+    analysis_pdf = _p(&#34;.analysis.pdf&#34;)
+    html_graph = _p(&#34;.combined.html&#34;)
+    analysis_html = _p(&#34;.analysis.html&#34;)
+    overview_html = _p(&#34;.overview.html&#34;)
+    decision_support_html = _p(&#34;.heatmap.html&#34;)
 
     output_filenames = output_files(
         logfile,
@@ -297,21 +299,23 @@ happen).</p></div>
     output_folder.mkdir(parents=True, exist_ok=True)
     output_basename = output_folder / basename
 
-    # build full paths using pathlib to keep semantics clear
-    logfile = output_basename.with_suffix(&#34;.log&#34;).resolve()
-    processed_file_meteo = output_basename.with_suffix(&#34;.processed.csv&#34;).resolve()
-    model_params = output_basename.with_suffix(&#34;.model_params.obj&#34;).resolve()
-    events_dict = output_basename.with_suffix(&#34;.events.obj&#34;).resolve()
-    events_text = output_basename.with_suffix(&#34;.events_log.csv&#34;).resolve()
-    events_dataframe = output_basename.with_suffix(&#34;.events_table.csv&#34;).resolve()
-    infection_datetimes = output_basename.with_suffix(
-        &#34;.infection_datetimes.csv&#34;
-    ).resolve()
-    analysis_pdf = output_basename.with_suffix(&#34;.analysis.pdf&#34;).resolve()
-    html_graph = output_basename.with_suffix(&#34;.combined.html&#34;).resolve()
-    analysis_html = output_basename.with_suffix(&#34;.analysis.html&#34;).resolve()
-    overview_html = output_basename.with_suffix(&#34;.overview.html&#34;).resolve()
-    decision_support_html = output_basename.with_suffix(&#34;.heatmap.html&#34;).resolve()
+    # build full paths by appending extensions to the full basename string so
+    # that dots inside the basename (e.g. &#34;test.changins.2026&#34;) are preserved.
+    def _p(ext):
+        return Path(str(output_basename) + ext).resolve()
+
+    logfile = _p(&#34;.log&#34;)
+    processed_file_meteo = _p(&#34;.processed.csv&#34;)
+    model_params = _p(&#34;.model_params.obj&#34;)
+    events_dict = _p(&#34;.events.obj&#34;)
+    events_text = _p(&#34;.events_log.csv&#34;)
+    events_dataframe = _p(&#34;.events_table.csv&#34;)
+    infection_datetimes = _p(&#34;.infection_datetimes.csv&#34;)
+    analysis_pdf = _p(&#34;.analysis.pdf&#34;)
+    html_graph = _p(&#34;.combined.html&#34;)
+    analysis_html = _p(&#34;.analysis.html&#34;)
+    overview_html = _p(&#34;.overview.html&#34;)
+    decision_support_html = _p(&#34;.heatmap.html&#34;)
 
     output_filenames = output_files(
         logfile,

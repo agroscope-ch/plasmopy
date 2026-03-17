@@ -28,9 +28,9 @@ import yaml, pathlib
 with open("config/main.yaml") as f:
     cfg = yaml.safe_load(f)
 out      = cfg.get("output", {})
-out_dir  = (out.get("directory") or "data/output").strip()
-run_name = (out.get("run_name") or "").strip()
-meteo    = (cfg.get("input_data", {}).get("meteo") or "").strip()
+out_dir  = str(out.get("directory") or "data/output").strip()
+run_name = str(out.get("run_name") or "").strip()
+meteo    = str(cfg.get("input_data", {}).get("meteo") or "").strip()
 basename = run_name or (pathlib.Path(meteo).stem if meteo else "")
 if basename:
     print(pathlib.Path(out_dir) / basename / (basename + ".combined.html"))

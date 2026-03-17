@@ -109,6 +109,8 @@ output:
   run_name: my_run         # all output files named my_run.*; null = derive from meteo filename
 ```
 
+`run_name` may contain dots (e.g. `test.changins.2026`). All dots are treated as part of the name, not as file extensions — output files will be named `test.changins.2026.log`, `test.changins.2026.combined.html`, etc.
+
 ### Key parameters reference
 
 | Parameter | Location | Default | Description |

@@ -80,21 +80,23 @@ def create_output_filenames(
     output_folder.mkdir(parents=True, exist_ok=True)
     output_basename = output_folder / basename
 
-    # build full paths using pathlib to keep semantics clear
-    logfile = output_basename.with_suffix(".log").resolve()
-    processed_file_meteo = output_basename.with_suffix(".processed.csv").resolve()
-    model_params = output_basename.with_suffix(".model_params.obj").resolve()
-    events_dict = output_basename.with_suffix(".events.obj").resolve()
-    events_text = output_basename.with_suffix(".events_log.csv").resolve()
-    events_dataframe = output_basename.with_suffix(".events_table.csv").resolve()
-    infection_datetimes = output_basename.with_suffix(
-        ".infection_datetimes.csv"
-    ).resolve()
-    analysis_pdf = output_basename.with_suffix(".analysis.pdf").resolve()
-    html_graph = output_basename.with_suffix(".combined.html").resolve()
-    analysis_html = output_basename.with_suffix(".analysis.html").resolve()
-    overview_html = output_basename.with_suffix(".overview.html").resolve()
-    decision_support_html = output_basename.with_suffix(".heatmap.html").resolve()
+    # build full paths by appending extensions to the full basename string so
+    # that dots inside the basename (e.g. "test.changins.2026") are preserved.
+    def _p(ext):
+        return Path(str(output_basename) + ext).resolve()
+
+    logfile = _p(".log")
+    processed_file_meteo = _p(".processed.csv")
+    model_params = _p(".model_params.obj")
+    events_dict = _p(".events.obj")
+    events_text = _p(".events_log.csv")
+    events_dataframe = _p(".events_table.csv")
+    infection_datetimes = _p(".infection_datetimes.csv")
+    analysis_pdf = _p(".analysis.pdf")
+    html_graph = _p(".combined.html")
+    analysis_html = _p(".analysis.html")
+    overview_html = _p(".overview.html")
+    decision_support_html = _p(".heatmap.html")
 
     output_filenames = output_files(
         logfile,
