@@ -6,7 +6,7 @@ Livio Ruzzante
 Agroscope Changins (CH), 2023        
 version 1.0        
 
-Runtime start: 2026-03-12 16:40:05.708454
+Runtime start: 2026-03-17 18:16:00.455744
 
 Loading timeseries data from: data/input/2025_meteo_changins.csv
 
@@ -35,7 +35,7 @@ Setting non-numeric values to NaN (datetime not considered).
 
 0 out-of-range and 0 missing values replaced by interpolated values. 0 missing values in gaps > 6 h left as NaN.
 
-Formatted data stored in: /home/lruzzant/plasmopy/data/output/example/example.processed.csv
+Formatted data stored in: /home/laruzzante/plasmopy/data/output/example/example.processed.csv
 
 Spore count analysis (full dataset, 58 days):
 Condition 1 – flat threshold (any day > 40): True → 6 surge(s) detected
@@ -86,10 +86,12 @@ Dispersion stage anchored at datetime: 2025-08-18 00:00:00+02:00
 Running infection model...
 
 Model parameters:
-	input_data: {'meteo': 'data/input/2025_meteo_changins.csv', 'spore_counts': 'data/input/2025_qPCR_changins.labo.exterieur.csv', 'decision_support_tool_enabled': True, 'automated_spore_pull': False, 'spore_counts_api_query': None, 'spore_count_threshold': 40, 'spore_count_lookback_days': 5, 'spore_count_percent_increase': 30, 'automated_weather_pull': False, 'weather_api_query': None}
+	input_data: {'meteo': 'data/input/2025_meteo_changins.csv', 'spore_counts': 'data/input/2025_qPCR_changins.labo.exterieur.csv', 'automated_spore_pull': False, 'spore_counts_api_query': 'https://arialight.ch/changins.labo.exterieur.json', 'spore_counts_graph': 'https://arialight.ch/changins.labo.exterieur.html', 'automated_weather_pull': False, 'weather_api_query': 'https://my.meteoblue.com/packages/basic-1h_agro-1h?apikey=eQvmDLKcy34pPTYA&lat=46.4&lon=6.2&asl=439&format=json'}
 	output: {'directory': 'data/output', 'run_name': 'example'}
+	spore_driven_model: {'enabled': True, 'spore_count_threshold': 40, 'spore_count_lookback_days': 5, 'spore_count_percent_increase': 30}
+	risk_heatmap: {'model_thresholds': [50, 100, 200], 'mildiou_thresholds': [20, 50, 100]}
 	site: {'latitude': 46.4, 'longitude': 6.2, 'elevation': 439.0, 'timezone': 'Europe/Zurich'}
-	run_settings: {'algorithmic_time_steps': 1, 'computational_time_steps': 18, 'measurement_time_interval': 10, 'fast_mode': True}
+	run_settings: {'algorithmic_time_steps': 1, 'computational_time_steps': 6, 'measurement_time_interval': 10, 'fast_mode': True}
 	data_columns: {'use_columns': [0, 1, 2, 3, 4], 'rename_columns': {0: 'datetime', 1: 'temperature', 2: 'humidity', 3: 'rainfall', 4: 'leaf_wetness'}, 'format_columns': {0: '%d.%m.%Y %H:%M', 1: [-20, 50], 2: [0, 100], 3: [0, 200], 4: [0, 10]}}
 	oospore_maturation: {'date': None, 'base_temperature': 8.0, 'sum_degree_days_threshold': 140.0}
 	oospore_germination: {'algorithm': 2, 'base_temperature': 8, 'base_duration': 8, 'leaf_wetness_threshold': 10, 'relative_humidity_threshold': 80, 'moisturization_temperature_threshold': 8.0, 'moisturization_rainfall_threshold': 5.0, 'moisturization_rainfall_period': 48}
@@ -100,12 +102,12 @@ Model parameters:
 	spore_lifespan: {'constant': 11.35, 'saturation_vapor_pressure': None}
 	secondary_infection: {'min_temperature': 3.0, 'max_temperature': 29.0, 'leaf_wetness_latency': 60.0, 'sum_degree_hours_threshold': 50.0}
 
-Support decision tool enabled. Checking spore counts file for decision support...
+Spore-driven model enabled. Checking spore counts file for algorithmic shortcuts...
 
 Spore counts flat threshold exceeded. Model will jump to oospore dispersion stage.
 
 Spore counts percent-increase threshold exceeded. Model will jump to sporulation stage.
 
 Model run complete. Infection events details and summary of predicted infection datetimes are stored in 'data/output/'.
-Runtime end: 2026-03-12 16:40:51.893409
-Runtime total: 0:00:46.184955
+Runtime end: 2026-03-17 18:16:50.872618
+Runtime total: 0:00:50.416874
