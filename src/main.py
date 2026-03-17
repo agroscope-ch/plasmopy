@@ -15,10 +15,11 @@ import infection_event
 import infection_model
 import load_data
 import pandas as pd
+import plots
 import process_data
 import support_decision_tool
 import utils
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
 
@@ -46,6 +47,16 @@ def main(config: DictConfig):  # noqa: C901
       6. Run cumulative infection risk computation across entire timeseries dataset.
 
     """
+    from pathlib import Path as _Path
+
+    _secrets_path = _Path(__file__).parent.parent / "config" / "secrets.yaml"
+    if _secrets_path.exists():
+        config = OmegaConf.merge(config, OmegaConf.load(_secrets_path))
+    else:
+        print(
+            "WARNING: config/secrets.yaml not found. "
+            "Copy config/secrets.example.yaml to config/secrets.yaml and fill in your values."
+        )
 
     # determine output filenames base on input or explicit run name
     output_files = utils.create_output_filenames(
@@ -107,6 +118,29 @@ def main(config: DictConfig):  # noqa: C901
                 open(meteo_file_path, "w").close()
         else:
             meteo_file_path = None
+    elif config.input_data.get("automated_weather_pull", False):
+        # Flat file is given AND weather pull is enabled.
+        # Build a combined file (flat stem + API coordinates) so the original
+        # flat file is never modified.  The combined file is always re-seeded
+        # from the flat file at startup, then API data is merged on top.
+        import shutil
+
+        _api_q = config.input_data.get("weather_api_query", "") or ""
+        _flat_path = Path(meteo_file_path)
+        _combined_name = f"{_flat_path.stem}_automated.csv"
+        if _api_q:
+            _qs = parse_qs(urlparse(_api_q).query)
+            _lat = (_qs.get("lat") or _qs.get("latitude") or [None])[0]
+            _lon = (_qs.get("lon") or _qs.get("longitude") or [None])[0]
+            if _lat and _lon:
+                _combined_name = f"{_flat_path.stem}_lat{_lat}_lon{_lon}.csv"
+        _combined_path = str(_flat_path.parent / _combined_name)
+        Path(_combined_path).parent.mkdir(parents=True, exist_ok=True)
+        if _flat_path.exists():
+            shutil.copy2(str(_flat_path), _combined_path)
+        elif not Path(_combined_path).exists():
+            open(_combined_path, "w").close()
+        meteo_file_path = _combined_path
 
     if config.input_data.get("automated_weather_pull", False):
         api_query = config.input_data.get("weather_api_query")
@@ -293,23 +327,17 @@ def main(config: DictConfig):  # noqa: C901
                 )
 
     # Check spore counts to determine if model should skip to sporulation stage
-    if (
-        config.input_data.get("decision_support_tool_enabled", False)
-        and input_spore_file is not None
-    ):
+    _sdm = config.get("spore_driven_model", {}) or {}
+    if _sdm.get("enabled", False) and input_spore_file is not None:
         logf.write(
-            "\nSupport decision tool enabled. Checking spore counts file for decision support...\n"
+            "\nSpore-driven model enabled. Checking spore counts file for algorithmic shortcuts...\n"
         )
         spore_counts_result = support_decision_tool.check_spore_counts(
             input_spore_file,
             logfile,
-            spore_count_threshold=config.input_data.get("spore_count_threshold", 10),
-            spore_count_lookback_days=config.input_data.get(
-                "spore_count_lookback_days", 3
-            ),
-            spore_count_percent_increase=config.input_data.get(
-                "spore_count_percent_increase", 20
-            ),
+            spore_count_threshold=_sdm.get("spore_count_threshold", 40),
+            spore_count_lookback_days=_sdm.get("spore_count_lookback_days", 5),
+            spore_count_percent_increase=_sdm.get("spore_count_percent_increase", 30),
         )
         if spore_counts_result.get("skip_to_dispersion"):
             logf.write(
@@ -322,12 +350,12 @@ def main(config: DictConfig):  # noqa: C901
                 "Model will jump to sporulation stage.\n"
             )
     else:
-        if config.input_data.get("decision_support_tool_enabled", False):
+        if _sdm.get("enabled", False):
             logf.write(
-                "\nSupport decision tool enabled but no spore counts file available. Running normal model flow.\n"
+                "\nSpore-driven model enabled but no spore counts file available. Running normal model flow.\n"
             )
         else:
-            logf.write("\nSupport decision tool disabled. Running normal model flow.\n")
+            logf.write("\nSpore-driven model disabled. Running normal model flow.\n")
 
     daily_temperatures = utils.get_daily_measurements(processed_data, "temperature")
     daily_mean_temperatures = utils.get_daily_mean_measurements(
@@ -722,7 +750,7 @@ def main(config: DictConfig):  # noqa: C901
     logf.close()
 
     # Plot infection events predictions (PDF only).
-    utils.plot_events(infection_events, config, output_files.pdf_graph)
+    plots.plot_infection_events_pdf(infection_events, config, output_files.pdf_graph)
 
     with open(output_files.events_dict, "wb") as pickle_file:
         pickle.dump(infection_events, pickle_file)
@@ -759,8 +787,8 @@ def main(config: DictConfig):  # noqa: C901
                         f.write(str(item))
             f.write("\n")
 
-    # Plot analysis graph (Rplot.R equivalent).
-    analysis_fig = utils.plot_infection_analysis(
+    # Detailed infection chain plot (developer / analysis view).
+    analysis_fig = plots.plot_model_infection_chains(
         output_files.events_dataframe,
         output_files.analysis_html,
         model_parameters=config,
@@ -768,33 +796,32 @@ def main(config: DictConfig):  # noqa: C901
         title="Infection analysis: " + (config.input_data.meteo or "automated pull"),
     )
 
-    # Plot spore counts overview with infection event background colours.
-    overview_fig = utils.plot_spore_infection_overview(
+    # Spore-driven model overview: spore counts integrated into the algorithm.
+    overview_fig = plots.plot_spore_driven_model_overview(
         output_files.events_dataframe,
         output_files.overview_html,
         model_parameters=config,
         spore_counts_result=spore_counts_result,
         spore_counts_path=input_spore_file,
-        title="Spore counts & infection overview: "
+        title="Spore-driven model overview: "
         + (config.input_data.meteo or "automated pull"),
     )
 
-    # Decision support tool heatmap (default view in combined HTML).
-    decision_support_fig = utils.plot_decision_support_tool(
+    # Risk heatmap: independent model + spore rows, visual only, smartphone view.
+    risk_heatmap_fig = plots.plot_risk_heatmap(
         output_files.events_dataframe,
         output_files.decision_support_html,
         model_parameters=config,
         spore_counts_path=input_spore_file,
-        title="Decision support tool: " + (config.input_data.meteo or "automated pull"),
     )
 
-    # Combined HTML: decision support as default view, toggle switches to analysis.
-    utils.write_combined_html(
-        decision_support_fig,
+    # Combined mobile HTML: risk heatmap (primary) + infection chains (secondary).
+    _spore_graph_url = config.input_data.get("spore_counts_graph") or None
+    plots.write_combined_html(
+        risk_heatmap_fig,
         analysis_fig,
         output_files.html_graph,
-        primary_label="Decision Support",
-        secondary_label="Analysis",
+        spore_counts_graph_url=_spore_graph_url,
     )
 
 

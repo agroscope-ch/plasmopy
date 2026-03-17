@@ -22,6 +22,10 @@ Examples of input weather data are available in `data/input/`.
 
 Be sure to update accordingly the most important input-dependent parameters in `config/main.yaml`: *measurement_time_interval*, *computational_time_steps*, *algorithmic_time_steps*.
 
+> **Secrets:** Site-specific values (coordinates, timezone, API keys) are stored in
+> `config/secrets.yaml` (gitignored).  Copy `config/secrets.example.yaml` to
+> `config/secrets.yaml` and fill in your values before running the model.
+
 The file can be managed directly, or through the streamlit web-app, as detailed in the [README](https://github.com/agroscope-ch/plasmopy/blob/main/README.md).
 
 ![](images/plasmopy_screen0.jpg)
@@ -152,10 +156,14 @@ The script employs robust error logging to identify issues such as missing confi
 The final output is a structured `pickle` dictionary summarizing infection event properties and datetimes. This dictionary serves as the primary interface for downstream analyses or reporting.
 Additional output files included in `data/output/`:
 
-1) PDF and HTML graphs of the simulated infection events across the input datetime range;
-2) a logfile detailing the simulation data pre-processing, model parameters and eventual workflow errors;
-3) the post-processing weather variables input file;
-4) a summary description of the successful primary and secondary infection events.
+1) A PDF graph of the simulated infection events across the input datetime range;
+2) A mobile-optimised combined HTML (`*_graph.html`) containing:
+   - **Aide à la décision** (primary view) — a smartphone risk heatmap with three rows: model infection strength (*Modèle*), daily spore counts (*Mildiou*), and a combined risk indicator (*RISQUE*);
+   - **Modèle détaillé** (secondary view, toggled by a button) — a detailed infection chain analysis plot;
+3) Standalone HTML for the detailed infection chain view (`*_analysis.html`) and the spore-driven model overview (`*_overview.html`);
+4) A logfile detailing the simulation data pre-processing, model parameters and eventual workflow errors;
+5) The post-processing weather variables input file;
+6) A summary description of the successful primary and secondary infection events.
 
 The output files as well as the model parameters and input files for running new simulations can be interactively explored and configured through the *streamlit* web-app, activated with the command:
 

@@ -58,7 +58,7 @@ before the support decision check runs.
 
 ---
 
-### `check_spore_counts(spore_counts_filepath, logfile=None, spore_count_threshold=10, spore_count_lookback_days=3, spore_count_percent_increase=20)`
+### `check_spore_counts(spore_counts_filepath, logfile=None, spore_count_threshold=40, spore_count_lookback_days=5, spore_count_percent_increase=30)`
 
 Reads the full spore counts CSV, aggregates to daily totals, and evaluates two
 independent conditions against the entire dataset.
@@ -69,9 +69,9 @@ independent conditions against the entire dataset.
 |-----------|------|---------|-------------|
 | `spore_counts_filepath` | str | — | Path to `Date;Counts` CSV file |
 | `logfile` | str, optional | `None` | Path to run logfile |
-| `spore_count_threshold` | int/float | `10` | Flat daily count threshold (condition 1) |
-| `spore_count_lookback_days` | int | `3` | Sliding window size in days (condition 2) |
-| `spore_count_percent_increase` | float | `20` | Minimum % increase over the window (condition 2) |
+| `spore_count_threshold` | int/float | `40` | Flat daily count threshold (condition 1) |
+| `spore_count_lookback_days` | int | `5` | Sliding window size in days (condition 2) |
+| `spore_count_percent_increase` | float | `30` | Minimum % increase over the window (condition 2) |
 
 **Input CSV format**
 
@@ -128,7 +128,7 @@ surges contributing multiple events.
 
 ## Workflow
 
-### Default flow (no spore counts file, or `decision_support_tool_enabled: false`)
+### Default flow (no spore counts file, or `spore_driven_model.enabled: false`)
 
 The model runs the full primary infection sequence for every datetime:
 
@@ -142,7 +142,7 @@ The model runs the full primary infection sequence for every datetime:
 8. Spore lifespan
 9. Secondary infections
 
-### Enhanced flow (spore counts available and tool enabled)
+### Enhanced flow (spore counts available and `spore_driven_model.enabled: true`)
 
 1. Load weather data.
 2. Fetch or read the spore counts file.
@@ -161,28 +161,37 @@ surges across the season.
 
 ---
 
-## Configuration (`config/main.yaml`)
+## Configuration (`config/main.yaml` + `config/secrets.yaml`)
 
 ```yaml
+# config/main.yaml
 input_data:
   spore_counts: null                         # path to flat CSV, or null
-  decision_support_tool_enabled: true        # enable/disable the tool
   automated_spore_pull: true                 # fetch counts from API if no file given
-  spore_counts_api_query: "https://your.api/spores?site=changins"
-  spore_count_threshold: 50                  # condition 1: flat daily count threshold
+  spore_counts_api_query: null               # set in config/secrets.yaml
+
+spore_driven_model:
+  enabled: true                              # enable/disable the tool
+  spore_count_threshold: 40                  # condition 1: flat daily count threshold
   spore_count_lookback_days: 5               # condition 2: sliding window size [days]
   spore_count_percent_increase: 30           # condition 2: minimum % increase
 ```
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `spore_counts` | `null` | Path to a manual spore counts CSV file |
-| `decision_support_tool_enabled` | `false` | Enable/disable `check_spore_counts` |
-| `automated_spore_pull` | `false` | Fetch from API when no manual file is set |
-| `spore_counts_api_query` | `null` | API URL returning Mildiou JSON |
-| `spore_count_threshold` | `10` | Flat count threshold for condition 1 |
-| `spore_count_lookback_days` | `3` | Sliding window size for condition 2 |
-| `spore_count_percent_increase` | `20` | Minimum % increase for condition 2 |
+```yaml
+# config/secrets.yaml  (gitignored — copy from secrets.example.yaml)
+input_data:
+  spore_counts_api_query: "https://your.api/spores?site=changins"
+```
+
+| Parameter | Location | Default | Description |
+|-----------|----------|---------|-------------|
+| `input_data.spore_counts` | `main.yaml` | `null` | Path to a manual spore counts CSV file |
+| `input_data.automated_spore_pull` | `main.yaml` | `false` | Fetch from API when no manual file is set |
+| `input_data.spore_counts_api_query` | `secrets.yaml` | `null` | API URL returning Mildiou JSON |
+| `spore_driven_model.enabled` | `main.yaml` | `false` | Enable/disable `check_spore_counts` |
+| `spore_driven_model.spore_count_threshold` | `main.yaml` | `40` | Flat count threshold for condition 1 |
+| `spore_driven_model.spore_count_lookback_days` | `main.yaml` | `5` | Sliding window size for condition 2 |
+| `spore_driven_model.spore_count_percent_increase` | `main.yaml` | `30` | Minimum % increase for condition 2 |
 
 **File resolution priority** (highest to lowest):
 
@@ -220,10 +229,10 @@ before the conditions are evaluated.
 Analysis results are appended to the model logfile:
 
 ```
-Support decision tool enabled. Checking spore counts file for decision support...
+Spore-driven model enabled. Checking spore counts file for algorithmic shortcuts...
 
 Spore count analysis (full dataset, 42 days):
-Condition 1 – flat threshold (any day > 50): True → 2 surge(s) detected
+Condition 1 – flat threshold (any day > 40): True → 2 surge(s) detected
 Condition 2 – percent increase (30%+ over 5-day window): True → 1 triggering window(s) detected
 
 Spore counts flat threshold exceeded. Model will jump to oospore dispersion stage.
@@ -252,7 +261,7 @@ import support_decision_tool
 
 result = support_decision_tool.check_spore_counts(
     'data/input/auto_spore_counts.csv',
-    spore_count_threshold=50,
+    spore_count_threshold=40,
     spore_count_lookback_days=5,
     spore_count_percent_increase=30,
 )

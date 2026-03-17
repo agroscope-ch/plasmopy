@@ -14,9 +14,9 @@ LOGDIR="$PLASMOPY_DIR/logs"
 LOGFILE="$LOGDIR/cron.log"
 INTERVAL=$((3 * 3600))   # 3 hours in seconds
 
-FTP_HOST="WEB SERVER HOSTNAME (e.g. www.example.com)"
-FTP_USER="USERNAME"
-FTP_PASS="PASSWORD"
+FTP_HOST="dy3bg.ftp.infomaniak.com/sites/arialight.ch"
+FTP_USER="dy3bg_jeromekasparian"
+FTP_PASS="4TW100fs_Infomaniak"
 
 mkdir -p "$LOGDIR"
 

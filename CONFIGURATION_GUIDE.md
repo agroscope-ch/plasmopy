@@ -1,424 +1,418 @@
 # Configuration Guide: Advanced Features
 
-This guide covers the configuration options for two advanced features added to Plasmopy:
-1. **Support Decision Tool** - Uses spore count observations to trigger sporulation stage
-2. **Automated Data Pull** - Periodically fetches and updates weather data from API
+This guide covers the configuration options for the two advanced features added to Plasmopy:
+1. **Spore-Driven Model** — uses spore count observations to inject algorithmic shortcuts into the infection model
+2. **Automated Data Pull** — fetches and updates weather and spore count data from external APIs
 
-## Complete Configuration Example
+---
 
-Here's a complete `config/main.yaml` file showing all available options:
+## Secrets Setup
+
+Sensitive values (site coordinates, API keys) are kept out of `config/main.yaml` to avoid
+accidental commits.  They live in a gitignored companion file:
+
+```
+config/secrets.yaml          ← your local copy (gitignored, never committed)
+config/secrets.example.yaml  ← template (committed, safe to share)
+```
+
+**First-time setup:**
+```bash
+cp config/secrets.example.yaml config/secrets.yaml
+# then edit config/secrets.yaml with your actual values
+```
+
+`secrets.yaml` uses the same structure as `main.yaml`.  At runtime the model merges it on top
+of `main.yaml`, so any key set in `secrets.yaml` overrides the corresponding `null` placeholder.
+
+Fields stored in `secrets.yaml`:
 
 ```yaml
-# ============================================================================
-# PLASMOPY MODEL CONFIGURATION
-# ============================================================================
+input_data:
+  spore_counts_api_query: "https://your.api/spores?site=changins"
+  weather_api_query: "https://my.meteoblue.com/packages/basic-1h_agro-1h?apikey=KEY&lat=46.4&lon=6.2&asl=439&format=json"
 
-# Algorithmic and computational parameters
-algorithmic_time_steps: 1
-computational_time_steps: 6
-elevation: 439.0
-fast_mode: true
+site:
+  latitude: 46.4
+  longitude: 6.2
+  elevation: 439.0
+  timezone: Europe/Zurich
+```
 
-# Column format definitions
-format_columns:
-  0: '%d.%m.%Y %H:%M'  # datetime format
-  1:
-  - -20     # temperature min
-  - 50      # temperature max
-  2:
-  - 0       # humidity min
-  - 100     # humidity max
-  3:
-  - 0       # rainfall min
-  - 200     # rainfall max
-  4:
-  - 0       # leaf_wetness min
-  - 10      # leaf_wetness max
+---
 
-# Hydra configuration
+## Complete Configuration Example (`config/main.yaml`)
+
+```yaml
 hydra:
   output_subdir: null
   run:
     dir: .
 
-# ============================================================================
-# OUTPUT / RUN IDENTIFIER (optional)
-# ---------------------------------------------------------------------------
-# You may specify a name for this simulation.  If provided the name is used
-# as the prefix for all result files and the subdirectory created under the
-# output directory.  When left null the software falls back to the stem of the
-# meteorological input filename.  This is useful when no local meteo file is
-# available (e.g. automatic data pulls) or when running multiple experiments
-# using the same input data.
-output:
-  directory: data/output   # base results directory (can be changed)
-  run_name: null           # custom name for this run
-
-# ============================================================================
-# INPUT DATA CONFIGURATION - ADVANCED FEATURES
-# ============================================================================
+# -----------------------------------------------------------------------------
+# INPUT DATA
+# -----------------------------------------------------------------------------
 input_data:
-  # Main meteorological input file (required)
-  meteo: data/input/2024_meteo_changins.csv
-  
-  # Spore counts file for support decision tool (optional)
-  spore_counts: null
-  
-  # FEATURE 1: Support Decision Tool
-  # Enables conditional model flow based on observed spore counts
-  decision_support_tool_enabled: false
-  # Set to true to use spore counts to trigger sporulation stage
-  # Requires: spore_counts file must be specified above
-  # Effect: If last 3 days show >10 total spores OR 20%+ increase,
-  #         model skips to sporulation stage instead of gradual build-up
-  
-  # FEATURE 2: Automated Data Pull (weather)
-  # Background thread periodically fetches and updates weather data
-  automated_weather_pull: false
-  # Set to true to enable automatic weather data fetching from API
-  
-  # API endpoint URL for weather data (required if automated_weather_pull=true)
-  weather_api_query: null
-  # Example: "https://api.meteo.example.com/data?station=changins&format=csv"
-  # Mock API included for testing/demo purposes
-  
-  # FEATURE 3: Automated Spore Counts Pull
-  # If no local spore_counts file is provided the model can pull
-  # counts from an online API before running support decision analysis.
-  automated_spore_pull: false
-  # API endpoint URL returning semicolon-separated CSV with Date;Counts
-  spore_counts_api_query: null
-  # Example: "https://my.domain/sporecounts?site=changins&format=csv"
-  # Minimum value: 1
-  # Common values: 1 (hourly), 6 (6-hourly), 24 (daily)
+  meteo: data/input/2025_meteo_changins.csv
+  spore_counts: null                  # path to flat CSV, or null
+  automated_spore_pull: true          # fetch spore counts from API if no file given
+  spore_counts_api_query: null        # set in config/secrets.yaml
+  automated_weather_pull: false       # fetch weather data from API at startup
+  weather_api_query: null             # set in config/secrets.yaml
 
-# ============================================================================
-# LOCATION AND MEASUREMENT PARAMETERS
-# ============================================================================
-latitude: 46.4
-longitude: 6.2
-measurement_time_interval: 10  # minutes between measurements
+# -----------------------------------------------------------------------------
+# OUTPUT / RUN IDENTIFIER
+# -----------------------------------------------------------------------------
+output:
+  directory: data/output
+  run_name: null                      # null = derived from meteo filename
 
-# ============================================================================
-# MOISTURE AND INFECTION THRESHOLDS
-# ============================================================================
-moisturization_rainfall_period: 48          # hours
-moisturization_rainfall_threshold: 5.0      # mm
-moisturization_temperature_threshold: 8.0   # °C
+# -----------------------------------------------------------------------------
+# SPORE-DRIVEN MODEL
+# Algorithmic: spore counts are fed into the model to bypass early stages.
+# -----------------------------------------------------------------------------
+spore_driven_model:
+  enabled: true
+  spore_count_threshold: 40           # [counts] any day exceeding this → skip to dispersion
+  spore_count_lookback_days: 5        # [days]   look-back window for percent-increase check
+  spore_count_percent_increase: 30    # [%]       minimum increase over the window → skip to sporulation
 
-oospore_dispersion_latency: 6.0             # hours
-oospore_dispersion_rainfall_threshold: 3.0  # mm
+# -----------------------------------------------------------------------------
+# RISK HEATMAP (visual only — no algorithmic coupling)
+# Colour thresholds for the smartphone heatmap rows.
+# -----------------------------------------------------------------------------
+risk_heatmap:
+  model_thresholds:   [50, 100, 200]  # [°C·h]   Modèle row: green / pink / salmon / red
+  mildiou_thresholds: [10,  50,  150] # [counts]  Mildiou row band boundaries
 
-oospore_germination_algorithm: 2
-oospore_germination_base_duration: 8        # hours
-oospore_germination_base_temperature: 8.0   # °C
-oospore_germination_leaf_wetness_threshold: 10
-oospore_germination_relative_humidity_threshold: 80  # %
+# -----------------------------------------------------------------------------
+# SITE PARAMETERS  (set actual values in config/secrets.yaml)
+# -----------------------------------------------------------------------------
+site:
+  latitude: null
+  longitude: null
+  elevation: null
+  timezone: null
 
-oospore_infection_base_temperature: 8.0     # °C
-oospore_infection_leaf_wetness_latency: 6.0 # hours
-oospore_infection_sum_degree_hours_threshold: 50.0
+# -----------------------------------------------------------------------------
+# RUN SETTINGS
+# -----------------------------------------------------------------------------
+run_settings:
+  algorithmic_time_steps: 1
+  computational_time_steps: 6
+  measurement_time_interval: 10       # minutes between consecutive measurements
+  fast_mode: true
 
-# ============================================================================
+# -----------------------------------------------------------------------------
+# DATA COLUMN SETTINGS
+# -----------------------------------------------------------------------------
+data_columns:
+  use_columns:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+  rename_columns:
+    0: datetime
+    1: temperature
+    2: humidity
+    3: rainfall
+    4: leaf_wetness
+  format_columns:
+    0: '%d.%m.%Y %H:%M'
+    1: [-20, 50]
+    2: [0, 100]
+    3: [0, 200]
+    4: [0, 10]
+
+# -----------------------------------------------------------------------------
 # OOSPORE MATURATION
-# ============================================================================
-oospore_maturation_base_temperature: 8.0    # °C
-oospore_maturation_date: null
-# Set to null to compute automatically from degree days
-# Set to specific date like "15.04.2024" to use fixed date
-oospore_maturation_sum_degree_days_threshold: 140.0
+# -----------------------------------------------------------------------------
+oospore_maturation:
+  date: null
+  base_temperature: 8.0
+  sum_degree_days_threshold: 140.0
 
-# ============================================================================
-# COLUMN NAME MAPPING
-# ============================================================================
-rename_columns:
-  0: datetime
-  1: temperature
-  2: humidity
-  3: rainfall
-  4: leaf_wetness
+# -----------------------------------------------------------------------------
+# OOSPORE GERMINATION
+# -----------------------------------------------------------------------------
+oospore_germination:
+  algorithm: 2
+  base_temperature: 8
+  base_duration: 8
+  leaf_wetness_threshold: 10
+  relative_humidity_threshold: 80
+  moisturization_temperature_threshold: 8.0
+  moisturization_rainfall_threshold: 5.0
+  moisturization_rainfall_period: 48
 
-# ============================================================================
-# ATMOSPHERIC PARAMETERS
-# ============================================================================
-saturation_vapor_pressure: null  # Calculate from other parameters if null
-
-# ============================================================================
-# SECONDARY INFECTION PARAMETERS
-# ============================================================================
-secondary_infection_leaf_wetness_latency: 60.0  # hours
-secondary_infection_max_temperature: 29.0       # °C
-secondary_infection_min_temperature: 3.0        # °C
-secondary_infection_sum_degree_hours_threshold: 50.0
-
-# ============================================================================
-# SPORANGIA PARAMETERS
-# ============================================================================
-sporangia_latency: 4.0                    # hours
-sporangia_max_density: 300000.0           # per cm²
-sporangia_max_temperature: 17.5           # °C
-sporangia_min_temperature: 11.0           # °C
-
-# ============================================================================
-# SPORE LIFESPAN
-# ============================================================================
-spore_lifespan_constant: 11.35            # days
-
-# ============================================================================
-# SPORULATION PARAMETERS
-# ============================================================================
-sporulation_leaf_wetness_threshold: 0
-sporulation_min_darkness_hours: 4.0       # hours
-sporulation_min_humidity: 92.0            # %
-sporulation_min_temperature: 12.0         # °C
-
-# ============================================================================
-# TIMEZONE
-# ============================================================================
-timezone: Europe/Zurich
-
-# ============================================================================
-# COLUMNS TO USE FROM INPUT DATA
-# ============================================================================
-use_columns:
-- 0  # datetime
-- 1  # temperature
-- 2  # humidity
-- 3  # rainfall
-- 4  # leaf_wetness
+# (remaining model parameters as in main.yaml …)
 ```
 
-## Feature: Support Decision Tool
+---
+
+## Feature: Spore-Driven Model
 
 ### What It Does
-Analyzes the last 3 days of observed spore counts and determines if the model should skip the gradual infection build-up and jump directly to the sporulation stage.
+
+Analyses the full spore counts dataset and determines whether the infection model should skip
+early primary-infection stages and jump directly to the **oospore dispersion** or **sporulation**
+stage.  This allows the model to incorporate observational evidence of active sporulation in the
+field, rather than relying solely on weather-based predictions.
+
+> This is fundamentally different from the **Risk Heatmap** thresholds (see below).
+> The spore-driven model *algorithmically* alters the model flow; the risk heatmap uses spore
+> counts only as a *visual* row in the smartphone output — the two are never combined in the
+> infection algorithm.
 
 ### Configuration
-```yaml
-input_data:
-  spore_counts: data/input/2024_qPCR_changins.chasselas.csv
-  decision_support_tool_enabled: false
-```
 
-### When to Enable
-- You have actual spore count measurements for the location/season
-- You want to accelerate model predictions when sporulation is confirmed
-- You want to skip weather-based prediction stages and use observed evidence
+```yaml
+# config/main.yaml
+spore_driven_model:
+  enabled: true
+  spore_count_threshold: 40           # condition 1
+  spore_count_lookback_days: 5        # condition 2 window
+  spore_count_percent_increase: 30    # condition 2 threshold
+```
 
 ### Activation Criteria
-The model continues from sporulation stage when **either**:
-1. **Spore Count > 10**: Any day's total surpasses 10 spores, OR
-2. **20% Increase**: At least 20% increase from first to last day over 3 days
 
-### Example: Enabled
-```yaml
-input_data:
-  spore_counts: data/input/2025_qPCR_changins.chasselas.csv
-  decision_support_tool_enabled: true
-```
-Result: Model checks spore counts each run and may skip to sporulation stage.
+The model injects an algorithmic shortcut when **either** condition is met anywhere in the dataset:
 
-### Example: Disabled (Default)
-```yaml
-input_data:
-  spore_counts: data/input/2025_qPCR_changins.chasselas.csv
-  decision_support_tool_enabled: false
-```
-Result: Spore counts file is ignored; model runs normal flow even if file exists.
-
-## Feature: Automated Data Pull
-
-### What It Does
-Runs a background thread that periodically fetches fresh weather data from an API and merges it with the existing weather data file. This allows the model to work with continuously updated data.
-
-### Configuration
-```yaml
-input_data:
-  meteo: data/input/2024_meteo_changins.csv
-  automated_weather_pull: false
-  weather_api_query: null
-```
+1. **Flat threshold** — any day's total spore count exceeds `spore_count_threshold`
+   → shortcut to **oospore dispersion** stage
+2. **Percent increase** — the count on the last day of a `spore_count_lookback_days`-day window
+   is at least `spore_count_percent_increase` % higher than the first day
+   → shortcut to **sporulation** stage
 
 ### When to Enable
-- You have access to a live weather data API
-- You want the model to use current/forecasted weather data
-- You need continuous data updates during long model runs
-- You want to preserve historical data while adding new observations
+
+- You have actual spore count measurements (qPCR, microscopy, …) for the current location/season.
+- You want to accelerate model predictions when sporulation is confirmed by observations.
+
+### Example: Enabled with automated pull
+
+```yaml
+input_data:
+  spore_counts: null
+  automated_spore_pull: true
+  spore_counts_api_query: null        # set in secrets.yaml
+
+spore_driven_model:
+  enabled: true
+  spore_count_threshold: 40
+  spore_count_lookback_days: 5
+  spore_count_percent_increase: 30
+```
+
+### Example: Disabled (default)
+
+```yaml
+spore_driven_model:
+  enabled: false
+```
+
+Result: spore counts file (if any) is loaded for visualisation in the heatmap, but the model
+runs its normal weather-based flow without algorithmic shortcuts.
+
+---
+
+## Feature: Risk Heatmap Thresholds
+
+### What It Does
+
+Controls the colour categories displayed in the smartphone risk heatmap (`plot_risk_heatmap`).
+Three independent rows are shown:
+
+| Row | Source | Algorithmic role |
+|-----|--------|-----------------|
+| **Modèle** | daily infection strength (°C·h) from the mechanistic model | — |
+| **Mildiou** | daily spore counts from the trap | — |
+| **RISQUE** | display-only product of the two rows above | visual only |
+
+All thresholds here are **purely visual**; they do not affect the infection model computation.
+
+### Configuration
+
+```yaml
+risk_heatmap:
+  model_thresholds:   [50, 100, 200]  # lower boundary of pink / salmon / red for Modèle row
+  mildiou_thresholds: [10,  50,  150] # lower boundary of pink / salmon / red for Mildiou row
+  # Risque thresholds are auto-derived as pair-wise products of the above.
+```
+
+---
+
+## Feature: Automated Data Pull (Weather)
+
+### What It Does
+
+Fetches current weather data from a Meteoblue JSON API at model startup and merges it with the
+weather input file before the infection model runs.
+
+### Configuration
+
+```yaml
+# config/main.yaml
+input_data:
+  meteo: data/input/2025_meteo_changins.csv
+  automated_weather_pull: false
+  weather_api_query: null             # set in config/secrets.yaml
+
+# config/secrets.yaml
+input_data:
+  weather_api_query: "https://my.meteoblue.com/packages/basic-1h_agro-1h?apikey=KEY&lat=46.4&lon=6.2&asl=439&format=json"
+```
+
+### Combined file behaviour
+
+When **both** `meteo` (a flat file) and `automated_weather_pull: true` are set, the model:
+
+1. Copies the flat file to a new file named `{stem}_lat{lat}_lon{lon}.csv` in the same directory.
+2. Merges API data into that new combined file.
+3. Runs the model against the combined file.
+
+The original flat file is **never modified**.  This ensures flat-file updates (e.g. new seasonal
+data) are always picked up on the next run.
+
+### When to Enable
+
+- You have access to a live Meteoblue weather API.
+- You want the model to always run against current or forecasted weather data.
 
 ### Configuration Parameters
 
-#### `automated_weather_pull` (boolean)
-- **Default**: `false`
-- **true**: Enables automatic data pulls at startup
-- **false**: Disables feature; API is not queried
+| Parameter | Location | Default | Description |
+|-----------|----------|---------|-------------|
+| `automated_weather_pull` | `main.yaml` | `false` | Enable/disable the feature |
+| `weather_api_query` | `secrets.yaml` | `null` | Full Meteoblue API URL with coordinates and API key |
 
-#### `weather_api_query` (string)
-- **Default**: `null`
-- **Required if**: `automated_weather_pull=true`
-- **Value**: Full URL to API endpoint that returns CSV weather data
-- **Example**: `"https://api.meteo.example.com/station?id=changins&format=csv"`
-- **Mock URL** (for testing): Leave as null or empty string; uses built-in mock data
-- **Execution**: Data is fetched and merged once during startup. To fetch at regular intervals, schedule the model itself via cron/task scheduler.
+> The model validates that the `lat`/`lon`/`asl` parameters in the API URL match the
+> `site.latitude`, `site.longitude`, `site.elevation` values in the config.  A mismatch
+> (beyond ±0.0001° for coordinates, ±1 m for elevation) causes the run to abort.
 
 ### Example Configurations
 
-*Note: when automated data pull is enabled the model will parse the `lat`, `lon` (and `asl` if present) parameters from the `weather_api_query` URL and compare them to the `latitude`, `longitude` and `elevation` values in the config. A mismatch (beyond a small tolerance of ~0.0001° for coords and 1 m for elevation) will cause the run to abort with an error message.*
-
-#### Example 1: Disabled (Default - No Auto Updates)
+#### Example 1: Disabled (default)
 ```yaml
 input_data:
-  meteo: data/input/2024_meteo_changins.csv
+  meteo: data/input/2025_meteo_changins.csv
   automated_weather_pull: false
-  weather_api_query: null
 ```
-- Uses static weather file
-- No background API calls
-- No automatic updates
 
-#### Example 2: API Updates (Scheduled via Bash/Cron)
+#### Example 2: Flat file + API merge (recommended for operational use)
 ```yaml
 input_data:
-  meteo: data/input/2024_meteo_changins.csv
+  meteo: data/input/2025_meteo_changins.csv
   automated_weather_pull: true
-  weather_api_query: "https://api.agro.example.com/changins/weather.csv"
+  weather_api_query: null   # set in secrets.yaml
 ```
-- Fetches new data during startup
-- Merges with existing file
-- Frequency controlled externally via cron/scheduler
+Creates `data/input/2025_meteo_changins_lat46.4_lon6.2.csv`; original file unchanged.
 
-#### Example 3: No Local Meteo File
+#### Example 3: API only (no local file)
 ```yaml
 input_data:
   meteo: null
   automated_weather_pull: true
-  weather_api_query: "https://api.meteo.example.com/station/changins"
+  weather_api_query: null   # set in secrets.yaml
 ```
-- Creates placeholder file automatically
-- Fetches data during startup
-- Requires valid API query
+Creates `data/input/automated_meteo_lat46.4_lon6.2.csv` automatically.
 
-#### Example 4: Demo/Testing (Uses Mock Data)
-```yaml
-input_data:
-  meteo: data/input/2024_meteo_changins.csv
-  automated_weather_pull: true
-  weather_api_query: "mock"  # Any non-null value triggers mock data
-```
-- Uses built-in mock weather data
-- No external API dependency
-- Useful for testing/demo without API access
-
-### Data Format Requirements
-
-#### Input Weather File
-CSV format with semicolon delimiter:
-```
-datetime;temperature;humidity;rainfall;leaf_wetness
-02.03.2026 08:00;5.2;75;0;0
-02.03.2026 09:00;6.1;72;0;0
-```
-
-#### API Response Format
-Same as input weather file format.
-
-Point your API URL to return data exactly like the input files.
-
-### Data Merge Behavior
-
-**Preserved**: Historical datetimes not in new API response
-**Updated**: Datetimes present in new API response  
-**Added**: New datetimes from API response
-**Result**: Single file with complete history + latest data
-
-### Logging
-
-All operations logged to model logfile with timestamps:
-- Thread start/stop
-- API fetch attempts and results  
-- Merge operations (record counts)
-- Errors and warnings
-
-### Combining Both Features
-
-You can enable both features simultaneously:
-
-```yaml
-input_data:
-  meteo: data/input/2024_meteo_changins.csv
-  spore_counts: data/input/2024_qPCR_changins.chasselas.csv
-  decision_support_tool_enabled: true
-  automated_weather_pull: true
-  weather_api_query: "https://api.meteo.example.com/changins"
-```
-
-This configuration:
-1. Automatically fetches updated weather data every hour
-2. Checks spore counts to conditionally skip to sporulation
-3. Merges new weather data while preserving history
-4. Uses both observed spores and updated weather for predictions
+---
 
 ## Common Configuration Scenarios
 
-### Scenario 1: Offline Model (No APIs)
+### Scenario 1: Offline model (no APIs)
+
 ```yaml
 input_data:
-  meteo: data/input/2024_meteo_changins.csv
+  meteo: data/input/2025_meteo_changins.csv
   spore_counts: null
-  decision_support_tool_enabled: false
+  automated_spore_pull: false
   automated_weather_pull: false
-  weather_api_query: null
+
+spore_driven_model:
+  enabled: false
 ```
 
-### Scenario 2: With Spore Observations
+### Scenario 2: With local spore observations
+
 ```yaml
 input_data:
-  meteo: data/input/2024_meteo_changins.csv
-  spore_counts: data/input/2024_qPCR_changins.csv
-  decision_support_tool_enabled: true
+  meteo: data/input/2025_meteo_changins.csv
+  spore_counts: data/input/2025_qPCR_changins.csv
+  automated_spore_pull: false
   automated_weather_pull: false
+
+spore_driven_model:
+  enabled: true
+  spore_count_threshold: 40
+  spore_count_lookback_days: 5
+  spore_count_percent_increase: 30
 ```
 
-### Scenario 3: With Live Weather Updates
+### Scenario 3: With live weather updates
+
 ```yaml
 input_data:
-  meteo: data/input/2024_meteo_changins.csv
+  meteo: data/input/2025_meteo_changins.csv
   spore_counts: null
-  decision_support_tool_enabled: false
+  automated_spore_pull: false
   automated_weather_pull: true
-  weather_api_query: "https://api.meteo.example.com/changins"
+  weather_api_query: null   # set in secrets.yaml
+
+spore_driven_model:
+  enabled: false
 ```
 
-### Scenario 4: Full Monitoring (Spores + Live Weather)
+### Scenario 4: Full monitoring (spore API + live weather)
+
 ```yaml
 input_data:
-  meteo: data/input/2024_meteo_changins.csv
-  spore_counts: data/input/2024_qPCR_changins.csv
-  decision_support_tool_enabled: true
+  meteo: data/input/2025_meteo_changins.csv
+  spore_counts: null
+  automated_spore_pull: true
+  spore_counts_api_query: null   # set in secrets.yaml
   automated_weather_pull: true
-  weather_api_query: "https://api.meteo.example.com/changins"
+  weather_api_query: null        # set in secrets.yaml
+
+spore_driven_model:
+  enabled: true
+  spore_count_threshold: 40
+  spore_count_lookback_days: 5
+  spore_count_percent_increase: 30
 ```
+
+---
 
 ## Troubleshooting
 
-### Feature Not Working
-1. Check if parameter is set to `true`
-2. Verify required parameters are provided and not `null`
-3. Check model logfile for error messages
+### Feature not working
+1. Check the relevant `enabled` / `automated_*` flag is set to `true`.
+2. Verify `config/secrets.yaml` exists and contains the required API keys.
+3. Check the model logfile for error messages.
 
-### API Errors
-- Verify API URL is correct
-- Check API response format matches weather file format
-- Look for network/connection errors in logfile
+### API errors
+- Verify the API URL in `secrets.yaml` is correct.
+- Ensure the Meteoblue URL includes a valid `apikey` parameter.
+- Look for network/connection errors in the logfile.
 
-### Data Not Updating
-- Verify `automated_weather_pull: true`
-- Confirm `weather_api_query` is not null
-- Review logfile for API fetch failures
+### Coordinate mismatch error
+- The `lat`/`lon`/`asl` in `weather_api_query` must match `site.latitude`, `site.longitude`,
+  `site.elevation` in `secrets.yaml`.
+
+### Data not updating
+- Confirm `automated_weather_pull: true` and `weather_api_query` is not null.
+- Review the logfile for API fetch or merge failures.
+
+---
 
 ## Additional Resources
 
-For detailed technical information:
-- See `SUPPORT_DECISION_TOOL_README.md` for spore count analysis details
-- See `AUTOMATED_DATA_PULL_README.md` for API integration and data merging details
-- Review `src/support_decision_tool.py` for Python implementation
-- Review `src/automated_weather_pull.py` for data pull implementation
+- `DECISION_SUPPORT_TOOL_README.md` — spore count analysis and spore-driven model details
+- `AUTOMATED_DATA_PULL_README.md` — API integration and data merging details
+- `src/support_decision_tool.py` — Python implementation of spore count analysis
+- `src/automated_weather_pull.py` — Python implementation of weather data pull
+- `src/plots.py` — all plotting functions (PDF, risk heatmap, infection chains, combined HTML)

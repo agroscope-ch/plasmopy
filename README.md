@@ -90,9 +90,11 @@ make app
 ### Project Structure
 ```bash
 .
-├── config                      
-│   └── main.yaml                   # Main configuration file
-├── data            
+├── config
+│   ├── main.yaml                   # Main configuration file (committed; secrets left null)
+│   ├── secrets.yaml                # Site credentials and API keys (gitignored — do not commit)
+│   └── secrets.example.yaml        # Template for secrets.yaml (committed)
+├── data
 │   ├── input                       # input data
 │   ├── output                      # output from model run, including logs and graphs
 │   ├── tmp                         # temporary processing data needed for running
@@ -107,17 +109,25 @@ make app
 ├── pyproject.toml                  # dependencies for poetry
 ├── README.md                       # describe your project
 ├── src                             # store source code
-│   ├── __init__.py                 # make src a Python module 
+│   ├── __init__.py                 # make src a Python module
 │   ├── main.py                     # orchestrates the execution of the scripts
 │   ├── load_data.py                # functions for loading raw data
 │   ├── process_data.py             # functions for formatting and processing weather raw data
 │   ├── infection_model.py          # launches the specific modeling algorithm at each infection stage
-│   └── infection_functions         # store the algorithms for each infection stage
+│   ├── infection_functions         # store the algorithms for each infection stage
+│   ├── plots.py                    # all plotting functions (PDF, HTML, risk heatmap, combined view)
+│   ├── utils.py                    # utility functions (output filenames, sun times, daily stats)
+│   ├── support_decision_tool.py    # spore count analysis and API fetch for the spore-driven model
+│   └── automated_weather_pull.py   # background weather data fetch and merge from Meteoblue API
 └── tests                           # store tests
-    ├── __init__.py                 # make tests a Python module 
+    ├── __init__.py                 # make tests a Python module
     ├── test_process.py             # test functions for process_data.py
     └── test_model.py               # test functions for infection_model.py
 ```
+
+> **Secrets setup:** Copy `config/secrets.example.yaml` to `config/secrets.yaml` and fill in your
+> site coordinates, timezone, and API keys.  `secrets.yaml` is listed in `.gitignore` and will
+> never be committed.
 
 
 

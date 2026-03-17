@@ -123,23 +123,28 @@ to continue in parallel with the API call on slow connections.
 
 ---
 
-## Configuration (`config/main.yaml`)
+## Configuration
 
 ```yaml
+# config/main.yaml
 input_data:
   meteo: data/input/2025_meteo_changins.csv   # leave null to use automated pull only
-  automated_weather_pull: false                  # set true to enable
-  weather_api_query: null                     # Meteoblue API URL
+  automated_weather_pull: false                # set true to enable
+  weather_api_query: null                      # set in config/secrets.yaml
+
+# config/secrets.yaml  (gitignored — copy from secrets.example.yaml)
+input_data:
+  weather_api_query: "https://my.meteoblue.com/packages/basic-1h_agro-1h?apikey=KEY&lat=46.4&lon=6.2&asl=439&format=json"
 ```
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `automated_weather_pull` | bool | `false` | Enable/disable the feature |
-| `weather_api_query` | str | `null` | Full Meteoblue API URL including coordinates and API key |
+| Parameter | Location | Type | Default | Description |
+|-----------|----------|------|---------|-------------|
+| `automated_weather_pull` | `main.yaml` | bool | `false` | Enable/disable the feature |
+| `weather_api_query` | `secrets.yaml` | str | `null` | Full Meteoblue API URL including coordinates and API key |
 
 > **Note:** `meteo` can be left `null` when `automated_weather_pull: true`.  The
-> model will create `data/input/automated_meteo.csv` as a placeholder and
-> populate it from the API before running.
+> model will create `data/input/automated_meteo_lat{lat}_lon{lon}.csv` as a
+> coordinate-keyed placeholder and populate it from the API before running.
 
 ---
 
@@ -150,11 +155,11 @@ input_data:
 The model reads the static file specified in `input_data.meteo` and runs
 normally.
 
-### Enabled
+### Enabled — no flat file (`meteo: null`)
 
-1. **File resolution** — if `input_data.meteo` is null, the model uses
-   `data/input/automated_meteo.csv`, creating an empty placeholder if
-   necessary.
+1. **File resolution** — the model uses a coordinate-keyed placeholder
+   `data/input/automated_meteo_lat{lat}_lon{lon}.csv`, creating an empty file
+   if necessary.
 2. **Synchronous pre-run fetch** — `fetch_weather_data_from_api()` and
    `merge_weather_data()` are called directly and complete before the model
    loads any data.  This ensures the input file is current when `load_data`
@@ -165,6 +170,19 @@ normally.
    weather file.
 5. **Cleanup** — at model end, `stop_event.set()` is called and the thread is
    joined with a 5-second timeout.
+
+### Enabled — flat file + API merge
+
+When both `meteo` (a flat file) **and** `automated_weather_pull: true` are set:
+
+1. **Combined file creation** — the flat file is copied to
+   `{stem}_lat{lat}_lon{lon}.csv` in the same directory.  The original flat
+   file is **never modified**.
+2. **API merge** — fetched data is merged into the combined file.
+3. **Model execution** — the model runs against the combined file.
+
+This workflow ensures flat-file updates (e.g. new season data added manually)
+are always picked up on the next run, while API data is layered on top.
 
 ---
 
@@ -208,7 +226,7 @@ Automated weather data pull started (runs once per model execution).
 Pulling weather data from API at 2026-03-03 10:15:30
 Fetched 48 rows  |  01.03.2026 00:00  →  02.03.2026 23:00
 Successfully fetched weather data from API at 2026-03-03 10:15:31
-Successfully merged new weather data into data/input/automated_meteo.csv. Added/Updated 48 records.
+Successfully merged new weather data into data/input/automated_meteo_lat46.4_lon6.2.csv. Added/Updated 48 records.
 Weather data updated successfully at 2026-03-03 10:15:31
 ```
 
@@ -233,9 +251,9 @@ already in the weather file.
 ## Troubleshooting
 
 **Weather file not updating**
-- Check `automated_weather_pull: true` is set in the config.
-- Verify `weather_api_query` is a valid Meteoblue URL with correct coordinates
-  and API key.
+- Check `automated_weather_pull: true` is set in `config/main.yaml`.
+- Verify `weather_api_query` is set in `config/secrets.yaml` with a valid
+  Meteoblue URL containing correct coordinates and API key.
 - Inspect the model logfile for API fetch errors.
 
 **`data_1h` block missing warning**
