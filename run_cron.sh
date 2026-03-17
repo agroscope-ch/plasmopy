@@ -43,10 +43,13 @@ upload_html() {
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] FTP upload skipped: HTML file not found ($html_file)" >> "$LOGFILE"
         return 1
     fi
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading $(basename "$html_file") to ftp://$FTP_HOST/ ..." >> "$LOGFILE"
+    local remote_name
+    remote_name=$(basename "$html_file")
+    remote_name="${remote_name/.combined/}"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading $(basename "$html_file") as $remote_name to ftp://$FTP_HOST/ ..." >> "$LOGFILE"
     if curl --silent --show-error \
             -T "$html_file" \
-            "ftp://$FTP_HOST/$(basename "$html_file")" \
+            "ftp://$FTP_HOST/$remote_name" \
             --user "$FTP_USER:$FTP_PASS" >> "$LOGFILE" 2>&1; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] FTP upload successful" >> "$LOGFILE"
     else
