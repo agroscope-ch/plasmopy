@@ -95,3 +95,6 @@ target/
 # Other
 .Rproj.user
 poetry.lock
+
+# Secret config (copy from secrets.example.yaml and fill in)
+config/secrets.yaml
