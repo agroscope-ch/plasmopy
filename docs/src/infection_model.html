@@ -33,6 +33,7 @@ Script calling the specific infection algorithm submodules and functions.
 &#34;&#34;&#34;
 
 import pandas as pd
+import utils
 from infection_functions import (
     incubation,
     oospore_maturation,
@@ -66,6 +67,8 @@ def get_infection_events_dictionary(
     # collateral_sporangia_counts,
     # collateral_spore_lifespan_days,
     # collateral_secondary_infections_datetimes
+    oospore_infection_strength=None,
+    secondary_infection_strengths=None,
 ):
     &#34;&#34;&#34;
     Function building a dictionary of infection event datetimes and properties, such as oospore dispersion date and final sporangia densities.
@@ -88,6 +91,8 @@ def get_infection_events_dictionary(
         # &#34;collateral_sporangia_counts&#34;: collateral_sporangia_counts,
         # &#34;collateral_spore_lifespan_days&#34;: collateral_spore_lifespan_days,
         # &#34;collateral_secondary_infections&#34;: collateral_secondary_infections_datetimes,
+        &#34;oospore_infection_strength&#34;: oospore_infection_strength,
+        &#34;secondary_infection_strengths&#34;: secondary_infection_strengths,
     }
     return infection_events
 
@@ -657,6 +662,24 @@ def run_infection_model(  # noqa: C901
         algorithmic_time_steps,
     )
 
+    &#34;&#34;&#34; Daily infection strength index (degree-hours under leaf wetness) &#34;&#34;&#34;
+    oospore_infection_strength = None
+    if oospore_infection_datetime is not None:
+        oospore_infection_strength = utils.compute_daily_infection_strength(
+            processed_data,
+            oospore_infection_datetime.date(),
+            measurement_time_interval,
+        )
+
+    secondary_infection_strengths = [
+        utils.compute_daily_infection_strength(
+            processed_data,
+            si_dt.date(),
+            measurement_time_interval,
+        )
+        for si_dt in secondary_infections_datetimes
+    ]
+
     &#34;&#34;&#34; Returning list of infection events&#39; datetimes and properties &#34;&#34;&#34;
     events = get_infection_events_dictionary(
         oospore_maturation_date,
@@ -669,6 +692,8 @@ def run_infection_model(  # noqa: C901
         sporangia_densities,
         spore_lifespan_days,
         secondary_infections_datetimes,
+        oospore_infection_strength=oospore_infection_strength,
+        secondary_infection_strengths=secondary_infection_strengths,
     )
 
     return events</code></pre>
@@ -689,7 +714,7 @@ def run_infection_model(  # noqa: C901
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="src.infection_model.get_infection_events_dictionary"><code class="name flex">
-<span>def <span class="ident">get_infection_events_dictionary</span></span>(<span>oospore_maturation_date, oospore_germination_datetime, oospore_dispersion_datetime, oospore_infection_datetime, incubation_days, end_incubation_datetime, sporulation_datetimes, sporangia_densities, spore_lifespan_days, secondary_infections_datetimes)</span>
+<span>def <span class="ident">get_infection_events_dictionary</span></span>(<span>oospore_maturation_date, oospore_germination_datetime, oospore_dispersion_datetime, oospore_infection_datetime, incubation_days, end_incubation_datetime, sporulation_datetimes, sporangia_densities, spore_lifespan_days, secondary_infections_datetimes, oospore_infection_strength=None, secondary_infection_strengths=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function building a dictionary of infection event datetimes and properties, such as oospore dispersion date and final sporangia densities.
@@ -714,6 +739,8 @@ Used to print out major information from each InfectionEvent object.</p></div>
     # collateral_sporangia_counts,
     # collateral_spore_lifespan_days,
     # collateral_secondary_infections_datetimes
+    oospore_infection_strength=None,
+    secondary_infection_strengths=None,
 ):
     &#34;&#34;&#34;
     Function building a dictionary of infection event datetimes and properties, such as oospore dispersion date and final sporangia densities.
@@ -736,6 +763,8 @@ Used to print out major information from each InfectionEvent object.</p></div>
         # &#34;collateral_sporangia_counts&#34;: collateral_sporangia_counts,
         # &#34;collateral_spore_lifespan_days&#34;: collateral_spore_lifespan_days,
         # &#34;collateral_secondary_infections&#34;: collateral_secondary_infections_datetimes,
+        &#34;oospore_infection_strength&#34;: oospore_infection_strength,
+        &#34;secondary_infection_strengths&#34;: secondary_infection_strengths,
     }
     return infection_events</code></pre>
 </details>
@@ -1334,6 +1363,24 @@ Used to print out major information from each InfectionEvent object.</p></div>
         algorithmic_time_steps,
     )
 
+    &#34;&#34;&#34; Daily infection strength index (degree-hours under leaf wetness) &#34;&#34;&#34;
+    oospore_infection_strength = None
+    if oospore_infection_datetime is not None:
+        oospore_infection_strength = utils.compute_daily_infection_strength(
+            processed_data,
+            oospore_infection_datetime.date(),
+            measurement_time_interval,
+        )
+
+    secondary_infection_strengths = [
+        utils.compute_daily_infection_strength(
+            processed_data,
+            si_dt.date(),
+            measurement_time_interval,
+        )
+        for si_dt in secondary_infections_datetimes
+    ]
+
     &#34;&#34;&#34; Returning list of infection events&#39; datetimes and properties &#34;&#34;&#34;
     events = get_infection_events_dictionary(
         oospore_maturation_date,
@@ -1346,6 +1393,8 @@ Used to print out major information from each InfectionEvent object.</p></div>
         sporangia_densities,
         spore_lifespan_days,
         secondary_infections_datetimes,
+        oospore_infection_strength=oospore_infection_strength,
+        secondary_infection_strengths=secondary_infection_strengths,
     )
 
     return events</code></pre>

@@ -78,6 +78,43 @@ make app
 ![](images/plasmopy_screen1.jpg)
 
 
+## Operational deployment
+
+### Scheduled runs with `run_cron.sh`
+
+For continuous monitoring, `run_cron.sh` runs the model automatically every 3 hours (at 00:00, 03:00, 06:00, … local time) and publishes the result.
+
+Start in the background:
+```bash
+nohup ./run_cron.sh &
+```
+
+Stop it:
+```bash
+kill <PID>   # PID is printed to the console and logged on startup
+```
+
+Logs are written to `logs/cron.log`. The script runs `make run` at each interval, so it picks up the current `config/main.yaml` and `config/secrets.yaml` on every execution.
+
+### FTP publishing
+
+After each successful run, the script uploads `*.combined.html` (the mobile-optimised combined view) to a remote FTP server. The destination host, username, and password are configured at the top of `run_cron.sh`:
+
+```bash
+FTP_HOST="hostname/path"
+FTP_USER="username"
+FTP_PASS="password"
+```
+
+The target filename on the server matches the local basename (e.g. `my_run.combined.html`). Upload status is logged to `logs/cron.log`. If the output file is not found or the upload fails, the model run is still considered successful and the error is logged without aborting the schedule.
+
+> **Security note:** store credentials directly in `run_cron.sh` only on a private server. For shared environments, use a `.netrc` file or environment variables instead.
+
+### Season window filtering for spore data
+
+When spore count data is loaded (from a file or API), only records whose date falls within the current weather data date range are used for algorithmic shortcuts. Records from a previous season present in the same file are automatically excluded and logged. This prevents historical surge events from generating spurious infection events in the current run.
+
+
 ## Developer Tools
 
 ### Tools used in this project

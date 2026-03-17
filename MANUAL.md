@@ -1,173 +1,216 @@
-# Plasmopy v1.0
-# Manual
+# Plasmopy v1.0 — Manual
 
+## Input data
 
-## Input data - Weather variables
+### Weather data
 
-Input data needs to be in the form of timeseries in a semicolon-delimited CSV file, where the positioning of columns must be precisely kept in the following order:
+A semicolon-delimited CSV file with columns in this exact order:
 
-1. **Date and time** of measurement in the *%d.%m.%Y %H:%M* local timezone format.
+| # | Variable | Unit | Notes |
+|---|----------|------|-------|
+| 1 | Datetime | `DD.MM.YYYY HH:MM` | local timezone |
+| 2 | Temperature | °C | average per interval |
+| 3 | Relative humidity | % | 0–100 |
+| 4 | Rainfall intensity | mm/h | |
+| 5 | Leaf wetness | min | per measurement interval |
 
-2. **Average temperature** *[B0C]* in degrees Celsius.
+Example data is available in `data/input/`. Weather data for Switzerland is available at [Agrometeo](https://www.agrometeo.ch/meteorologie).
 
-3. **Relative humidity** *[%]* in percentages.
+Update `measurement_time_interval`, `computational_time_steps`, and `algorithmic_time_steps` in `config/main.yaml` to match your data resolution.
 
-4. **Rainfall intensity** *[mm/h]* in millimeters per hour.
+> **Example:** Data sampled every 10 min → `measurement_time_interval: 10`. With `computational_time_steps: 6`, infection events are launched every 60 min. With `algorithmic_time_steps: 1`, internal loops run at full 10-min resolution; set to 6 to run at hourly resolution (faster but less precise).
 
-5. **Leaf wetness** *[min]* in minutes of wetness over 10 minutes (by default, or whatever sampling period is available).
+### Spore counts data (optional)
 
-Such timeseries data is publicly available for Switzerland from the Agroscope weather stations, accessible at [Agrometeo](https://www.agrometeo.ch/meteorologie).
+A semicolon-delimited CSV with two columns:
 
-Examples of input weather data are available in `data/input/`.
+| # | Variable | Format |
+|---|----------|--------|
+| 1 | Date | `DD.MM.YYYY HH:MM` |
+| 2 | Counts | integer |
 
-Be sure to update accordingly the most important input-dependent parameters in `config/main.yaml`: *measurement_time_interval*, *computational_time_steps*, *algorithmic_time_steps*.
+Multiple rows for the same calendar day are summed to a daily total. Only data within the current weather data date range is used (see [Spore-Driven Model](#spore-driven-model)).
 
-> **Secrets:** Site-specific values (coordinates, timezone, API keys) are stored in
-> `config/secrets.yaml` (gitignored).  Copy `config/secrets.example.yaml` to
-> `config/secrets.yaml` and fill in your values before running the model.
-
-The file can be managed directly, or through the streamlit web-app, as detailed in the [README](https://github.com/agroscope-ch/plasmopy/blob/main/README.md).
-
-![](images/plasmopy_screen0.jpg)
-
-
-**_Example_**:
-
-If the data sampling interval consists in weather data rows generated every 10 minutes, then *measurement_time_interval* is 10.
-
-Accordingly, if computational_time_steps is set to 6, a simulated infection event is launched every 6x10 minutes, i.e. once every hour.
-
-If the *algorithmic_time_steps* is set to 1, specific algorithmic loops within that simulated infection event are instead set to analyze the data at every row, i.e. looking in detail at the highest possible resolution of 10 minutes.
-
-If the *algorithmic_time_steps* is set to 6, the specific algorithmic loops would only check the necessary weather conditions at a hourly-rate, thus decreasing the simulation precision while increasing the simulation speed.
-
-![](images/plasmopy_screen2.jpg)
-
-### Optional input data - Spore counts
-
-Input spore counts data (e.g. from qPCR, microscopy, ...) columns must be ordered and formatted in the following way:
-
-1. Date of daily spore counts in the *%d.%m.%Y %H:%M* local timezone format.
-
-2. Spore counts.
-
-
-
-## Workflow description
-
-
-### Data Loading Function
-
-The data loading function load_data is responsible for importing raw time series data from a specified file path. It accepts two input arguments:
-
-*raw_data_path* (str): The file path of the raw data, typically formatted as a semicolon-delimited CSV file.
-
-*logfile* (str): The path to a log file where the function records details about the data loading process.
-
-The function begins by appending a log entry that indicates the start of the data loading process, including the provided file path. It then attempts to read the data using the pandas library's read_csv function with a semicolon delimiter (sep=";"). If the data is successfully read into a pandas DataFrame, the function logs the number of rows in the dataset and provides summary statistics (minimum and maximum values) for each of the columns (excluding the first column).
-If any error occurs during the data loading process (e.g., if the file cannot be read), an error message is written to the log file, and the function terminates the execution by calling sys.exit().
-The function returns the loaded DataFrame if successful. If an error occurs, the function prints the error message and terminates the process.
-
-
-### Data Processing Functions
-
-The Python code consists of two primary functions: *map_to_timegrid* and process_data. The *map_to_timegrid* function is designed to create a consistent time grid onto which measurement data can be mapped, ensuring that missing rows and uneven time intervals are avoided.
-The *process_data function*, which is the core of the data processing workflow, takes multiple inputs, including a raw pandas DataFrame (*input_data: meteo*), column indices of interest (*selected_columns*), standard column names (*standard_colnames*), column formats (*standard_colformats*), timezone (*timezone*), model parameters (*model_parameters*), and file paths for logs (*logfile*) and output data (*outfile*). This function processes the data to ensure that the measurement values are within specified tolerance ranges and that any missing or erroneous data is handled appropriately.
-
-**Column Selection and Renaming**
-The function first extracts the selected columns from the input data based on the provided indices and logs the selected columns and their corresponding standard names. The columns are then renamed according to the standard_colnames mapping.
-
-**Datetime Parsing and Localization**
-The first column, assumed to be the datetime column, is parsed into a pandas datetime format and localized to the specified timezone. An error is logged if the datetime column cannot be parsed correctly.
-
-**Time Grid Creation**
-A consistent time grid is generated using the start_timegrid and end_timegrid values from the input data, with the frequency determined by the measurement_time_interval parameter in the model_parameters. This time grid is then merged with the processed data to handle missing timestamps by filling in the gaps.
-
-**Data Type Validation and Quality Filtering**
-The function iterates through each data column (excluding the datetime column) and attempts to convert the data to numeric format. Non-numeric values are coerced to NaN. The data is then checked for values outside of the specified acceptable ranges (given in standard_colformats). Out-of-range values are either replaced with NaN or, in the case of specific variables (e.g., leaf wetness), corrected to the maximum allowable value.
-
-**Handling Missing and Out-of-Range Data**
-Missing or out-of-range values are identified and logged. A custom handling process is implemented for the leaf wetness variable, where values exceeding the specified range are corrected. The function fills missing values (either from data gaps or out-of-range values) using linear interpolation between adjacent valid values.
-
-**Data Output and Logging**
-After processing, the resulting data is saved to a CSV file, and the operations are logged to a specified log file. Any errors encountered during file I/O operations are logged.
-The function returns the processed data as a pandas DataFrame, with the cleaned and interpolated values, along with the final output file and log file paths.
-
-**Error Handling and Logging**
-Throughout the process, detailed error messages are written to the log file. This includes warnings for out-of-range values, formatting issues, and potential mismatches in the input data structure. The log also captures the number of out-of-range and missing values replaced through interpolation.
-
-### Infection event class
-
-*\__init\__(self, timeseries, parameters, start_event_rowindex, oospore_maturation_date, daily_mean_temperatures, algorithmic_time_steps, logfile, oospore_infection_datetimes)*
-The initialization method of the InfectionEvent class. This method sets up the object by assigning input values to instance variables. These include the timeseries of data, model parameters, index of the start event, date of oospore maturation, daily mean temperatures, algorithmic time steps, a logfile for logging outputs, and a list of infection datetimes. The method also computes the datetime corresponding to the start of the event from the provided timeseries and assigns a unique ID based on the row index of the start event.
-
-*predict_infection(self)*
-This method calls the run_infection_model function from the infection_model module to compute the infection events based on the initialized instance variables. It passes the relevant data, including timeseries, model parameters, oospore maturation date, and other relevant inputs, and stores the output in the infection_events attribute.
-
-*\__str\__(self)*
-The string representation method returns a human-readable string of the InfectionEvent object. The string includes the event ID, start datetime of the event, and the computed infection events, providing an overview of the object's state.
-
+---
 
 ## Infection model
 
-The `main.py` and `infection_model.py` Python scripts orchestrate a computational framework for modeling infection dynamics based on meteorological and biological parameters. Below, the main components of the methodology are outlined:
+The model simulates the *Plasmopara viticola* life cycle through sequential stages:
 
-**Data Preprocessing and Initialization**
-The script requires input data formatted as a time-series DataFrame, model parameters provided via a configuration file, and supporting metadata such as time zones and column formats. Model parameters are validated and logged, ensuring consistency across computational stages.
+1. **Oospore maturation** — cumulative degree-days above base temperature reach a threshold (or a date is set manually).
+2. **Germination / soil moisturization** — triggered by humidity, temperature, and rainfall conditions.
+3. **Oospore dispersion** — rain splash after germination, subject to a rainfall threshold and latency.
+4. **Primary infection** — leaf wetness and degree-hour accumulation complete the infection.
+5. **Incubation** — duration computed from mean temperature.
+6. **Sporulation** — triggered by humidity, temperature, and darkness conditions.
+7. **Sporangia density** — calculated from temperature and latency.
+8. **Spore lifespan** — estimated from vapour pressure.
+9. **Secondary infections** — driven by spore availability, temperature, and leaf wetness.
 
-**Determination of Oospore Maturation**
-The get_oospore_maturation_date function identifies the date of oospore maturation using daily temperature data. If a predefined maturation date is unavailable, the function computes it based on degree-day thresholds and writes results to a log file. Missing data or unmet threshold conditions halt the process.
+When the spore-driven model is enabled, observational spore data can bypass stages 2–5 (skip directly to dispersion) or stages 2–8 (skip directly to sporulation). See [Spore-Driven Model](#spore-driven-model).
 
-**Infection Event Construction**
-The function get_infection_events_dictionary compiles and organizes data into a dictionary containing key infection event datetimes (e.g., oospore germination, sporulation) and their associated parameters (e.g., sporangia density, spore lifespan).
+---
 
+## Output files
 
-> Primary Infection Prediction
+All outputs are written to `data/output/{run_name}/`:
 
-The *run_infection_model* function coordinates the infection prediction process, starting with primary infection stages:
+| File | Description |
+|------|-------------|
+| `*.log` | Run log: data processing, model parameters, errors |
+| `*.processed.csv` | Processed and quality-filtered weather data |
+| `*.events_log.csv` | Text summary of each infection event |
+| `*.events_table.csv` | Tabular infection event data (datetimes, densities) |
+| `*.infection_datetimes.csv` | Infection datetimes for downstream use |
+| `*.analysis.pdf` | PDF of the full infection chain plot |
+| `*.combined.html` | Mobile-optimised combined view (primary output) |
+| `*.analysis.html` | Standalone interactive infection chain plot |
+| `*.overview.html` | Standalone spore counts + infection overview |
+| `*.heatmap.html` | Standalone risk heatmap |
 
-**Oospore Germination**: Simulated based on relative humidity, temperature thresholds, and environmental conditions.
+The **combined HTML** (`*.combined.html`) is the primary mobile output. It contains:
+- **Aide à la décision** — smartphone risk heatmap with three rows: *Modèle* (infection strength), *Mildiou* (spore counts), *RISQUE* (visual product of the two);
+- **Modèle détaillé** — full infection chain analysis (toggled by a button).
 
-**Oospore Dispersion**: Modeled as a rainfall-driven process with latency considerations.
+Future forecast dates (beyond today) are shown with reduced opacity in the heatmap and analysis plots.
 
-**Oospore Infection**: Dependent on leaf wetness, degree-hour accumulation, and environmental conditions.
+---
 
+## Configuration
 
-> Secondary Infection and Incubation Dynamics
+### Secrets setup
 
-Subsequent infection stages include:
-
-**Incubation Period**: Duration is computed based on mean temperatures.
-
-**Sporulation**: Triggered by environmental factors such as humidity, temperature, and darkness duration.
-
-**Sporangia Density**: Simulated as a function of temperature and latency parameters.
-
-**Spore Lifespan**: Calculated using vapor pressure and lifespan constants.
-
-**Secondary Infections**: Modeled based on spore availability, temperature thresholds, and leaf wetness conditions.
-
-### Logging and Error Handling
-
-The script employs robust error logging to identify issues such as missing configuration parameters or unfulfilled biological conditions. Warnings are issued if model requirements (e.g., maturation thresholds) are unmet.
-
-### Output
-
-The final output is a structured `pickle` dictionary summarizing infection event properties and datetimes. This dictionary serves as the primary interface for downstream analyses or reporting.
-Additional output files included in `data/output/`:
-
-1) A PDF graph of the simulated infection events across the input datetime range;
-2) A mobile-optimised combined HTML (`*_graph.html`) containing:
-   - **Aide à la décision** (primary view) — a smartphone risk heatmap with three rows: model infection strength (*Modèle*), daily spore counts (*Mildiou*), and a combined risk indicator (*RISQUE*);
-   - **Modèle détaillé** (secondary view, toggled by a button) — a detailed infection chain analysis plot;
-3) Standalone HTML for the detailed infection chain view (`*_analysis.html`) and the spore-driven model overview (`*_overview.html`);
-4) A logfile detailing the simulation data pre-processing, model parameters and eventual workflow errors;
-5) The post-processing weather variables input file;
-6) A summary description of the successful primary and secondary infection events.
-
-The output files as well as the model parameters and input files for running new simulations can be interactively explored and configured through the *streamlit* web-app, activated with the command:
+Sensitive values (site coordinates, API keys) are stored in `config/secrets.yaml`, which is gitignored and never committed.
 
 ```bash
-make app
+cp config/secrets.example.yaml config/secrets.yaml
+# edit config/secrets.yaml with your actual values
 ```
 
+`secrets.yaml` is merged on top of `main.yaml` at runtime. It follows the same structure:
+
+```yaml
+input_data:
+  spore_counts_api_query: "https://your.api/spores.json"
+  weather_api_query: "https://my.meteoblue.com/packages/basic-1h_agro-1h?apikey=KEY&lat=46.4&lon=6.2&asl=439&format=json"
+
+site:
+  latitude: 46.4
+  longitude: 6.2
+  elevation: 439.0
+  timezone: Europe/Zurich
+```
+
+### Output naming
+
+```yaml
+output:
+  directory: data/output   # base output directory
+  run_name: my_run         # all output files named my_run.*; null = derive from meteo filename
+```
+
+### Key parameters reference
+
+| Parameter | Location | Default | Description |
+|-----------|----------|---------|-------------|
+| `input_data.meteo` | `main.yaml` | — | Path to weather CSV; `null` for API-only |
+| `input_data.spore_counts` | `main.yaml` | `null` | Path to spore counts CSV; `null` for API or none |
+| `input_data.automated_weather_pull` | `main.yaml` | `false` | Fetch weather from API at startup |
+| `input_data.automated_spore_pull` | `main.yaml` | `false` | Fetch spore counts from API |
+| `run_settings.measurement_time_interval` | `main.yaml` | `10` | Minutes between data rows |
+| `oospore_maturation.date` | `main.yaml` | `null` | Pre-set maturation date; `null` = compute |
+| `output.run_name` | `main.yaml` | `null` | Custom name for output files and folder |
+
+All model biological parameters (germination, dispersion, infection thresholds, etc.) are documented inline in `config/main.yaml`.
+
+---
+
+## Automated Data Pull
+
+Both weather and spore count data can be fetched automatically from external APIs at model startup.
+
+### Weather API
+
+Fetches from a Meteoblue-compatible JSON endpoint (`data_1h` block with `time`, `temperature`, `relativehumidity`, `precipitation`, `leafwetnessindex`). The fetched data is merged into the local weather file — existing rows are updated, new rows appended, file is sorted chronologically.
+
+**Configuration:**
+```yaml
+input_data:
+  automated_weather_pull: true
+  weather_api_query: null   # set in secrets.yaml
+```
+
+**File behaviour:**
+- `meteo: null` + API → creates `data/input/automated_meteo_lat{lat}_lon{lon}.csv`
+- `meteo: path` + API → copies flat file to `{stem}_lat{lat}_lon{lon}.csv`, merges API data into the copy; original file is never modified
+
+If the API call fails, the model continues with whatever data is already in the file.
+
+### Spore counts API
+
+Fetches from a JSON endpoint returning a `Mildiou` object with `date` (`YYYYMMDD_HHMMSS`) and `count` arrays. Daily totals are aggregated and saved to `data/input/automated_spore_{station_id}.csv` (where `station_id` is derived from the URL path stem).
+
+**Configuration:**
+```yaml
+input_data:
+  automated_spore_pull: true
+  spore_counts_api_query: null   # set in secrets.yaml
+```
+
+---
+
+## Spore-Driven Model
+
+When enabled, the model analyses the spore counts file and injects algorithmic shortcuts into the infection model when sporulation is confirmed by trap observations, rather than relying solely on weather predictions.
+
+> This is distinct from the **Risk Heatmap** thresholds: the spore-driven model algorithmically alters the model flow; the heatmap uses spore counts only for visual display and never affects the infection algorithm.
+
+### Season window
+
+Only spore count records within the current **weather data date range** are considered. Records outside this window (e.g. previous season data in the same file) are automatically excluded and logged.
+
+### Conditions
+
+Both conditions are evaluated independently. Either or both can trigger simultaneously.
+
+**Condition 1 — Flat threshold → skip to oospore dispersion**
+
+Any day whose total count exceeds `spore_count_threshold` starts a surge. The first day of each contiguous surge above the threshold is recorded as a dispersion event.
+
+**Condition 2 — Percent increase → skip to sporulation**
+
+Within any `spore_count_lookback_days`-day window, if the last day's count is at least `spore_count_percent_increase` % higher than the first day's (and first day > 0), the last day is recorded as a sporulation event. The scan advances by the full window after each trigger to avoid overlapping surges.
+
+**In the analysis plots:** spore-shortcut events are shown in red; normal weather-based events in black.
+
+### Configuration
+
+```yaml
+spore_driven_model:
+  enabled: true
+  spore_count_threshold: 40          # condition 1: flat daily count
+  spore_count_lookback_days: 5       # condition 2: window size [days]
+  spore_count_percent_increase: 30   # condition 2: minimum % increase
+```
+
+---
+
+## Risk Heatmap
+
+The heatmap (`*.heatmap.html`, also the primary view in `*.combined.html`) shows three independent rows:
+
+| Row | Source | Role |
+|-----|--------|------|
+| **Modèle** | Daily infection strength [°C·h] | From the mechanistic model |
+| **Mildiou** | Daily spore counts | From trap data |
+| **RISQUE** | Product of the two above | Visual only — not used in the model |
+
+Colour thresholds for each row are configurable:
+
+```yaml
+risk_heatmap:
+  model_thresholds:   [50, 100, 200]   # [°C·h]   lower bounds for pink / salmon / red
+  mildiou_thresholds: [20,  50,  100]  # [counts]  lower bounds for pink / salmon / red
+```
+
+Grey tiles indicate missing spore data. Transparent tiles indicate forecast (future) dates.

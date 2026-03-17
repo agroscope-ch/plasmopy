@@ -33,7 +33,7 @@ run_name = (out.get("run_name") or "").strip()
 meteo    = (cfg.get("input_data", {}).get("meteo") or "").strip()
 basename = run_name or (pathlib.Path(meteo).stem if meteo else "")
 if basename:
-    print(pathlib.Path(out_dir) / basename / (basename + ".html"))
+    print(pathlib.Path(out_dir) / basename / (basename + ".combined.html"))
 EOF
 }
 

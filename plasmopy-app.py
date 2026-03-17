@@ -121,35 +121,34 @@ with tab1:
     input_spores = sporecounts_file_selector()
     new_input_spores = sporecounts_file_uploader()
 
-    # ── Support decision tool ─────────────────────────────────────────────
-    st.subheader("Support decision tool")
+    # ── Spore-driven model ────────────────────────────────────────────────
+    st.subheader("Spore-driven model")
+    _sdm_cfg = C.get("spore_driven_model") or {}
     decision_support_tool_enabled = st.checkbox(
-        "Enable support decision tool",
-        value=bool(C["input_data"].get("decision_support_tool_enabled", False)),
+        "Enable spore-driven model",
+        value=bool(_sdm_cfg.get("enabled", False)),
     )
     if decision_support_tool_enabled:
         spore_count_threshold = st.number_input(
             "Spore count flat-threshold *:gray[[any day exceeds this count]]*:",
-            value=int(C["input_data"].get("spore_count_threshold", 10)),
+            value=int(_sdm_cfg.get("spore_count_threshold", 40)),
             min_value=0,
         )
         spore_count_lookback_days = st.number_input(
             "Lookback window *[days]*:",
-            value=int(C["input_data"].get("spore_count_lookback_days", 3)),
+            value=int(_sdm_cfg.get("spore_count_lookback_days", 5)),
             min_value=1,
         )
         spore_count_percent_increase = st.number_input(
             "Min percent increase over lookback *[%]*:",
-            value=float(C["input_data"].get("spore_count_percent_increase", 20)),
+            value=float(_sdm_cfg.get("spore_count_percent_increase", 30)),
             min_value=0.0,
         )
     else:
-        spore_count_threshold = int(C["input_data"].get("spore_count_threshold", 10))
-        spore_count_lookback_days = int(
-            C["input_data"].get("spore_count_lookback_days", 3)
-        )
+        spore_count_threshold = int(_sdm_cfg.get("spore_count_threshold", 40))
+        spore_count_lookback_days = int(_sdm_cfg.get("spore_count_lookback_days", 5))
         spore_count_percent_increase = float(
-            C["input_data"].get("spore_count_percent_increase", 20)
+            _sdm_cfg.get("spore_count_percent_increase", 30)
         )
 
 with tab2:
@@ -418,21 +417,11 @@ active_spores = (
 # ---------------------------------------------------------------------------
 manual_markdown = read_text_file("MANUAL.md")
 readme_markdown = read_text_file("README.md")
-auto_pull_markdown = read_text_file("AUTOMATED_DATA_PULL_README.md")
-support_tool_markdown = read_text_file("SUPPORT_DECISION_TOOL_README.md")
 
 with st.sidebar.popover("Click to view **:red[MANUAL]**", use_container_width=True):
     st.markdown(manual_markdown, unsafe_allow_html=True)
 with st.sidebar.popover("Click to view **:red[README]**", use_container_width=True):
     st.markdown(readme_markdown, unsafe_allow_html=True)
-with st.sidebar.popover(
-    "Click to view **:red[AUTOMATED DATA PULL README]**", use_container_width=True
-):
-    st.markdown(auto_pull_markdown, unsafe_allow_html=True)
-with st.sidebar.popover(
-    "Click to view **:red[SUPPORT DECISION TOOL README]**", use_container_width=True
-):
-    st.markdown(support_tool_markdown, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -481,14 +470,18 @@ def build_hydra_overrides():
         f"{_q(spore_counts_api_query) if spore_counts_api_query else 'null'}"
     )
 
-    # Support decision tool
+    # Spore-driven model
     ov.append(
-        f"input_data.decision_support_tool_enabled="
+        f"spore_driven_model.enabled="
         f"{'true' if decision_support_tool_enabled else 'false'}"
     )
-    ov.append(f"input_data.spore_count_threshold={spore_count_threshold}")
-    ov.append(f"input_data.spore_count_lookback_days={spore_count_lookback_days}")
-    ov.append(f"input_data.spore_count_percent_increase={spore_count_percent_increase}")
+    ov.append(f"spore_driven_model.spore_count_threshold={spore_count_threshold}")
+    ov.append(
+        f"spore_driven_model.spore_count_lookback_days={spore_count_lookback_days}"
+    )
+    ov.append(
+        f"spore_driven_model.spore_count_percent_increase={spore_count_percent_increase}"
+    )
 
     # Site
     ov.append(f"site.latitude={latitude}")
@@ -668,7 +661,7 @@ if active_meteo or automated_weather_pull:
                 data=infections,
                 file_name="infections.csv",
             )
-        with open(output_files.pdf_graph, "rb") as pdf_f:
+        with open(output_files.analysis_pdf, "rb") as pdf_f:
             PDFbyte = pdf_f.read()
         with col4:
             st.download_button(

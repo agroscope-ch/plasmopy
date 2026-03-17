@@ -44,10 +44,11 @@ import infection_event
 import infection_model
 import load_data
 import pandas as pd
+import plots
 import process_data
 import support_decision_tool
 import utils
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
 
@@ -75,6 +76,16 @@ def main(config: DictConfig):  # noqa: C901
       6. Run cumulative infection risk computation across entire timeseries dataset.
 
     &#34;&#34;&#34;
+    from pathlib import Path as _Path
+
+    _secrets_path = _Path(__file__).parent.parent / &#34;config&#34; / &#34;secrets.yaml&#34;
+    if _secrets_path.exists():
+        config = OmegaConf.merge(config, OmegaConf.load(_secrets_path))
+    else:
+        print(
+            &#34;WARNING: config/secrets.yaml not found. &#34;
+            &#34;Copy config/secrets.example.yaml to config/secrets.yaml and fill in your values.&#34;
+        )
 
     # determine output filenames base on input or explicit run name
     output_files = utils.create_output_filenames(
@@ -136,6 +147,29 @@ def main(config: DictConfig):  # noqa: C901
                 open(meteo_file_path, &#34;w&#34;).close()
         else:
             meteo_file_path = None
+    elif config.input_data.get(&#34;automated_weather_pull&#34;, False):
+        # Flat file is given AND weather pull is enabled.
+        # Build a combined file (flat stem + API coordinates) so the original
+        # flat file is never modified.  The combined file is always re-seeded
+        # from the flat file at startup, then API data is merged on top.
+        import shutil
+
+        _api_q = config.input_data.get(&#34;weather_api_query&#34;, &#34;&#34;) or &#34;&#34;
+        _flat_path = Path(meteo_file_path)
+        _combined_name = f&#34;{_flat_path.stem}_automated.csv&#34;
+        if _api_q:
+            _qs = parse_qs(urlparse(_api_q).query)
+            _lat = (_qs.get(&#34;lat&#34;) or _qs.get(&#34;latitude&#34;) or [None])[0]
+            _lon = (_qs.get(&#34;lon&#34;) or _qs.get(&#34;longitude&#34;) or [None])[0]
+            if _lat and _lon:
+                _combined_name = f&#34;{_flat_path.stem}_lat{_lat}_lon{_lon}.csv&#34;
+        _combined_path = str(_flat_path.parent / _combined_name)
+        Path(_combined_path).parent.mkdir(parents=True, exist_ok=True)
+        if _flat_path.exists():
+            shutil.copy2(str(_flat_path), _combined_path)
+        elif not Path(_combined_path).exists():
+            open(_combined_path, &#34;w&#34;).close()
+        meteo_file_path = _combined_path
 
     if config.input_data.get(&#34;automated_weather_pull&#34;, False):
         api_query = config.input_data.get(&#34;weather_api_query&#34;)
@@ -204,6 +238,8 @@ def main(config: DictConfig):  # noqa: C901
         )
         if data_pull_thread is not None:
             data_pull_thread.start()
+            # Wait for the fetch to complete before reading the file.
+            data_pull_thread.join()
 
     # Load raw data: vitimeteo timeseries.  ``meteo_file_path`` has already
     # been computed above to take into account the possibility of an empty
@@ -228,19 +264,6 @@ def main(config: DictConfig):  # noqa: C901
             with open(logfile, &#34;a&#34;) as logf:
                 logf.write(err + &#34;\n&#34;)
             sys.exit(1)
-    # If the automated pull is enabled, attempt one immediate fetch/merge.
-    # log to stdout so the user can see progress before load_data runs.
-    if config.input_data.get(&#34;automated_weather_pull&#34;, False) and api_query is not None:
-        print(&#34;Performing initial weather data fetch...&#34;)
-        csv_data = automated_weather_pull.fetch_weather_data_from_api(
-            api_query, logfile
-        )
-        if csv_data is not None:
-            automated_weather_pull.merge_weather_data(
-                input_meteo_file, csv_data, logfile
-            )
-        else:
-            print(&#34;Initial fetch returned no data; input file may remain empty.&#34;)
 
     loaded_data = load_data.load_data(input_meteo_file, logfile)
     if loaded_data is None or getattr(loaded_data, &#34;empty&#34;, False):
@@ -295,7 +318,8 @@ def main(config: DictConfig):  # noqa: C901
         if config.input_data.get(&#34;automated_spore_pull&#34;, False):
             api_query = config.input_data.get(&#34;spore_counts_api_query&#34;)
             if api_query:
-                tmpfile = &#34;data/input/auto_spore_counts.csv&#34;
+                _spore_url_stem = Path(urlparse(api_query).path).stem or &#34;spore_counts&#34;
+                tmpfile = f&#34;data/input/automated_spore_{_spore_url_stem}.csv&#34;
                 Path(tmpfile).parent.mkdir(parents=True, exist_ok=True)
                 try:
                     csvtext = support_decision_tool.fetch_spore_counts(
@@ -322,23 +346,20 @@ def main(config: DictConfig):  # noqa: C901
                 )
 
     # Check spore counts to determine if model should skip to sporulation stage
-    if (
-        config.input_data.get(&#34;decision_support_tool_enabled&#34;, False)
-        and input_spore_file is not None
-    ):
+    _sdm = config.get(&#34;spore_driven_model&#34;, {}) or {}
+    if _sdm.get(&#34;enabled&#34;, False) and input_spore_file is not None:
         logf.write(
-            &#34;\nSupport decision tool enabled. Checking spore counts file for decision support...\n&#34;
+            &#34;\nSpore-driven model enabled. Checking spore counts file for algorithmic shortcuts...\n&#34;
         )
+        _season_dates = processed_data[&#34;datetime&#34;].dt.date
+        _season_window = (_season_dates.min(), _season_dates.max())
         spore_counts_result = support_decision_tool.check_spore_counts(
             input_spore_file,
             logfile,
-            spore_count_threshold=config.input_data.get(&#34;spore_count_threshold&#34;, 10),
-            spore_count_lookback_days=config.input_data.get(
-                &#34;spore_count_lookback_days&#34;, 3
-            ),
-            spore_count_percent_increase=config.input_data.get(
-                &#34;spore_count_percent_increase&#34;, 20
-            ),
+            spore_count_threshold=_sdm.get(&#34;spore_count_threshold&#34;, 40),
+            spore_count_lookback_days=_sdm.get(&#34;spore_count_lookback_days&#34;, 5),
+            spore_count_percent_increase=_sdm.get(&#34;spore_count_percent_increase&#34;, 30),
+            season_window=_season_window,
         )
         if spore_counts_result.get(&#34;skip_to_dispersion&#34;):
             logf.write(
@@ -351,12 +372,12 @@ def main(config: DictConfig):  # noqa: C901
                 &#34;Model will jump to sporulation stage.\n&#34;
             )
     else:
-        if config.input_data.get(&#34;decision_support_tool_enabled&#34;, False):
+        if _sdm.get(&#34;enabled&#34;, False):
             logf.write(
-                &#34;\nSupport decision tool enabled but no spore counts file available. Running normal model flow.\n&#34;
+                &#34;\nSpore-driven model enabled but no spore counts file available. Running normal model flow.\n&#34;
             )
         else:
-            logf.write(&#34;\nSupport decision tool disabled. Running normal model flow.\n&#34;)
+            logf.write(&#34;\nSpore-driven model disabled. Running normal model flow.\n&#34;)
 
     daily_temperatures = utils.get_daily_measurements(processed_data, &#34;temperature&#34;)
     daily_mean_temperatures = utils.get_daily_mean_measurements(
@@ -433,6 +454,10 @@ def main(config: DictConfig):  # noqa: C901
             + &#34;sporangia_density&#34;
             + &#34;,&#34;
             + &#34;secondary_infection&#34;
+            + &#34;,&#34;
+            + &#34;oospore_infection_strength&#34;
+            + &#34;,&#34;
+            + &#34;secondary_infection_strength&#34;
             + &#34;\n&#34;
         )
         f.write(header_str)
@@ -441,12 +466,23 @@ def main(config: DictConfig):  # noqa: C901
     infection_events = []
 
     if oospore_maturation_datetime_rowindex is not None:
-        progress_bar = tqdm(
+        _n_steps = len(
             range(
                 oospore_maturation_datetime_rowindex,
                 len(processed_data.index),
                 computational_time_steps,
             )
+        )
+        _interactive = sys.stderr.isatty()
+        if not _interactive:
+            print(f&#34;Running infection model: {_n_steps} steps...&#34;, flush=True)
+        progress_bar = tqdm(
+            range(
+                oospore_maturation_datetime_rowindex,
+                len(processed_data.index),
+                computational_time_steps,
+            ),
+            disable=not _interactive,
         )
 
         # Progress bar output on terminal.
@@ -550,6 +586,8 @@ def main(config: DictConfig):  # noqa: C901
                     _sec_infs = _ev.get(&#34;secondary_infections&#34;) or []
                     _sporuls = _ev.get(&#34;sporulations&#34;) or []
                     _spor_dens = _ev.get(&#34;sporangia_densities&#34;) or []
+                    _oosp_strength = _ev.get(&#34;oospore_infection_strength&#34;)
+                    _sec_strengths = _ev.get(&#34;secondary_infection_strengths&#34;) or []
                     _n_rows = max(1, len(_sec_infs), len(_sporuls))
                     for _ri in range(_n_rows):
                         f.write(
@@ -572,6 +610,16 @@ def main(config: DictConfig):  # noqa: C901
                             + str(_spor_dens[_ri] if _ri &lt; len(_spor_dens) else &#34;NA&#34;)
                             + &#34;,&#34;
                             + str(_sec_infs[_ri] if _ri &lt; len(_sec_infs) else &#34;NA&#34;)
+                            + &#34;,&#34;
+                            + str(
+                                _oosp_strength if _oosp_strength is not None else &#34;NA&#34;
+                            )
+                            + &#34;,&#34;
+                            + str(
+                                _sec_strengths[_ri]
+                                if _ri &lt; len(_sec_strengths)
+                                else &#34;NA&#34;
+                            )
                             + &#34;\n&#34;
                         )
 
@@ -647,6 +695,10 @@ def main(config: DictConfig):  # noqa: C901
                     _sc_sec = _sc_ev.get(&#34;secondary_infections&#34;) or []
                     _sc_spor = _sc_ev.get(&#34;sporulations&#34;) or []
                     _sc_dens = _sc_ev.get(&#34;sporangia_densities&#34;) or []
+                    _sc_oosp_strength = _sc_ev.get(&#34;oospore_infection_strength&#34;)
+                    _sc_sec_strengths = (
+                        _sc_ev.get(&#34;secondary_infection_strengths&#34;) or []
+                    )
                     _sc_rows = max(1, len(_sc_sec), len(_sc_spor))
                     for _sc_ri in range(_sc_rows):
                         f.write(
@@ -669,6 +721,18 @@ def main(config: DictConfig):  # noqa: C901
                             + str(_sc_dens[_sc_ri] if _sc_ri &lt; len(_sc_dens) else &#34;NA&#34;)
                             + &#34;,&#34;
                             + str(_sc_sec[_sc_ri] if _sc_ri &lt; len(_sc_sec) else &#34;NA&#34;)
+                            + &#34;,&#34;
+                            + str(
+                                _sc_oosp_strength
+                                if _sc_oosp_strength is not None
+                                else &#34;NA&#34;
+                            )
+                            + &#34;,&#34;
+                            + str(
+                                _sc_sec_strengths[_sc_ri]
+                                if _sc_ri &lt; len(_sc_sec_strengths)
+                                else &#34;NA&#34;
+                            )
                             + &#34;\n&#34;
                         )
 
@@ -676,6 +740,73 @@ def main(config: DictConfig):  # noqa: C901
         logf.write(
             &#34;\nNo infection events produced (no maturation and no spore count shortcuts triggered).\n&#34;
         )
+
+        # Write empty events dataframe (headers only) so plots can be generated
+        _EMPTY_EVENT_COLS = [
+            &#34;id&#34;,
+            &#34;start&#34;,
+            &#34;oospore_maturation&#34;,
+            &#34;oospore_germination&#34;,
+            &#34;oospore_dispersion&#34;,
+            &#34;oospore_infection&#34;,
+            &#34;completed_incubation&#34;,
+            &#34;sporulations&#34;,
+            &#34;sporangia_densities&#34;,
+            &#34;secondary_infections&#34;,
+            &#34;oospore_infection_strength&#34;,
+            &#34;secondary_infection_strengths&#34;,
+        ]
+        with open(output_files.events_dataframe, &#34;w&#34;) as _ef:
+            _ef.write(&#34;,&#34;.join(_EMPTY_EVENT_COLS) + &#34;\n&#34;)
+
+        # Derive fallback date range from the processed weather data
+        _meteo_dates = processed_data[&#34;datetime&#34;].dt.date
+        _fallback_range = (_meteo_dates.min(), _meteo_dates.max())
+
+        # Generate all plots even with no infection events
+        plots.plot_model_infection_chains_pdf(
+            output_files.events_dataframe,
+            output_files.analysis_pdf,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            title=&#34;Infection analysis: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+            fallback_date_range=_fallback_range,
+        )
+
+        analysis_fig = plots.plot_model_infection_chains(
+            output_files.events_dataframe,
+            output_files.analysis_html,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            title=&#34;Infection analysis: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+            fallback_date_range=_fallback_range,
+        )
+        plots.plot_spore_driven_model_overview(
+            output_files.events_dataframe,
+            output_files.overview_html,
+            model_parameters=config,
+            spore_counts_result=spore_counts_result,
+            spore_counts_path=input_spore_file,
+            title=&#34;Spore-driven model overview: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+        )
+        risk_heatmap_fig = plots.plot_risk_heatmap(
+            output_files.events_dataframe,
+            output_files.decision_support_html,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            fallback_date_range=_fallback_range,
+        )
+        _spore_graph_url = config.input_data.get(&#34;spore_counts_graph&#34;) or None
+        plots.write_combined_html(
+            risk_heatmap_fig,
+            analysis_fig,
+            output_files.html_graph,
+            spore_counts_graph_url=_spore_graph_url,
+        )
+
         t_end = datetime.now()
         logf.write(f&#34;Runtime end: {t_end}\nRuntime total: {t_end - t_start}\n&#34;)
         if data_pull_stop_event is not None:
@@ -706,9 +837,6 @@ def main(config: DictConfig):  # noqa: C901
 
     # Close the log file.
     logf.close()
-
-    # Plot infection events predictions (PDF only).
-    utils.plot_events(infection_events, config, output_files.pdf_graph)
 
     with open(output_files.events_dict, &#34;wb&#34;) as pickle_file:
         pickle.dump(infection_events, pickle_file)
@@ -745,28 +873,60 @@ def main(config: DictConfig):  # noqa: C901
                         f.write(str(item))
             f.write(&#34;\n&#34;)
 
-    # Plot analysis graph (Rplot.R equivalent).
-    analysis_fig = utils.plot_infection_analysis(
+    # Full weather date range — used by plots to extend the default view to
+    # include forecast dates beyond the last infection event or spore count.
+    _meteo_dates = processed_data[&#34;datetime&#34;].dt.date
+    _fallback_range = (_meteo_dates.min(), _meteo_dates.max())
+
+    # PDF reproduction of the infection-chain analysis plot.
+    plots.plot_model_infection_chains_pdf(
+        output_files.events_dataframe,
+        output_files.analysis_pdf,
+        model_parameters=config,
+        spore_counts_path=input_spore_file,
+        title=&#34;Infection analysis: &#34; + (config.input_data.meteo or &#34;automated pull&#34;),
+        fallback_date_range=_fallback_range,
+    )
+
+    # Detailed infection chain plot (developer / analysis view).
+    analysis_fig = plots.plot_model_infection_chains(
         output_files.events_dataframe,
         output_files.analysis_html,
         model_parameters=config,
         spore_counts_path=input_spore_file,
         title=&#34;Infection analysis: &#34; + (config.input_data.meteo or &#34;automated pull&#34;),
+        fallback_date_range=_fallback_range,
     )
 
-    # Plot spore counts overview with infection event background colours.
-    overview_fig = utils.plot_spore_infection_overview(
+    # Spore-driven model overview: spore counts integrated into the algorithm.
+    overview_fig = plots.plot_spore_driven_model_overview(
         output_files.events_dataframe,
         output_files.overview_html,
         model_parameters=config,
         spore_counts_result=spore_counts_result,
         spore_counts_path=input_spore_file,
-        title=&#34;Spore counts &amp; infection overview: &#34;
+        title=&#34;Spore-driven model overview: &#34;
         + (config.input_data.meteo or &#34;automated pull&#34;),
+        fallback_date_range=_fallback_range,
     )
 
-    # Combined HTML: overview as default view, toggle button switches to analysis.
-    utils.write_combined_html(overview_fig, analysis_fig, output_files.html_graph)
+    # Risk heatmap: independent model + spore rows, visual only, smartphone view.
+    risk_heatmap_fig = plots.plot_risk_heatmap(
+        output_files.events_dataframe,
+        output_files.decision_support_html,
+        model_parameters=config,
+        spore_counts_path=input_spore_file,
+        fallback_date_range=_fallback_range,
+    )
+
+    # Combined mobile HTML: risk heatmap (primary) + infection chains (secondary).
+    _spore_graph_url = config.input_data.get(&#34;spore_counts_graph&#34;) or None
+    plots.write_combined_html(
+        risk_heatmap_fig,
+        analysis_fig,
+        output_files.html_graph,
+        spore_counts_graph_url=_spore_graph_url,
+    )
 
 
 if __name__ == &#34;__main__&#34;:
@@ -848,6 +1008,16 @@ def main(config: DictConfig):  # noqa: C901
       6. Run cumulative infection risk computation across entire timeseries dataset.
 
     &#34;&#34;&#34;
+    from pathlib import Path as _Path
+
+    _secrets_path = _Path(__file__).parent.parent / &#34;config&#34; / &#34;secrets.yaml&#34;
+    if _secrets_path.exists():
+        config = OmegaConf.merge(config, OmegaConf.load(_secrets_path))
+    else:
+        print(
+            &#34;WARNING: config/secrets.yaml not found. &#34;
+            &#34;Copy config/secrets.example.yaml to config/secrets.yaml and fill in your values.&#34;
+        )
 
     # determine output filenames base on input or explicit run name
     output_files = utils.create_output_filenames(
@@ -909,6 +1079,29 @@ def main(config: DictConfig):  # noqa: C901
                 open(meteo_file_path, &#34;w&#34;).close()
         else:
             meteo_file_path = None
+    elif config.input_data.get(&#34;automated_weather_pull&#34;, False):
+        # Flat file is given AND weather pull is enabled.
+        # Build a combined file (flat stem + API coordinates) so the original
+        # flat file is never modified.  The combined file is always re-seeded
+        # from the flat file at startup, then API data is merged on top.
+        import shutil
+
+        _api_q = config.input_data.get(&#34;weather_api_query&#34;, &#34;&#34;) or &#34;&#34;
+        _flat_path = Path(meteo_file_path)
+        _combined_name = f&#34;{_flat_path.stem}_automated.csv&#34;
+        if _api_q:
+            _qs = parse_qs(urlparse(_api_q).query)
+            _lat = (_qs.get(&#34;lat&#34;) or _qs.get(&#34;latitude&#34;) or [None])[0]
+            _lon = (_qs.get(&#34;lon&#34;) or _qs.get(&#34;longitude&#34;) or [None])[0]
+            if _lat and _lon:
+                _combined_name = f&#34;{_flat_path.stem}_lat{_lat}_lon{_lon}.csv&#34;
+        _combined_path = str(_flat_path.parent / _combined_name)
+        Path(_combined_path).parent.mkdir(parents=True, exist_ok=True)
+        if _flat_path.exists():
+            shutil.copy2(str(_flat_path), _combined_path)
+        elif not Path(_combined_path).exists():
+            open(_combined_path, &#34;w&#34;).close()
+        meteo_file_path = _combined_path
 
     if config.input_data.get(&#34;automated_weather_pull&#34;, False):
         api_query = config.input_data.get(&#34;weather_api_query&#34;)
@@ -977,6 +1170,8 @@ def main(config: DictConfig):  # noqa: C901
         )
         if data_pull_thread is not None:
             data_pull_thread.start()
+            # Wait for the fetch to complete before reading the file.
+            data_pull_thread.join()
 
     # Load raw data: vitimeteo timeseries.  ``meteo_file_path`` has already
     # been computed above to take into account the possibility of an empty
@@ -1001,19 +1196,6 @@ def main(config: DictConfig):  # noqa: C901
             with open(logfile, &#34;a&#34;) as logf:
                 logf.write(err + &#34;\n&#34;)
             sys.exit(1)
-    # If the automated pull is enabled, attempt one immediate fetch/merge.
-    # log to stdout so the user can see progress before load_data runs.
-    if config.input_data.get(&#34;automated_weather_pull&#34;, False) and api_query is not None:
-        print(&#34;Performing initial weather data fetch...&#34;)
-        csv_data = automated_weather_pull.fetch_weather_data_from_api(
-            api_query, logfile
-        )
-        if csv_data is not None:
-            automated_weather_pull.merge_weather_data(
-                input_meteo_file, csv_data, logfile
-            )
-        else:
-            print(&#34;Initial fetch returned no data; input file may remain empty.&#34;)
 
     loaded_data = load_data.load_data(input_meteo_file, logfile)
     if loaded_data is None or getattr(loaded_data, &#34;empty&#34;, False):
@@ -1068,7 +1250,8 @@ def main(config: DictConfig):  # noqa: C901
         if config.input_data.get(&#34;automated_spore_pull&#34;, False):
             api_query = config.input_data.get(&#34;spore_counts_api_query&#34;)
             if api_query:
-                tmpfile = &#34;data/input/auto_spore_counts.csv&#34;
+                _spore_url_stem = Path(urlparse(api_query).path).stem or &#34;spore_counts&#34;
+                tmpfile = f&#34;data/input/automated_spore_{_spore_url_stem}.csv&#34;
                 Path(tmpfile).parent.mkdir(parents=True, exist_ok=True)
                 try:
                     csvtext = support_decision_tool.fetch_spore_counts(
@@ -1095,23 +1278,20 @@ def main(config: DictConfig):  # noqa: C901
                 )
 
     # Check spore counts to determine if model should skip to sporulation stage
-    if (
-        config.input_data.get(&#34;decision_support_tool_enabled&#34;, False)
-        and input_spore_file is not None
-    ):
+    _sdm = config.get(&#34;spore_driven_model&#34;, {}) or {}
+    if _sdm.get(&#34;enabled&#34;, False) and input_spore_file is not None:
         logf.write(
-            &#34;\nSupport decision tool enabled. Checking spore counts file for decision support...\n&#34;
+            &#34;\nSpore-driven model enabled. Checking spore counts file for algorithmic shortcuts...\n&#34;
         )
+        _season_dates = processed_data[&#34;datetime&#34;].dt.date
+        _season_window = (_season_dates.min(), _season_dates.max())
         spore_counts_result = support_decision_tool.check_spore_counts(
             input_spore_file,
             logfile,
-            spore_count_threshold=config.input_data.get(&#34;spore_count_threshold&#34;, 10),
-            spore_count_lookback_days=config.input_data.get(
-                &#34;spore_count_lookback_days&#34;, 3
-            ),
-            spore_count_percent_increase=config.input_data.get(
-                &#34;spore_count_percent_increase&#34;, 20
-            ),
+            spore_count_threshold=_sdm.get(&#34;spore_count_threshold&#34;, 40),
+            spore_count_lookback_days=_sdm.get(&#34;spore_count_lookback_days&#34;, 5),
+            spore_count_percent_increase=_sdm.get(&#34;spore_count_percent_increase&#34;, 30),
+            season_window=_season_window,
         )
         if spore_counts_result.get(&#34;skip_to_dispersion&#34;):
             logf.write(
@@ -1124,12 +1304,12 @@ def main(config: DictConfig):  # noqa: C901
                 &#34;Model will jump to sporulation stage.\n&#34;
             )
     else:
-        if config.input_data.get(&#34;decision_support_tool_enabled&#34;, False):
+        if _sdm.get(&#34;enabled&#34;, False):
             logf.write(
-                &#34;\nSupport decision tool enabled but no spore counts file available. Running normal model flow.\n&#34;
+                &#34;\nSpore-driven model enabled but no spore counts file available. Running normal model flow.\n&#34;
             )
         else:
-            logf.write(&#34;\nSupport decision tool disabled. Running normal model flow.\n&#34;)
+            logf.write(&#34;\nSpore-driven model disabled. Running normal model flow.\n&#34;)
 
     daily_temperatures = utils.get_daily_measurements(processed_data, &#34;temperature&#34;)
     daily_mean_temperatures = utils.get_daily_mean_measurements(
@@ -1206,6 +1386,10 @@ def main(config: DictConfig):  # noqa: C901
             + &#34;sporangia_density&#34;
             + &#34;,&#34;
             + &#34;secondary_infection&#34;
+            + &#34;,&#34;
+            + &#34;oospore_infection_strength&#34;
+            + &#34;,&#34;
+            + &#34;secondary_infection_strength&#34;
             + &#34;\n&#34;
         )
         f.write(header_str)
@@ -1214,12 +1398,23 @@ def main(config: DictConfig):  # noqa: C901
     infection_events = []
 
     if oospore_maturation_datetime_rowindex is not None:
-        progress_bar = tqdm(
+        _n_steps = len(
             range(
                 oospore_maturation_datetime_rowindex,
                 len(processed_data.index),
                 computational_time_steps,
             )
+        )
+        _interactive = sys.stderr.isatty()
+        if not _interactive:
+            print(f&#34;Running infection model: {_n_steps} steps...&#34;, flush=True)
+        progress_bar = tqdm(
+            range(
+                oospore_maturation_datetime_rowindex,
+                len(processed_data.index),
+                computational_time_steps,
+            ),
+            disable=not _interactive,
         )
 
         # Progress bar output on terminal.
@@ -1323,6 +1518,8 @@ def main(config: DictConfig):  # noqa: C901
                     _sec_infs = _ev.get(&#34;secondary_infections&#34;) or []
                     _sporuls = _ev.get(&#34;sporulations&#34;) or []
                     _spor_dens = _ev.get(&#34;sporangia_densities&#34;) or []
+                    _oosp_strength = _ev.get(&#34;oospore_infection_strength&#34;)
+                    _sec_strengths = _ev.get(&#34;secondary_infection_strengths&#34;) or []
                     _n_rows = max(1, len(_sec_infs), len(_sporuls))
                     for _ri in range(_n_rows):
                         f.write(
@@ -1345,6 +1542,16 @@ def main(config: DictConfig):  # noqa: C901
                             + str(_spor_dens[_ri] if _ri &lt; len(_spor_dens) else &#34;NA&#34;)
                             + &#34;,&#34;
                             + str(_sec_infs[_ri] if _ri &lt; len(_sec_infs) else &#34;NA&#34;)
+                            + &#34;,&#34;
+                            + str(
+                                _oosp_strength if _oosp_strength is not None else &#34;NA&#34;
+                            )
+                            + &#34;,&#34;
+                            + str(
+                                _sec_strengths[_ri]
+                                if _ri &lt; len(_sec_strengths)
+                                else &#34;NA&#34;
+                            )
                             + &#34;\n&#34;
                         )
 
@@ -1420,6 +1627,10 @@ def main(config: DictConfig):  # noqa: C901
                     _sc_sec = _sc_ev.get(&#34;secondary_infections&#34;) or []
                     _sc_spor = _sc_ev.get(&#34;sporulations&#34;) or []
                     _sc_dens = _sc_ev.get(&#34;sporangia_densities&#34;) or []
+                    _sc_oosp_strength = _sc_ev.get(&#34;oospore_infection_strength&#34;)
+                    _sc_sec_strengths = (
+                        _sc_ev.get(&#34;secondary_infection_strengths&#34;) or []
+                    )
                     _sc_rows = max(1, len(_sc_sec), len(_sc_spor))
                     for _sc_ri in range(_sc_rows):
                         f.write(
@@ -1442,6 +1653,18 @@ def main(config: DictConfig):  # noqa: C901
                             + str(_sc_dens[_sc_ri] if _sc_ri &lt; len(_sc_dens) else &#34;NA&#34;)
                             + &#34;,&#34;
                             + str(_sc_sec[_sc_ri] if _sc_ri &lt; len(_sc_sec) else &#34;NA&#34;)
+                            + &#34;,&#34;
+                            + str(
+                                _sc_oosp_strength
+                                if _sc_oosp_strength is not None
+                                else &#34;NA&#34;
+                            )
+                            + &#34;,&#34;
+                            + str(
+                                _sc_sec_strengths[_sc_ri]
+                                if _sc_ri &lt; len(_sc_sec_strengths)
+                                else &#34;NA&#34;
+                            )
                             + &#34;\n&#34;
                         )
 
@@ -1449,6 +1672,73 @@ def main(config: DictConfig):  # noqa: C901
         logf.write(
             &#34;\nNo infection events produced (no maturation and no spore count shortcuts triggered).\n&#34;
         )
+
+        # Write empty events dataframe (headers only) so plots can be generated
+        _EMPTY_EVENT_COLS = [
+            &#34;id&#34;,
+            &#34;start&#34;,
+            &#34;oospore_maturation&#34;,
+            &#34;oospore_germination&#34;,
+            &#34;oospore_dispersion&#34;,
+            &#34;oospore_infection&#34;,
+            &#34;completed_incubation&#34;,
+            &#34;sporulations&#34;,
+            &#34;sporangia_densities&#34;,
+            &#34;secondary_infections&#34;,
+            &#34;oospore_infection_strength&#34;,
+            &#34;secondary_infection_strengths&#34;,
+        ]
+        with open(output_files.events_dataframe, &#34;w&#34;) as _ef:
+            _ef.write(&#34;,&#34;.join(_EMPTY_EVENT_COLS) + &#34;\n&#34;)
+
+        # Derive fallback date range from the processed weather data
+        _meteo_dates = processed_data[&#34;datetime&#34;].dt.date
+        _fallback_range = (_meteo_dates.min(), _meteo_dates.max())
+
+        # Generate all plots even with no infection events
+        plots.plot_model_infection_chains_pdf(
+            output_files.events_dataframe,
+            output_files.analysis_pdf,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            title=&#34;Infection analysis: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+            fallback_date_range=_fallback_range,
+        )
+
+        analysis_fig = plots.plot_model_infection_chains(
+            output_files.events_dataframe,
+            output_files.analysis_html,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            title=&#34;Infection analysis: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+            fallback_date_range=_fallback_range,
+        )
+        plots.plot_spore_driven_model_overview(
+            output_files.events_dataframe,
+            output_files.overview_html,
+            model_parameters=config,
+            spore_counts_result=spore_counts_result,
+            spore_counts_path=input_spore_file,
+            title=&#34;Spore-driven model overview: &#34;
+            + (config.input_data.meteo or &#34;automated pull&#34;),
+        )
+        risk_heatmap_fig = plots.plot_risk_heatmap(
+            output_files.events_dataframe,
+            output_files.decision_support_html,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            fallback_date_range=_fallback_range,
+        )
+        _spore_graph_url = config.input_data.get(&#34;spore_counts_graph&#34;) or None
+        plots.write_combined_html(
+            risk_heatmap_fig,
+            analysis_fig,
+            output_files.html_graph,
+            spore_counts_graph_url=_spore_graph_url,
+        )
+
         t_end = datetime.now()
         logf.write(f&#34;Runtime end: {t_end}\nRuntime total: {t_end - t_start}\n&#34;)
         if data_pull_stop_event is not None:
@@ -1479,9 +1769,6 @@ def main(config: DictConfig):  # noqa: C901
 
     # Close the log file.
     logf.close()
-
-    # Plot infection events predictions (PDF only).
-    utils.plot_events(infection_events, config, output_files.pdf_graph)
 
     with open(output_files.events_dict, &#34;wb&#34;) as pickle_file:
         pickle.dump(infection_events, pickle_file)
@@ -1518,28 +1805,60 @@ def main(config: DictConfig):  # noqa: C901
                         f.write(str(item))
             f.write(&#34;\n&#34;)
 
-    # Plot analysis graph (Rplot.R equivalent).
-    analysis_fig = utils.plot_infection_analysis(
+    # Full weather date range — used by plots to extend the default view to
+    # include forecast dates beyond the last infection event or spore count.
+    _meteo_dates = processed_data[&#34;datetime&#34;].dt.date
+    _fallback_range = (_meteo_dates.min(), _meteo_dates.max())
+
+    # PDF reproduction of the infection-chain analysis plot.
+    plots.plot_model_infection_chains_pdf(
+        output_files.events_dataframe,
+        output_files.analysis_pdf,
+        model_parameters=config,
+        spore_counts_path=input_spore_file,
+        title=&#34;Infection analysis: &#34; + (config.input_data.meteo or &#34;automated pull&#34;),
+        fallback_date_range=_fallback_range,
+    )
+
+    # Detailed infection chain plot (developer / analysis view).
+    analysis_fig = plots.plot_model_infection_chains(
         output_files.events_dataframe,
         output_files.analysis_html,
         model_parameters=config,
         spore_counts_path=input_spore_file,
         title=&#34;Infection analysis: &#34; + (config.input_data.meteo or &#34;automated pull&#34;),
+        fallback_date_range=_fallback_range,
     )
 
-    # Plot spore counts overview with infection event background colours.
-    overview_fig = utils.plot_spore_infection_overview(
+    # Spore-driven model overview: spore counts integrated into the algorithm.
+    overview_fig = plots.plot_spore_driven_model_overview(
         output_files.events_dataframe,
         output_files.overview_html,
         model_parameters=config,
         spore_counts_result=spore_counts_result,
         spore_counts_path=input_spore_file,
-        title=&#34;Spore counts &amp; infection overview: &#34;
+        title=&#34;Spore-driven model overview: &#34;
         + (config.input_data.meteo or &#34;automated pull&#34;),
+        fallback_date_range=_fallback_range,
     )
 
-    # Combined HTML: overview as default view, toggle button switches to analysis.
-    utils.write_combined_html(overview_fig, analysis_fig, output_files.html_graph)</code></pre>
+    # Risk heatmap: independent model + spore rows, visual only, smartphone view.
+    risk_heatmap_fig = plots.plot_risk_heatmap(
+        output_files.events_dataframe,
+        output_files.decision_support_html,
+        model_parameters=config,
+        spore_counts_path=input_spore_file,
+        fallback_date_range=_fallback_range,
+    )
+
+    # Combined mobile HTML: risk heatmap (primary) + infection chains (secondary).
+    _spore_graph_url = config.input_data.get(&#34;spore_counts_graph&#34;) or None
+    plots.write_combined_html(
+        risk_heatmap_fig,
+        analysis_fig,
+        output_files.html_graph,
+        spore_counts_graph_url=_spore_graph_url,
+    )</code></pre>
 </details>
 </dd>
 </dl>

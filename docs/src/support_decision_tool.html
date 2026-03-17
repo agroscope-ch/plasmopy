@@ -125,12 +125,13 @@ def check_spore_counts(  # noqa: C901
     spore_count_threshold=10,
     spore_count_lookback_days=3,
     spore_count_percent_increase=20,
+    season_window=None,
 ):
     &#34;&#34;&#34;
     Check spore counts file and determine if model should continue from sporulation stage.
 
-    The function scans the **entire** spore counts file (historical or current) and
-    checks whether either condition is met at any point in time:
+    The function scans the spore counts file (optionally restricted to the current
+    season window) and checks whether either condition is met at any point in time:
 
     1. Any single day&#39;s total surpasses ``spore_count_threshold`` spores.
        → records the **first** day that exceeds the threshold as
@@ -165,6 +166,13 @@ def check_spore_counts(  # noqa: C901
         Minimum percent increase from the first to the last day of the window
         required to meet condition 2.  Default: 20.
 
+    season_window : tuple of (date-like, date-like), optional
+        If provided, only spore count records whose date falls within
+        [season_window[0], season_window[1]] (inclusive) are considered.
+        Records outside this window are ignored so that historical data from
+        a previous season cannot trigger shortcuts in the current run.
+        Both bounds are converted to ``datetime.date`` automatically.
+
     Returns
     -------
     dict
@@ -194,10 +202,27 @@ def check_spore_counts(  # noqa: C901
                 print(f&#34;Warning: Could not write to logfile: {e}&#34;)
 
     try:
-        # Read and sort the full spore counts file (no date cutoff)
+        # Read and sort the spore counts file
         df = pd.read_csv(spore_counts_filepath, delimiter=&#34;;&#34;)
         df[&#34;Date&#34;] = pd.to_datetime(df[&#34;Date&#34;], format=&#34;%d.%m.%Y %H:%M&#34;)
         df = df.sort_values(&#34;Date&#34;)
+
+        # Restrict to current season window so that historical data from a
+        # previous season cannot trigger shortcuts for the current run.
+        if season_window is not None:
+            _sw_start = pd.Timestamp(season_window[0]).date()
+            _sw_end = pd.Timestamp(season_window[1]).date()
+            _before = len(df)
+            df = df[
+                (df[&#34;Date&#34;].dt.date &gt;= _sw_start) &amp; (df[&#34;Date&#34;].dt.date &lt;= _sw_end)
+            ].copy()
+            _after = len(df)
+            if _before != _after:
+                log_message(
+                    f&#34;Season window [{_sw_start} – {_sw_end}]: &#34;
+                    f&#34;filtered {_before - _after} out-of-season record(s), &#34;
+                    f&#34;{_after} remaining.&#34;
+                )
 
         if df.empty:
             msg = &#34;Spore counts file is empty. No model shortcut will be triggered.&#34;
@@ -318,12 +343,12 @@ def check_spore_counts(  # noqa: C901
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="src.support_decision_tool.check_spore_counts"><code class="name flex">
-<span>def <span class="ident">check_spore_counts</span></span>(<span>spore_counts_filepath, logfile=None, spore_count_threshold=10, spore_count_lookback_days=3, spore_count_percent_increase=20)</span>
+<span>def <span class="ident">check_spore_counts</span></span>(<span>spore_counts_filepath, logfile=None, spore_count_threshold=10, spore_count_lookback_days=3, spore_count_percent_increase=20, season_window=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Check spore counts file and determine if model should continue from sporulation stage.</p>
-<p>The function scans the <strong>entire</strong> spore counts file (historical or current) and
-checks whether either condition is met at any point in time:</p>
+<p>The function scans the spore counts file (optionally restricted to the current
+season window) and checks whether either condition is met at any point in time:</p>
 <ol>
 <li>Any single day's total surpasses <code>spore_count_threshold</code> spores.
 → records the <strong>first</strong> day that exceeds the threshold as
@@ -353,6 +378,12 @@ Default: 3.</dd>
 <dd>Minimum percent increase from the first to the last day of the window
 required to meet condition 2.
 Default: 20.</dd>
+<dt><strong><code>season_window</code></strong> :&ensp;<code>tuple</code> of <code>(date-like, date-like)</code>, optional</dt>
+<dd>If provided, only spore count records whose date falls within
+[season_window[0], season_window[1]] (inclusive) are considered.
+Records outside this window are ignored so that historical data from
+a previous season cannot trigger shortcuts in the current run.
+Both bounds are converted to <code>datetime.date</code> automatically.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <dl>
@@ -381,12 +412,13 @@ Message describing the analysis results.</dd>
     spore_count_threshold=10,
     spore_count_lookback_days=3,
     spore_count_percent_increase=20,
+    season_window=None,
 ):
     &#34;&#34;&#34;
     Check spore counts file and determine if model should continue from sporulation stage.
 
-    The function scans the **entire** spore counts file (historical or current) and
-    checks whether either condition is met at any point in time:
+    The function scans the spore counts file (optionally restricted to the current
+    season window) and checks whether either condition is met at any point in time:
 
     1. Any single day&#39;s total surpasses ``spore_count_threshold`` spores.
        → records the **first** day that exceeds the threshold as
@@ -421,6 +453,13 @@ Message describing the analysis results.</dd>
         Minimum percent increase from the first to the last day of the window
         required to meet condition 2.  Default: 20.
 
+    season_window : tuple of (date-like, date-like), optional
+        If provided, only spore count records whose date falls within
+        [season_window[0], season_window[1]] (inclusive) are considered.
+        Records outside this window are ignored so that historical data from
+        a previous season cannot trigger shortcuts in the current run.
+        Both bounds are converted to ``datetime.date`` automatically.
+
     Returns
     -------
     dict
@@ -450,10 +489,27 @@ Message describing the analysis results.</dd>
                 print(f&#34;Warning: Could not write to logfile: {e}&#34;)
 
     try:
-        # Read and sort the full spore counts file (no date cutoff)
+        # Read and sort the spore counts file
         df = pd.read_csv(spore_counts_filepath, delimiter=&#34;;&#34;)
         df[&#34;Date&#34;] = pd.to_datetime(df[&#34;Date&#34;], format=&#34;%d.%m.%Y %H:%M&#34;)
         df = df.sort_values(&#34;Date&#34;)
+
+        # Restrict to current season window so that historical data from a
+        # previous season cannot trigger shortcuts for the current run.
+        if season_window is not None:
+            _sw_start = pd.Timestamp(season_window[0]).date()
+            _sw_end = pd.Timestamp(season_window[1]).date()
+            _before = len(df)
+            df = df[
+                (df[&#34;Date&#34;].dt.date &gt;= _sw_start) &amp; (df[&#34;Date&#34;].dt.date &lt;= _sw_end)
+            ].copy()
+            _after = len(df)
+            if _before != _after:
+                log_message(
+                    f&#34;Season window [{_sw_start} – {_sw_end}]: &#34;
+                    f&#34;filtered {_before - _after} out-of-season record(s), &#34;
+                    f&#34;{_after} remaining.&#34;
+                )
 
         if df.empty:
             msg = &#34;Spore counts file is empty. No model shortcut will be triggered.&#34;
