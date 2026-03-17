@@ -209,6 +209,8 @@ def main(config: DictConfig):  # noqa: C901
         )
         if data_pull_thread is not None:
             data_pull_thread.start()
+            # Wait for the fetch to complete before reading the file.
+            data_pull_thread.join()
 
     # Load raw data: vitimeteo timeseries.  ``meteo_file_path`` has already
     # been computed above to take into account the possibility of an empty
@@ -233,19 +235,6 @@ def main(config: DictConfig):  # noqa: C901
             with open(logfile, "a") as logf:
                 logf.write(err + "\n")
             sys.exit(1)
-    # If the automated pull is enabled, attempt one immediate fetch/merge.
-    # log to stdout so the user can see progress before load_data runs.
-    if config.input_data.get("automated_weather_pull", False) and api_query is not None:
-        print("Performing initial weather data fetch...")
-        csv_data = automated_weather_pull.fetch_weather_data_from_api(
-            api_query, logfile
-        )
-        if csv_data is not None:
-            automated_weather_pull.merge_weather_data(
-                input_meteo_file, csv_data, logfile
-            )
-        else:
-            print("Initial fetch returned no data; input file may remain empty.")
 
     loaded_data = load_data.load_data(input_meteo_file, logfile)
     if loaded_data is None or getattr(loaded_data, "empty", False):
