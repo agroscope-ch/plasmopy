@@ -9,14 +9,11 @@ hydra:
 input_data:
   meteo: data/input/2025_meteo_changins.csv
   spore_counts: data/input/2025_qPCR_changins.labo.exterieur.csv
-  decision_support_tool_enabled: true
   automated_spore_pull: false
-  spore_counts_api_query: 
-  spore_count_threshold: 40          # condition 1: any day's total exceeds this count
-  spore_count_lookback_days: 5       # condition 2: number of days to consider for percent increase
-  spore_count_percent_increase: 30   # condition 2: minimum percent increase over the lookback window
+  spore_counts_api_query: null   # set in config/secrets.yaml
+  spore_counts_graph: null       # URL to spore graph HTML page; set in config/secrets.yaml
   automated_weather_pull: false
-  weather_api_query: 
+  weather_api_query: null        # set in config/secrets.yaml
 # -----------------------------------------------------------------------------
 # OUTPUT / RUN IDENTIFIER
 # -----------------------------------------------------------------------------
@@ -31,20 +28,58 @@ output:
   run_name: example       # custom run name (null to derive from meteo file)
 
 # -----------------------------------------------------------------------------
+# SPORE-DRIVEN MODEL (integrated model — spore counts fed into the algorithm)
+# -----------------------------------------------------------------------------
+# These parameters control the logic that INTEGRATES spore trap data directly
+# into the infection model algorithm.  When spore counts meet either condition
+# below, the model bypasses early infection stages (germination → dispersion or
+# germination → sporulation) and injects a shortcut infection event.  This is
+# fundamentally different from the Risk Heatmap thresholds further below:
+#   • Spore-driven model  → algorithmic shortcut; spore counts drive the model.
+#   • Risk Heatmap        → purely visual; model output and spore counts are
+#                           displayed as two independent rows, never combined
+#                           in the algorithm.  The "Risque" row is a simple
+#                           product overlay computed only for display.
+spore_driven_model:
+  enabled: true
+  spore_count_threshold: 40          # [counts] condition 1 – any single day's total
+                                     # exceeds this value → shortcut to dispersion stage
+  spore_count_lookback_days: 5       # [days]   condition 2 – look-back window for
+                                     # percent-increase calculation
+  spore_count_percent_increase: 30   # [%]      condition 2 – minimum percent increase
+                                     # over the look-back window → shortcut to sporulation
+
+# -----------------------------------------------------------------------------
+# RISK HEATMAP (visual only — independent rows, no algorithmic coupling)
+# -----------------------------------------------------------------------------
+# Colour-category thresholds for the smartphone heatmap produced by
+# plot_risk_heatmap().  The three rows are:
+#   Modèle   – daily infection strength from the mechanistic model alone (°C·h)
+#   Mildiou  – daily spore counts from the trap alone (counts)
+#   Risque   – display-only product of the two above; NOT used in the model
+#
+# Four colour bands per row (green / light-pink / salmon / red).
+# Thresholds define the LOWER boundary of each new band (exclusive of green).
+risk_heatmap:
+  model_thresholds:   [50, 100, 200]  # [°C·h]   Modèle row band boundaries
+  mildiou_thresholds: [20,  50,  100]  # [counts]  Mildiou row band boundaries
+  # Risque thresholds are auto-derived as the pair-wise products of the above.
+
+# -----------------------------------------------------------------------------
 # SITE PARAMETERS
 # -----------------------------------------------------------------------------
 site:
-  latitude: 46.4
-  longitude: 6.2
-  elevation: 439.0
-  timezone: Europe/Zurich
+  latitude: null       # set in config/secrets.yaml
+  longitude: null      # set in config/secrets.yaml
+  elevation: null      # set in config/secrets.yaml
+  timezone: null       # set in config/secrets.yaml
 
 # -----------------------------------------------------------------------------
 # RUN SETTINGS
 # -----------------------------------------------------------------------------
 run_settings:
   algorithmic_time_steps: 1 # number of time steps to compute per measurement interval (e.g. 1 = 4-hour steps)
-  computational_time_steps: 18 # number of time steps to simulate (e.g. 6 = 1 day with 4-hour steps)
+  computational_time_steps: 6 # number of time steps to simulate (e.g. 6 = 1 day with 4-hour steps)
   measurement_time_interval: 10 # minutes between consecutive measurements in the input data
   fast_mode: true
 
