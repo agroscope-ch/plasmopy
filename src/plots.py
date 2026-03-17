@@ -3,9 +3,9 @@ Plotting functions for Plasmopy.
 
 Three distinct visualisations are produced at the end of each model run:
 
-plot_infection_events_pdf
-    Matplotlib PDF — scatter plot of every infection-stage datetime across the
-    full season.  Quick overview for developers; not mobile-optimised.
+plot_model_infection_chains_pdf
+    Matplotlib PDF — reproduction of the infection-chain analysis plot across
+    the full season.  Auto-scaled width; mirrors plot_model_infection_chains.
 
 plot_model_infection_chains
     Plotly interactive HTML — detailed chain view linking all infection stages
@@ -44,114 +44,294 @@ import plotly.graph_objects as go
 # ---------------------------------------------------------------------------
 
 
-def plot_infection_events_pdf(infection_events, model_parameters, pdf_path):
+def plot_model_infection_chains_pdf(  # noqa: C901
+    events_dataframe_path,
+    pdf_path,
+    model_parameters=None,
+    spore_counts_path=None,
+    title="Infection analysis",
+    fallback_date_range=None,
+):
     """
-    Matplotlib PDF scatter plot of all infection-stage datetimes across the season.
+    Matplotlib PDF reproduction of the infection-chain analysis plot.
 
-    Each stage is shown at a fixed y-level; optional spore counts are overlaid
-    on a secondary right-hand axis.
+    Mirrors the content of plot_model_infection_chains:
+      - Dotted chain lines connecting event stages per infection chain
+        (black = normal model path, red = spore-driven shortcut)
+      - Per-stage markers at each event datetime
+      - Maturation datetime marked with a vertical dashed line
+      - Sporangia density as dark-blue bars on a secondary right y-axis
+      - Daily spore counts as light-blue bars on a further-offset right y-axis
+
+    Figure width is scaled automatically: max(14 in, n_days × 0.15 in) so that
+    the full timeseries remains readable even for long seasons.
     """
-    # Stages in model order: (event key, legend label, colour, y-rank)
-    STAGES = [
-        ("oospore_germination", "germination", "lightgreen", 1),
-        ("oospore_dispersion", "dispersion", "orange", 2),
-        ("oospore_infection", "primary infection", "red", 3),
-        ("completed_incubation", "completed incubation", "green", 4),
-        ("sporulations", "sporulation", "violet", 5),
-        ("secondary_infections", "secondary infection", "purple", 6),
+    import datetime as _dt
+
+    # ------------------------------------------------------------------ #
+    # Load and parse events dataframe                                     #
+    # ------------------------------------------------------------------ #
+    df = pd.read_csv(events_dataframe_path)
+    _dt_cols = [
+        "start",
+        "oospore_maturation",
+        "oospore_germination",
+        "oospore_dispersion",
+        "oospore_infection",
+        "completed_incubation",
+        "sporulations",
+        "secondary_infections",
     ]
-
-    # --- optional spore counts ---
-    spore_df = _load_daily_spore_counts(model_parameters)
-
-    # y-scale: align event markers with spore count magnitude when available
-    y_scale = (spore_df["count"].max() / len(STAGES)) if spore_df is not None else 1.0
-
-    # --- collect unique datetimes per stage ---
-    stage_dates: dict = {key: set() for key, *_ in STAGES}
-    for event in infection_events:
-        for key, *_ in STAGES:
-            value = event.get(key)
-            if value is None:
-                continue
-            if isinstance(value, list):
-                stage_dates[key].update(value)
-            else:
-                stage_dates[key].add(value)
-
-    # --- build figure ---
-    fig, ax = plt.subplots(figsize=(14, 6))
-
-    for key, label, colour, rank in STAGES:
-        dates = sorted(stage_dates[key])
-        ax.plot(
-            dates,
-            [rank * y_scale] * len(dates),
-            marker="o",
-            linestyle="",
-            alpha=0.4,
-            color=colour,
-            label=label,
+    for col in _dt_cols:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
+    if "sporangia_densities" in df.columns:
+        df["sporangia_densities"] = pd.to_numeric(
+            df["sporangia_densities"], errors="coerce"
         )
-
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%y"))
-    ax.xaxis.set_major_locator(mdates.DayLocator(interval=7))
-    ax.tick_params(axis="x", labelsize=5)
-    ax.tick_params(left=False, right=False, labelleft=False)
-    ax.set_title(model_parameters["input_data"]["meteo"] or "automated pull")
-    ax.grid(True)
-    fig.autofmt_xdate()
-
-    ax.legend(
-        loc="lower center",
-        bbox_to_anchor=(0.4, -0.01),
-        bbox_transform=fig.transFigure,
-        ncol=3,
+    df["_shortcut"] = df["oospore_germination"].isna() & (
+        df["oospore_dispersion"].notna() | df["sporulations"].notna()
     )
 
-    if spore_df is not None:
-        ax2 = ax.twinx()
-        ax2.plot(
-            spore_df["date"],
-            spore_df["count"],
-            linestyle="--",
-            alpha=0.4,
-            color="steelblue",
-            label="spore counts",
+    # ------------------------------------------------------------------ #
+    # Stage layout                                                        #
+    # ------------------------------------------------------------------ #
+    _event_keys = [
+        "oospore_germination",
+        "oospore_dispersion",
+        "oospore_infection",
+        "completed_incubation",
+        "sporulations",
+        "secondary_infections",
+    ]
+    _event_y = {k: i for i, k in enumerate(_event_keys)}
+    _event_labels = {
+        "oospore_germination": "Germination",
+        "oospore_dispersion": "Dispersion",
+        "oospore_infection": "Primary infection",
+        "completed_incubation": "Incubation",
+        "sporulations": "Sporulation",
+        "secondary_infections": "Secondary infection",
+    }
+    _markers = {
+        "oospore_germination": "o",
+        "oospore_dispersion": "^",
+        "oospore_infection": "P",
+        "completed_incubation": "X",
+        "sporulations": "v",
+        "secondary_infections": "D",
+    }
+
+    # ------------------------------------------------------------------ #
+    # Determine full date range and figure width                          #
+    # ------------------------------------------------------------------ #
+    _all_dts = []
+    for col in _dt_cols:
+        if col in df.columns:
+            _all_dts.extend(df[col].dropna().tolist())
+    _first = min(v.date() for v in _all_dts) if _all_dts else _dt.date.today()
+    _last = max(v.date() for v in _all_dts) if _all_dts else _dt.date.today()
+    if fallback_date_range is not None:
+        _first = min(_first, fallback_date_range[0])
+        _last = max(_last, fallback_date_range[1])
+    n_days = (_last - _first).days + 1
+    width = max(14.0, n_days * 0.15)
+
+    # ------------------------------------------------------------------ #
+    # Load spore counts                                                   #
+    # ------------------------------------------------------------------ #
+    sc_dates, sc_counts = [], []
+    _sp_path = spore_counts_path or (
+        model_parameters["input_data"]["spore_counts"]
+        if model_parameters is not None
+        else None
+    )
+    if _sp_path:
+        try:
+            _sc = pd.read_csv(_sp_path, sep=";")
+            _dc, _cc = _sc.columns[0], _sc.columns[1]
+            _fmt = (
+                model_parameters["data_columns"]["format_columns"][0]
+                if model_parameters is not None
+                else "%d.%m.%Y %H:%M"
+            )
+            _sc[_dc] = pd.to_datetime(_sc[_dc], format=_fmt, errors="coerce")
+            _sc = _sc.groupby(_sc[_dc].dt.date)[_cc].sum().reset_index()
+            _sc.columns = [_dc, _cc]
+            _sc[_dc] = pd.to_datetime(_sc[_dc]) + pd.Timedelta(hours=12)
+            sc_dates = _sc[_dc].tolist()
+            sc_counts = _sc[_cc].tolist()
+        except Exception:
+            pass
+
+    max_density = (
+        float(model_parameters["sporangia"]["max_density"])
+        if model_parameters is not None
+        else 360_000
+    )
+
+    # ------------------------------------------------------------------ #
+    # Build figure                                                        #
+    # ------------------------------------------------------------------ #
+    fig, ax = plt.subplots(figsize=(width, 5.0))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+
+    # Secondary right axis: sporangia density (inner)
+    ax_spor = ax.twinx()
+    # Secondary right axis: spore counts (outer, offset)
+    ax_sc = ax.twinx()
+    ax_sc.spines["right"].set_position(("outward", 55))
+
+    # --- sporangia density bars ---
+    spor_rows = df[df["sporangia_densities"].notna() & df["sporulations"].notna()]
+    if not spor_rows.empty:
+        ax_spor.bar(
+            spor_rows["sporulations"].tolist(),
+            spor_rows["sporangia_densities"].tolist(),
+            width=pd.Timedelta(hours=10),
+            color="darkblue",
+            alpha=0.55,
         )
-        ax2.tick_params(right=True, labelright=True)
-        ax2.legend(
-            loc="lower center",
-            bbox_to_anchor=(0.8, -0.01),
-            bbox_transform=fig.transFigure,
+        ax_spor.set_ylim(0, max_density * 1.1)
+        ax_spor.set_ylabel("Sporangia density [sp./cm²]", fontsize=7, color="darkblue")
+        ax_spor.tick_params(axis="y", labelsize=7, colors="darkblue")
+        ax_spor.spines["right"].set_color("darkblue")
+    else:
+        ax_spor.set_yticks([])
+        ax_spor.spines["right"].set_visible(False)
+
+    # --- spore counts bars ---
+    if sc_dates:
+        ax_sc.bar(
+            sc_dates,
+            sc_counts,
+            width=pd.Timedelta(hours=20),
+            color="lightsteelblue",
+            alpha=0.5,
+        )
+        ax_sc.set_ylabel("Daily spore counts", fontsize=7, color="steelblue")
+        ax_sc.tick_params(axis="y", labelsize=7, colors="steelblue")
+        ax_sc.spines["right"].set_color("steelblue")
+    else:
+        ax_sc.set_yticks([])
+        ax_sc.spines["right"].set_visible(False)
+
+    # --- maturation marker ---
+    mat = (
+        df["oospore_maturation"].dropna()
+        if "oospore_maturation" in df.columns
+        else pd.Series([], dtype="object")
+    )
+    if not mat.empty:
+        ax.axvline(
+            mat.iloc[0], color="#3cb371", linewidth=1.5, linestyle="--", alpha=0.8
+        )
+        ax.text(
+            mat.iloc[0],
+            len(_event_keys) - 0.15,
+            "▼ maturation",
+            color="#3cb371",
+            fontsize=6,
+            ha="center",
+            va="bottom",
         )
 
-    fig.savefig(pdf_path)
+    # --- chain lines ---
+    for shortcut_flag, color in [(False, "black"), (True, "red")]:
+        grp = df[df["_shortcut"] == shortcut_flag]
+        for _, row in grp.iterrows():
+            xs, ys = [], []
+            for col in _event_keys:
+                val = row.get(col)
+                if pd.notna(val):
+                    xs.append(val)
+                    ys.append(_event_y[col])
+            if len(xs) > 1:
+                ax.plot(xs, ys, linestyle=":", color=color, linewidth=0.5, alpha=0.4)
+
+    # --- event markers ---
+    for col in _event_keys:
+        for shortcut_flag, color in [(False, "black"), (True, "red")]:
+            sub = df[df[col].notna() & (df["_shortcut"] == shortcut_flag)]
+            if sub.empty:
+                continue
+            ax.scatter(
+                sub[col],
+                [_event_y[col]] * len(sub),
+                marker=_markers[col],
+                s=20,
+                color=color,
+                alpha=0.75,
+                zorder=3,
+                label=(
+                    f"{_event_labels[col]}" + (" (shortcut)" if shortcut_flag else "")
+                )
+                if color == "black" or shortcut_flag
+                else None,
+            )
+
+    # ------------------------------------------------------------------ #
+    # Axes formatting                                                     #
+    # ------------------------------------------------------------------ #
+    ax.set_yticks(list(_event_y.values()))
+    ax.set_yticklabels([_event_labels[k] for k in _event_keys], fontsize=8)
+    ax.set_ylim(-0.7, len(_event_keys) - 0.2)
+    ax.spines["right"].set_visible(False)
+
+    # Auto-compute tick interval so labels never overlap (~0.65 in per label at 7pt/70°)
+    _max_labels = max(5, int(width / 0.65))
+    _tick_steps = [1, 2, 3, 5, 7, 10, 14, 21, 30, 60, 90]
+    _tick_interval = _tick_steps[-1]
+    for _step in _tick_steps:
+        if n_days / _step <= _max_labels:
+            _tick_interval = _step
+            break
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=_tick_interval))
+    ax.xaxis.set_major_formatter(
+        mdates.DateFormatter("%b '%y" if _tick_interval >= 30 else "%d %b '%y")
+    )
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=70, ha="right", fontsize=7)
+    ax.set_xlim(
+        pd.Timestamp(_first) - pd.Timedelta(hours=12),
+        pd.Timestamp(_last) + pd.Timedelta(hours=12),
+    )
+
+    ax.set_title(title, fontsize=9, pad=4)
+    ax.grid(True, axis="x", alpha=0.25, linestyle=":")
+
+    # Bottom legend: one proxy handle per event stage
+    from matplotlib.lines import Line2D
+
+    _legend_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker=_markers[k],
+            color="black",
+            linestyle="none",
+            markersize=6,
+            label=_event_labels[k],
+        )
+        for k in _event_keys
+    ]
+    fig.legend(
+        handles=_legend_handles,
+        loc="lower center",
+        ncol=len(_event_keys),
+        fontsize=7,
+        title="Event markers",
+        title_fontsize=7,
+        bbox_to_anchor=(0.5, 0),
+        bbox_transform=fig.transFigure,
+        frameon=True,
+        framealpha=0.85,
+    )
+
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.18)
+    fig.savefig(pdf_path, bbox_inches="tight")
     plt.close(fig)
-
-
-def _load_daily_spore_counts(model_parameters):
-    """Load and aggregate spore counts to daily totals. Returns a DataFrame or None."""
-    path = model_parameters["input_data"]["spore_counts"]
-    if path is None:
-        return None
-    try:
-        sc = pd.read_csv(path, sep=";")
-        date_col, count_col = sc.columns[0], sc.columns[1]
-        sc[date_col] = pd.to_datetime(
-            sc[date_col],
-            format=model_parameters["data_columns"]["format_columns"][0],
-        )
-        daily = (
-            sc.groupby(sc[date_col].dt.date)[count_col]
-            .sum()
-            .reset_index()
-            .rename(columns={date_col: "date", count_col: "count"})
-        )
-        daily["date"] = pd.to_datetime(daily["date"])
-        return daily
-    except Exception:
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +345,7 @@ def plot_model_infection_chains(  # noqa: C901
     model_parameters=None,
     spore_counts_path=None,
     title="Infection analysis",
+    fallback_date_range=None,
 ):
     """
     Interactive HTML plot reproducing the Rplot.R visualisation.
@@ -238,6 +419,7 @@ def plot_model_infection_chains(  # noqa: C901
     }
 
     fig = go.Figure()
+    sc_max = 1.0  # fallback; overwritten if spore data loads successfully
 
     if model_parameters is not None:
         spore_path = spore_counts_path or model_parameters["input_data"]["spore_counts"]
@@ -250,6 +432,7 @@ def plot_model_infection_chains(  # noqa: C901
                 sc = sc.groupby(sc[_dc].dt.date)[_cc].sum().reset_index()
                 sc.columns = [_dc, _cc]
                 sc[_dc] = pd.to_datetime(sc[_dc])
+                sc_max = float(sc[_cc].max()) or 1.0
                 fig.add_trace(
                     go.Bar(
                         x=sc[_dc],
@@ -346,8 +529,21 @@ def plot_model_infection_chains(  # noqa: C901
                 )
             )
 
+    # Bottom legend: one dummy trace per event stage
+    for col in event_cols_ordered:
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker={"symbol": event_symbols[col], "size": 10, "color": "black"},
+                name=event_labels[col],
+                legend="legend2",
+                showlegend=True,
+            )
+        )
+
     fig.update_layout(
-        title=title,
         paper_bgcolor="white",
         plot_bgcolor="white",
         xaxis={"title": "", "tickformat": "%b %d", "tickangle": -90, "showgrid": True},
@@ -363,6 +559,7 @@ def plot_model_infection_chains(  # noqa: C901
             "side": "right",
             "showticklabels": True,
             "showgrid": False,
+            "range": [-sc_max * 0.04, sc_max * 1.08],
         },
         yaxis3={
             "title": {
@@ -379,14 +576,44 @@ def plot_model_infection_chains(  # noqa: C901
         },
         legend={
             "orientation": "h",
-            "yanchor": "bottom",
-            "y": 1.02,
+            "yanchor": "top",
+            "y": -0.28,
             "xanchor": "left",
             "x": 0,
         },
+        legend2={
+            "orientation": "h",
+            "yanchor": "top",
+            "y": -0.42,
+            "xanchor": "left",
+            "x": 0,
+            "title": {"text": "Event markers — "},
+            "bgcolor": "rgba(255,255,255,0.8)",
+            "bordercolor": "#cccccc",
+            "borderwidth": 1,
+        },
         bargroupgap=0,
+        margin={"b": 250, "t": 20},
     )
-    fig.update_xaxes(rangeslider_visible=True)
+    import datetime as _dt
+
+    _chain_all_dt: list = []
+    for col in dt_cols:
+        if col in df.columns:
+            _chain_all_dt.extend(df[col].dropna().tolist())
+    _chain_last = (
+        max(v.date() for v in _chain_all_dt) if _chain_all_dt else _dt.date.today()
+    )
+    if fallback_date_range is not None:
+        _chain_last = max(_chain_last, fallback_date_range[1])
+    fig.update_xaxes(
+        rangeslider_visible=False,
+        autorange=False,
+        range=[
+            pd.Timestamp(_chain_last - _dt.timedelta(days=9)),
+            pd.Timestamp(_chain_last + _dt.timedelta(days=1)),
+        ],
+    )
     fig.write_html(output_html_path)
     return fig
 
@@ -403,6 +630,7 @@ def plot_spore_driven_model_overview(  # noqa: C901
     spore_counts_result=None,
     spore_counts_path=None,
     title="Spore counts & infection overview",
+    fallback_date_range=None,
 ):
     """
     Interactive HTML overview showing daily spore counts with day-level
@@ -589,7 +817,17 @@ def plot_spore_driven_model_overview(  # noqa: C901
         },
         bargroupgap=0,
     )
-    fig.update_xaxes(rangeslider_visible=True)
+    _all_ov_dates = infection_dates | sc_days | condition_dates
+    _ov_last = max(_all_ov_dates) if _all_ov_dates else _dt.date.today()
+    if fallback_date_range is not None:
+        _ov_last = max(_ov_last, fallback_date_range[1])
+    fig.update_xaxes(
+        rangeslider_visible=True,
+        range=[
+            pd.Timestamp(_ov_last - _dt.timedelta(days=9)),
+            pd.Timestamp(_ov_last + _dt.timedelta(days=1)),
+        ],
+    )
     fig.write_html(output_html_path)
     return fig
 
@@ -605,6 +843,7 @@ def plot_risk_heatmap(  # noqa: C901
     model_parameters=None,
     spore_counts_path=None,
     title="Risk heatmap",
+    fallback_date_range=None,
 ):
     """
     Smartphone-optimised three-row heatmap saved to *output_html_path*.
@@ -694,15 +933,26 @@ def plot_risk_heatmap(  # noqa: C901
     # ------------------------------------------------------------------ #
     # Determine full date range                                           #
     # ------------------------------------------------------------------ #
+    today = _dt.date.today()
     all_dates = set(model_strength_by_day.keys()) | set(spore_count_by_day.keys())
     if not all_dates:
-        fig = go.Figure()
-        fig.write_html(output_html_path)
-        return fig
+        if fallback_date_range is None:
+            fig = go.Figure()
+            fig.write_html(output_html_path)
+            return fig
+        _date_start, _date_end = fallback_date_range
+    else:
+        _date_start = min(all_dates)
+        _date_end = max(all_dates)
+        # Extend to cover forecast dates from the weather data even when no
+        # infection events or spore counts reach that far.
+        if fallback_date_range is not None:
+            _date_start = min(_date_start, fallback_date_range[0])
+            _date_end = max(_date_end, fallback_date_range[1])
 
     dates = []
-    cur = min(all_dates)
-    while cur <= max(all_dates):
+    cur = _date_start
+    while cur <= _date_end:
         dates.append(cur)
         cur += _dt.timedelta(days=1)
 
@@ -875,6 +1125,18 @@ def plot_risk_heatmap(  # noqa: C901
         line={"width": 0},
         layer="above",
     )
+
+    # Semi-transparent white overlay on forecast (future) tiles
+    _tomorrow = today + _dt.timedelta(days=1)
+    if dates and max(dates) >= _tomorrow:
+        fig.add_vrect(
+            x0=pd.Timestamp(_tomorrow),
+            x1=pd.Timestamp(max(dates) + _dt.timedelta(days=1)),
+            fillcolor="white",
+            opacity=0.55,
+            layer="above",
+            line_width=0,
+        )
 
     fig.write_html(output_html_path)
     return fig

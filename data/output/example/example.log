@@ -6,7 +6,7 @@ Livio Ruzzante
 Agroscope Changins (CH), 2023        
 version 1.0        
 
-Runtime start: 2026-03-17 18:57:49.856315
+Runtime start: 2026-03-17 21:18:13.685114
 
 Loading timeseries data from: data/input/2025_meteo_changins.csv
 
@@ -109,5 +109,5 @@ Spore counts flat threshold exceeded. Model will jump to oospore dispersion stag
 Spore counts percent-increase threshold exceeded. Model will jump to sporulation stage.
 
 Model run complete. Infection events details and summary of predicted infection datetimes are stored in 'data/output/'.
-Runtime end: 2026-03-17 18:58:40.600942
-Runtime total: 0:00:50.744627
+Runtime end: 2026-03-17 21:19:03.751384
+Runtime total: 0:00:50.066270

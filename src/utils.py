@@ -21,7 +21,7 @@ class output_files:
         events_text,
         events_dataframe,
         infection_datetimes,
-        pdf_graph,
+        analysis_pdf,
         html_graph,
         analysis_html,
         overview_html,
@@ -34,7 +34,7 @@ class output_files:
         self.events_text = events_text
         self.events_dataframe = events_dataframe
         self.infection_datetimes = infection_datetimes
-        self.pdf_graph = pdf_graph
+        self.analysis_pdf = analysis_pdf
         self.html_graph = html_graph
         self.analysis_html = analysis_html
         self.overview_html = overview_html
@@ -85,18 +85,16 @@ def create_output_filenames(
     processed_file_meteo = output_basename.with_suffix(".processed.csv").resolve()
     model_params = output_basename.with_suffix(".model_params.obj").resolve()
     events_dict = output_basename.with_suffix(".events.obj").resolve()
-    events_text = output_basename.with_suffix(".events.csv").resolve()
-    events_dataframe = output_basename.with_suffix(".events_dataframe.csv").resolve()
+    events_text = output_basename.with_suffix(".events_log.csv").resolve()
+    events_dataframe = output_basename.with_suffix(".events_table.csv").resolve()
     infection_datetimes = output_basename.with_suffix(
         ".infection_datetimes.csv"
     ).resolve()
-    pdf_graph = Path(str(output_basename) + ".basic.pdf").resolve()
-    html_graph = output_basename.with_suffix(".html").resolve()
+    analysis_pdf = output_basename.with_suffix(".analysis.pdf").resolve()
+    html_graph = output_basename.with_suffix(".combined.html").resolve()
     analysis_html = output_basename.with_suffix(".analysis.html").resolve()
     overview_html = output_basename.with_suffix(".overview.html").resolve()
-    decision_support_html = Path(
-        str(output_basename) + ".decision_support_tool.html"
-    ).resolve()
+    decision_support_html = output_basename.with_suffix(".heatmap.html").resolve()
 
     output_filenames = output_files(
         logfile,
@@ -106,7 +104,7 @@ def create_output_filenames(
         events_text,
         events_dataframe,
         infection_datetimes,
-        pdf_graph,
+        analysis_pdf,
         html_graph,
         analysis_html,
         overview_html,

@@ -289,7 +289,8 @@ def main(config: DictConfig):  # noqa: C901
         if config.input_data.get("automated_spore_pull", False):
             api_query = config.input_data.get("spore_counts_api_query")
             if api_query:
-                tmpfile = "data/input/auto_spore_counts.csv"
+                _spore_url_stem = Path(urlparse(api_query).path).stem or "spore_counts"
+                tmpfile = f"data/input/automated_spore_{_spore_url_stem}.csv"
                 Path(tmpfile).parent.mkdir(parents=True, exist_ok=True)
                 try:
                     csvtext = support_decision_tool.fetch_spore_counts(
@@ -321,12 +322,15 @@ def main(config: DictConfig):  # noqa: C901
         logf.write(
             "\nSpore-driven model enabled. Checking spore counts file for algorithmic shortcuts...\n"
         )
+        _season_dates = processed_data["datetime"].dt.date
+        _season_window = (_season_dates.min(), _season_dates.max())
         spore_counts_result = support_decision_tool.check_spore_counts(
             input_spore_file,
             logfile,
             spore_count_threshold=_sdm.get("spore_count_threshold", 40),
             spore_count_lookback_days=_sdm.get("spore_count_lookback_days", 5),
             spore_count_percent_increase=_sdm.get("spore_count_percent_increase", 30),
+            season_window=_season_window,
         )
         if spore_counts_result.get("skip_to_dispersion"):
             logf.write(
@@ -707,6 +711,73 @@ def main(config: DictConfig):  # noqa: C901
         logf.write(
             "\nNo infection events produced (no maturation and no spore count shortcuts triggered).\n"
         )
+
+        # Write empty events dataframe (headers only) so plots can be generated
+        _EMPTY_EVENT_COLS = [
+            "id",
+            "start",
+            "oospore_maturation",
+            "oospore_germination",
+            "oospore_dispersion",
+            "oospore_infection",
+            "completed_incubation",
+            "sporulations",
+            "sporangia_densities",
+            "secondary_infections",
+            "oospore_infection_strength",
+            "secondary_infection_strengths",
+        ]
+        with open(output_files.events_dataframe, "w") as _ef:
+            _ef.write(",".join(_EMPTY_EVENT_COLS) + "\n")
+
+        # Derive fallback date range from the processed weather data
+        _meteo_dates = processed_data["datetime"].dt.date
+        _fallback_range = (_meteo_dates.min(), _meteo_dates.max())
+
+        # Generate all plots even with no infection events
+        plots.plot_model_infection_chains_pdf(
+            output_files.events_dataframe,
+            output_files.analysis_pdf,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            title="Infection analysis: "
+            + (config.input_data.meteo or "automated pull"),
+            fallback_date_range=_fallback_range,
+        )
+
+        analysis_fig = plots.plot_model_infection_chains(
+            output_files.events_dataframe,
+            output_files.analysis_html,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            title="Infection analysis: "
+            + (config.input_data.meteo or "automated pull"),
+            fallback_date_range=_fallback_range,
+        )
+        plots.plot_spore_driven_model_overview(
+            output_files.events_dataframe,
+            output_files.overview_html,
+            model_parameters=config,
+            spore_counts_result=spore_counts_result,
+            spore_counts_path=input_spore_file,
+            title="Spore-driven model overview: "
+            + (config.input_data.meteo or "automated pull"),
+        )
+        risk_heatmap_fig = plots.plot_risk_heatmap(
+            output_files.events_dataframe,
+            output_files.decision_support_html,
+            model_parameters=config,
+            spore_counts_path=input_spore_file,
+            fallback_date_range=_fallback_range,
+        )
+        _spore_graph_url = config.input_data.get("spore_counts_graph") or None
+        plots.write_combined_html(
+            risk_heatmap_fig,
+            analysis_fig,
+            output_files.html_graph,
+            spore_counts_graph_url=_spore_graph_url,
+        )
+
         t_end = datetime.now()
         logf.write(f"Runtime end: {t_end}\nRuntime total: {t_end - t_start}\n")
         if data_pull_stop_event is not None:
@@ -737,9 +808,6 @@ def main(config: DictConfig):  # noqa: C901
 
     # Close the log file.
     logf.close()
-
-    # Plot infection events predictions (PDF only).
-    plots.plot_infection_events_pdf(infection_events, config, output_files.pdf_graph)
 
     with open(output_files.events_dict, "wb") as pickle_file:
         pickle.dump(infection_events, pickle_file)
@@ -776,6 +844,21 @@ def main(config: DictConfig):  # noqa: C901
                         f.write(str(item))
             f.write("\n")
 
+    # Full weather date range — used by plots to extend the default view to
+    # include forecast dates beyond the last infection event or spore count.
+    _meteo_dates = processed_data["datetime"].dt.date
+    _fallback_range = (_meteo_dates.min(), _meteo_dates.max())
+
+    # PDF reproduction of the infection-chain analysis plot.
+    plots.plot_model_infection_chains_pdf(
+        output_files.events_dataframe,
+        output_files.analysis_pdf,
+        model_parameters=config,
+        spore_counts_path=input_spore_file,
+        title="Infection analysis: " + (config.input_data.meteo or "automated pull"),
+        fallback_date_range=_fallback_range,
+    )
+
     # Detailed infection chain plot (developer / analysis view).
     analysis_fig = plots.plot_model_infection_chains(
         output_files.events_dataframe,
@@ -783,6 +866,7 @@ def main(config: DictConfig):  # noqa: C901
         model_parameters=config,
         spore_counts_path=input_spore_file,
         title="Infection analysis: " + (config.input_data.meteo or "automated pull"),
+        fallback_date_range=_fallback_range,
     )
 
     # Spore-driven model overview: spore counts integrated into the algorithm.
@@ -794,6 +878,7 @@ def main(config: DictConfig):  # noqa: C901
         spore_counts_path=input_spore_file,
         title="Spore-driven model overview: "
         + (config.input_data.meteo or "automated pull"),
+        fallback_date_range=_fallback_range,
     )
 
     # Risk heatmap: independent model + spore rows, visual only, smartphone view.
@@ -802,6 +887,7 @@ def main(config: DictConfig):  # noqa: C901
         output_files.decision_support_html,
         model_parameters=config,
         spore_counts_path=input_spore_file,
+        fallback_date_range=_fallback_range,
     )
 
     # Combined mobile HTML: risk heatmap (primary) + infection chains (secondary).
