@@ -6,7 +6,7 @@ Livio Ruzzante
 Agroscope Changins (CH), 2023        
 version 1.0        
 
-Runtime start: 2026-03-17 21:57:10.590129
+Runtime start: 2026-03-19 15:43:52.587357
 
 Loading timeseries data from: data/input/2025_meteo_changins.csv
 
@@ -35,7 +35,7 @@ Setting non-numeric values to NaN (datetime not considered).
 
 0 out-of-range and 0 missing values replaced by interpolated values. 0 missing values in gaps > 6 h left as NaN.
 
-Formatted data stored in: /home/laruzzante/plasmopy/data/output/example/example.processed.csv
+Formatted data stored in: /home/lruzzant/plasmopy/data/output/example/example.processed.csv
 
 Spore count analysis (full dataset, 58 days):
 Condition 1 – flat threshold (any day > 40): True → 6 surge(s) detected
@@ -86,11 +86,11 @@ Dispersion stage anchored at datetime: 2025-08-18 00:00:00+02:00
 Running infection model...
 
 Model parameters:
-	input_data: {'meteo': 'data/input/2025_meteo_changins.csv', 'spore_counts': 'data/input/2025_qPCR_changins.labo.exterieur.csv', 'automated_spore_pull': False, 'spore_counts_api_query': 'https://arialight.ch/changins.labo.exterieur.json', 'spore_counts_graph': 'https://arialight.ch/changins.labo.exterieur.html', 'automated_weather_pull': False, 'weather_api_query': 'https://my.meteoblue.com/packages/basic-1h_agro-1h?apikey=eQvmDLKcy34pPTYA&lat=46.4&lon=6.2&asl=439&format=json'}
+	input_data: {'meteo': 'data/input/2025_meteo_changins.csv', 'spore_counts': 'data/input/2025_qPCR_changins.labo.exterieur.csv', 'automated_spore_pull': False, 'spore_counts_api_query': 'https://your-spore-api-endpoint.example.com/data.json', 'spore_counts_graph': None, 'automated_weather_pull': False, 'weather_api_query': 'https://your-weather-api-endpoint.example.com/data.json'}
 	output: {'directory': 'data/output', 'run_name': 'example'}
 	spore_driven_model: {'enabled': True, 'spore_count_threshold': 40, 'spore_count_lookback_days': 5, 'spore_count_percent_increase': 30}
 	risk_heatmap: {'model_thresholds': [50, 100, 200], 'mildiou_thresholds': [20, 50, 100]}
-	site: {'latitude': 46.4, 'longitude': 6.2, 'elevation': 439.0, 'timezone': 'Europe/Zurich'}
+	site: {'latitude': 46.3966, 'longitude': 6.2317, 'elevation': 439, 'timezone': 'Europe/Zurich'}
 	run_settings: {'algorithmic_time_steps': 1, 'computational_time_steps': 6, 'measurement_time_interval': 10, 'fast_mode': True}
 	data_columns: {'use_columns': [0, 1, 2, 3, 4], 'rename_columns': {0: 'datetime', 1: 'temperature', 2: 'humidity', 3: 'rainfall', 4: 'leaf_wetness'}, 'format_columns': {0: '%d.%m.%Y %H:%M', 1: [-20, 50], 2: [0, 100], 3: [0, 200], 4: [0, 10]}}
 	oospore_maturation: {'date': None, 'base_temperature': 8.0, 'sum_degree_days_threshold': 140.0}
@@ -108,6 +108,6 @@ Spore counts flat threshold exceeded. Model will jump to oospore dispersion stag
 
 Spore counts percent-increase threshold exceeded. Model will jump to sporulation stage.
 
-Model run complete. Infection events details and summary of predicted infection datetimes are stored in 'data/output/'.
-Runtime end: 2026-03-17 21:58:01.403026
-Runtime total: 0:00:50.812897
+Model run complete. Infection events details and summary of predicted infection datetimes are stored in '/home/lruzzant/plasmopy/data/output/example'.
+Runtime end: 2026-03-19 15:45:50.443515
+Runtime total: 0:01:57.856158

@@ -788,7 +788,7 @@ def main(config: DictConfig):  # noqa: C901
         return
 
     logf.write(
-        "\nModel run complete. Infection events details and summary of predicted infection datetimes are stored in 'data/output/'.\n"
+        f"\nModel run complete. Infection events details and summary of predicted infection datetimes are stored in '{output_files.logfile.parent}'.\n"
     )
 
     # End the timer.

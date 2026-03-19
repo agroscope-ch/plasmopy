@@ -63,7 +63,9 @@ spore_driven_model:
 risk_heatmap:
   model_thresholds:   [50, 100, 200]  # [°C·h]   Modèle row band boundaries
   mildiou_thresholds: [20,  50,  100]  # [counts]  Mildiou row band boundaries
-  # Risque thresholds are auto-derived as the pair-wise products of the above.
+  # Risque category is the ceiling of the geometric mean of the Modèle and
+  # Mildiou category indices (1–4), so a zero in one row does not collapse
+  # the combined risk to zero.  No separate thresholds are needed.
 
 # -----------------------------------------------------------------------------
 # SITE PARAMETERS

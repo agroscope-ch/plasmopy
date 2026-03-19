@@ -63,12 +63,12 @@ All outputs are written to `data/output/{run_name}/`:
 | `*.events_table.csv` | Tabular infection event data (datetimes, densities) |
 | `*.infection_datetimes.csv` | Infection datetimes for downstream use |
 | `*.analysis.pdf` | PDF of the full infection chain plot |
-| `*.combined.html` | Mobile-optimised combined view (primary output) |
+| `*.html` | Mobile-optimised combined view (primary output) |
 | `*.analysis.html` | Standalone interactive infection chain plot |
 | `*.overview.html` | Standalone spore counts + infection overview |
 | `*.heatmap.html` | Standalone risk heatmap |
 
-The **combined HTML** (`*.combined.html`) is the primary mobile output. It contains:
+The **combined HTML** (`*.html`) is the primary mobile output. It contains:
 - **Aide à la décision** — smartphone risk heatmap with three rows: *Modèle* (infection strength), *Mildiou* (spore counts), *RISQUE* (visual product of the two);
 - **Modèle détaillé** — full infection chain analysis (toggled by a button).
 
@@ -109,7 +109,7 @@ output:
   run_name: my_run         # all output files named my_run.*; null = derive from meteo filename
 ```
 
-`run_name` may contain dots (e.g. `test.changins.2026`). All dots are treated as part of the name, not as file extensions — output files will be named `test.changins.2026.log`, `test.changins.2026.combined.html`, etc.
+`run_name` may contain dots (e.g. `test.changins.2026`). All dots are treated as part of the name, not as file extensions — output files will be named `test.changins.2026.log`, `test.changins.2026.html`, etc.
 
 ### Key parameters reference
 

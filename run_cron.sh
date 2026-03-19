@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Plasmopy scheduler: runs the model immediately on start, then at every
-# 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00 (local time).
+# 00:30, 03:30, 06:30, 09:30, 12:30, 15:30, 18:30, 21:30 (local time).
 #
 # Start in background:  nohup ./run_cron.sh &
 # Stop:                 kill <PID>   (PID is printed and logged on startup)
@@ -13,6 +13,7 @@ PLASMOPY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGDIR="$PLASMOPY_DIR/logs"
 LOGFILE="$LOGDIR/cron.log"
 INTERVAL=$((3 * 3600))   # 3 hours in seconds
+OFFSET=$((30 * 60))     # 30-minute offset past each 3-hour boundary (e.g. 00:30, 03:30 …)
 
 FTP_HOST="dy3bg.ftp.infomaniak.com/sites/arialight.ch"
 FTP_USER="dy3bg_jeromekasparian"
@@ -33,7 +34,7 @@ run_name = str(out.get("run_name") or "").strip()
 meteo    = str(cfg.get("input_data", {}).get("meteo") or "").strip()
 basename = run_name or (pathlib.Path(meteo).stem if meteo else "")
 if basename:
-    print(pathlib.Path(out_dir) / basename / (basename + ".combined.html"))
+    print(pathlib.Path(out_dir) / basename / (basename + ".html"))
 EOF
 }
 
@@ -45,8 +46,7 @@ upload_html() {
     fi
     local remote_name
     remote_name=$(basename "$html_file")
-    remote_name="${remote_name/.combined/}"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading $(basename "$html_file") as $remote_name to ftp://$FTP_HOST/ ..." >> "$LOGFILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading $remote_name to ftp://$FTP_HOST/ ..." >> "$LOGFILE"
     if curl --silent --show-error \
             -T "$html_file" \
             "ftp://$FTP_HOST/$remote_name" \
@@ -75,17 +75,19 @@ run_model() {
 }
 
 seconds_until_next_slot() {
-    # Seconds to sleep until the next 3-hour boundary in local time.
-    local now_h now_m now_s seconds_into_day remainder
+    # Seconds to sleep until the next HH:30 slot (30 min past each 3-hour boundary).
+    local now_h now_m now_s seconds_into_day shifted
     now_h=$(date +%-H)
     now_m=$(date +%-M)
     now_s=$(date +%-S)
     seconds_into_day=$(( now_h * 3600 + now_m * 60 + now_s ))
-    remainder=$(( seconds_into_day % INTERVAL ))
-    if [ "$remainder" -eq 0 ]; then
-        echo $INTERVAL   # exactly on a boundary → wait a full interval
+    # Shift the clock back by OFFSET so the boundaries align with the :30 slots.
+    # The extra +INTERVAL before the outer % keeps the result non-negative in bash.
+    shifted=$(( ( (seconds_into_day - OFFSET) % INTERVAL + INTERVAL ) % INTERVAL ))
+    if [ "$shifted" -eq 0 ]; then
+        echo $INTERVAL   # exactly on a :30 slot → wait a full interval
     else
-        echo $(( INTERVAL - remainder ))
+        echo $(( INTERVAL - shifted ))
     fi
 }
 
@@ -94,7 +96,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Plasmopy scheduler started (PID $$)" | tee 
 # Run immediately on startup
 run_model
 
-# Then loop: sleep until the next 3-hour boundary, then run again
+# Then loop: sleep until the next HH:30 slot, then run again
 while true; do
     SLEEP_SECS=$(seconds_until_next_slot)
     NEXT=$(date -d "now + ${SLEEP_SECS} seconds" '+%Y-%m-%d %H:%M:%S')

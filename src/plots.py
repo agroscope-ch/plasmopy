@@ -25,7 +25,8 @@ plot_risk_heatmap
     Plotly interactive HTML (smartphone-optimised) — three independent rows:
       Modèle   – mechanistic model infection strength per day (°C·h)
       Mildiou  – spore trap count per day
-      Risque   – display-only product of the two; NOT used in the algorithm
+      Risque   – ceiling of the geometric mean of the Modèle and Mildiou
+                 category indices; display-only, NOT used in the algorithm
     Colour thresholds come from config.risk_heatmap so they can be tuned
     without touching code.
 
@@ -33,6 +34,8 @@ write_combined_html
     Combines plot_risk_heatmap (primary view) and plot_model_infection_chains
     (secondary view) into a single mobile-friendly HTML with a toggle button.
 """
+
+import math
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -852,14 +855,14 @@ def plot_risk_heatmap(  # noqa: C901
     mechanistic model here; this is a purely visual / informative tool:
       Modèle  – daily infection strength from the mechanistic model (°C·h)
       Mildiou – daily spore trap count
-      Risque  – display-only product of the two (strength × count); not
-                used algorithmically in any way
+      Risque  – ceiling of the geometric mean of the Modèle and Mildiou
+                category indices (1–4); display-only, not used algorithmically
 
     Colour-category thresholds are read from config.risk_heatmap so they
     can be adjusted without touching code:
       model_thresholds:   lower boundaries of light-pink / salmon / red bands (°C·h)
       mildiou_thresholds: same for the Mildiou row (counts)
-      Risque thresholds:  auto-derived as pair-wise products of the above
+      Risque:             no separate thresholds — derived from the two category indices
     """
     import datetime as _dt
 
@@ -871,7 +874,6 @@ def plot_risk_heatmap(  # noqa: C901
         _hm = dict(model_parameters.get("risk_heatmap", {}) or {})
     _mt = list(_hm.get("model_thresholds", [50, 100, 200]))
     _st = list(_hm.get("mildiou_thresholds", [10, 20, 30]))
-    _rt = [_mt[i] * _st[i] for i in range(3)]  # pair-wise products for Risque
 
     # ------------------------------------------------------------------ #
     # Load events dataframe                                               #
@@ -982,17 +984,16 @@ def plot_risk_heatmap(  # noqa: C901
         return 4
 
     def _risk_cat(d):
-        c = spore_count_by_day.get(d)
-        if c is None:
-            return 0
-        product = model_strength_by_day.get(d, 0.0) * c
-        if product < _rt[0]:
-            return 1
-        elif product < _rt[1]:
-            return 2
-        elif product < _rt[2]:
-            return 3
-        return 4
+        # RISQUE is the ceiling of the geometric mean of the two category
+        # indices.  Operating on categories (1–4) rather than raw values avoids
+        # the "zero collapse" problem: a measured-zero spore count maps to
+        # category 1 (green), so a high model category still yields a non-zero
+        # combined risk.  Grey (0) is returned only when spore data is absent.
+        mc = _model_cat(d)
+        sc = _spore_cat(d)
+        if sc == 0:
+            return 0  # missing spore data → grey
+        return math.ceil(math.sqrt(mc * sc))
 
     model_cats = [_model_cat(d) for d in dates]
     spore_cats = [_spore_cat(d) for d in dates]
@@ -1009,11 +1010,10 @@ def plot_risk_heatmap(  # noqa: C901
         c = spore_count_by_day.get(d)
         return str(int(c)) if c is not None else "—"
 
+    _risk_labels = {0: "—", 1: "Faible", 2: "Modéré", 3: "Élevé", 4: "Très élevé"}
+
     def _fmt_r(d):
-        c = spore_count_by_day.get(d)
-        if c is None:
-            return "—"
-        return f"{model_strength_by_day.get(d, 0.0) * c:.1f}"
+        return _risk_labels.get(_risk_cat(d), "—")
 
     hover_model = [
         f"<b>{d.strftime('%Y-%m-%d')}</b><br>Infection strength: {_fmt_s(d)}"
@@ -1023,7 +1023,8 @@ def plot_risk_heatmap(  # noqa: C901
         f"<b>{d.strftime('%Y-%m-%d')}</b><br>Spore count: {_fmt_c(d)}" for d in dates
     ]
     hover_risk = [
-        f"<b>{d.strftime('%Y-%m-%d')}</b><br>Risk index: {_fmt_r(d)}" for d in dates
+        f"<b>{d.strftime('%Y-%m-%d')}</b><br>Niveau de risque: {_fmt_r(d)}"
+        for d in dates
     ]
 
     # ------------------------------------------------------------------ #
@@ -1110,17 +1111,20 @@ def plot_risk_heatmap(  # noqa: C901
             "xanchor": "center",
             "x": 0.5,
         },
-        height=280,
+        height=300,
     )
 
+    # White band that visually separates the RISQUE row (index 0) from the
+    # Mildiou row (index 1).  The band is centred on the boundary at y=0.5
+    # and is wide enough to be clearly visible as a gap.
     fig.add_shape(
         type="rect",
         xref="paper",
         yref="y",
         x0=0,
         x1=1,
-        y0=0.48,
-        y1=0.52,
+        y0=0.38,
+        y1=0.62,
         fillcolor="white",
         line={"width": 0},
         layer="above",

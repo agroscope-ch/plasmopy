@@ -93,7 +93,7 @@ def create_output_filenames(
     events_dataframe = _p(".events_table.csv")
     infection_datetimes = _p(".infection_datetimes.csv")
     analysis_pdf = _p(".analysis.pdf")
-    html_graph = _p(".combined.html")
+    html_graph = _p(".html")
     analysis_html = _p(".analysis.html")
     overview_html = _p(".overview.html")
     decision_support_html = _p(".heatmap.html")

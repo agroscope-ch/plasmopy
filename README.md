@@ -98,7 +98,7 @@ Logs are written to `logs/cron.log`. The script runs `make run` at each interval
 
 ### FTP publishing
 
-After each successful run, the script uploads `*.combined.html` (the mobile-optimised combined view) to a remote FTP server. The destination host, username, and password are configured at the top of `run_cron.sh`:
+After each successful run, the script uploads `*.html` (the mobile-optimised combined view) to a remote FTP server. The destination host, username, and password are configured at the top of `run_cron.sh`:
 
 ```bash
 FTP_HOST="hostname/path"
@@ -106,7 +106,7 @@ FTP_USER="username"
 FTP_PASS="password"
 ```
 
-The target filename on the server matches the local basename (e.g. `my_run.combined.html`). Upload status is logged to `logs/cron.log`. If the output file is not found or the upload fails, the model run is still considered successful and the error is logged without aborting the schedule.
+The target filename on the server matches the local basename (e.g. `my_run.html`). Upload status is logged to `logs/cron.log`. If the output file is not found or the upload fails, the model run is still considered successful and the error is logged without aborting the schedule.
 
 > **Security note:** store credentials directly in `run_cron.sh` only on a private server. For shared environments, use a `.netrc` file or environment variables instead.
 
