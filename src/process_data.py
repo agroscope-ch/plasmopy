@@ -72,7 +72,7 @@ def process_data(  # noqa: C901
         # datetime column must always be placed as first column in dataset, as here it is hardcoded to the first index 0.
         processed_data[standard_colnames[0]] = pd.to_datetime(
             processed_data[standard_colnames[0]], format=standard_colformats[0]
-        ).dt.tz_localize(timezone)
+        ).dt.tz_localize(timezone, ambiguous="infer", nonexistent="shift_forward")
     except ValueError:
         logf.write(
             "\nFORMAT DATA ERROR: could not parse datetime column as datetime format.\n"
