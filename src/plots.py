@@ -699,27 +699,53 @@ def plot_model_infection_chains(  # noqa: C901
     var sporeTraceIdx = {spore_trace_idx};
     var weatherVars = {_weather_json};
 
+    /* Outer container — sits below the plot, never overlaps it */
     var bar = document.createElement('div');
-    bar.style.cssText = 'padding:5px 8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;'
-        + 'border-bottom:1px solid #e0e0e0;background:#f8f8f8;font-family:sans-serif;';
+    bar.style.cssText = [
+        'box-sizing:border-box',
+        'width:100%',
+        'padding:10px 12px 12px',
+        'border-top:2px solid #d8d8d8',
+        'background:#f8f8f8',
+        'font-family:sans-serif',
+        'font-size:13px'
+    ].join(';') + ';';
 
+    var ROW_STYLE   = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;';
+    var LABEL_STYLE = 'font-weight:600;color:#444;min-width:80px;flex-shrink:0;';
+    /* Buttons are large enough for comfortable touch targets (min 40 px tall) */
+    var mkBtn = function(txt, borderColor, active) {{
+        var b = document.createElement('button');
+        b.textContent = txt;
+        b.dataset.active = active ? '1' : '0';
+        b.style.cssText = [
+            'padding:9px 14px',
+            'min-height:40px',
+            'flex:1 1 auto',
+            'border-radius:4px',
+            'border:1px solid ' + borderColor,
+            'cursor:pointer',
+            'font-size:13px',
+            'line-height:1',
+            'transition:background 0.15s,color 0.15s'
+        ].join(';') + ';';
+        b.style.background = active ? borderColor : 'white';
+        b.style.color      = active ? 'white'      : borderColor;
+        return b;
+    }};
+
+    /* ── Row 1: spore-axis scale ── */
     if (sporeTraceIdx >= 0) {{
-        var spLbl = document.createElement('span');
-        spLbl.textContent = 'Spores:';
-        spLbl.style.cssText = 'font-size:12px;color:#555;';
-        bar.appendChild(spLbl);
+        var spRow = document.createElement('div');
+        spRow.style.cssText = ROW_STYLE;
 
-        var mkBtn = function(txt, active) {{
-            var b = document.createElement('button');
-            b.textContent = txt;
-            b.dataset.active = active ? '1' : '0';
-            b.style.cssText = 'padding:3px 9px;border-radius:3px;border:1px solid #4a90d9;cursor:pointer;font-size:12px;';
-            b.style.background = active ? '#4a90d9' : 'white';
-            b.style.color    = active ? 'white'   : '#4a90d9';
-            return b;
-        }};
-        var linBtn = mkBtn('Linear', true);
-        var logBtn = mkBtn('Log\u2081\u2080', false);
+        var spLbl = document.createElement('span');
+        spLbl.textContent = 'Spores axis:';
+        spLbl.style.cssText = LABEL_STYLE;
+        spRow.appendChild(spLbl);
+
+        var linBtn = mkBtn('Linear', '#4a90d9', true);
+        var logBtn = mkBtn('Log\u2081\u2080', '#4a90d9', false);
         linBtn.onclick = function() {{
             if (linBtn.dataset.active === '1') return;
             linBtn.dataset.active = '1'; linBtn.style.background = '#4a90d9'; linBtn.style.color = 'white';
@@ -732,48 +758,56 @@ def plot_model_infection_chains(  # noqa: C901
             linBtn.dataset.active  = '0'; linBtn.style.background  = 'white';   linBtn.style.color = '#4a90d9';
             Plotly.relayout(gd, {{'yaxis2.type': 'log', 'yaxis2.autorange': true}});
         }};
-        bar.appendChild(linBtn);
-        bar.appendChild(logBtn);
+        spRow.appendChild(linBtn);
+        spRow.appendChild(logBtn);
+        bar.appendChild(spRow);
     }}
 
+    /* ── Row 2: weather overlays ── */
     if (weatherVars.length > 0) {{
-        if (sporeTraceIdx >= 0) {{
-            var sep = document.createElement('span');
-            sep.style.cssText = 'display:inline-block;width:1px;height:18px;background:#ccc;margin:0 2px;';
-            bar.appendChild(sep);
-        }}
+        var wRow = document.createElement('div');
+        wRow.style.cssText = ROW_STYLE + 'margin-bottom:0;';
+
         var wLbl = document.createElement('span');
         wLbl.textContent = 'M\u00e9t\u00e9o:';
-        wLbl.style.cssText = 'font-size:12px;color:#555;';
-        bar.appendChild(wLbl);
+        wLbl.style.cssText = LABEL_STYLE;
+        wRow.appendChild(wLbl);
+
+        /* Weather buttons fill the remaining width, wrapping to a second line
+           on narrow screens (each gets at least ~120 px before wrapping). */
+        var wBtns = document.createElement('div');
+        wBtns.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;flex:1 1 auto;';
 
         weatherVars.forEach(function(v) {{
-            var btn = document.createElement('button');
-            btn.textContent = v.label;
-            btn.dataset.active = '0';
-            btn.style.cssText = 'padding:3px 9px;border-radius:3px;border:1px solid '+v.color
-                + ';background:white;color:'+v.color+';cursor:pointer;font-size:12px;';
+            var btn = mkBtn(v.label, v.color, false);
+            btn.style.flex = '1 1 120px';
             btn.onclick = function() {{
                 var on = btn.dataset.active === '1';
                 btn.dataset.active = on ? '0' : '1';
                 btn.style.background = on ? 'white' : v.color;
                 btn.style.color      = on ? v.color : 'white';
                 Plotly.restyle(gd, {{visible: !on}}, [v.traceIdx]);
-                var la = {{}}; la[v.yaxis+'.visible'] = !on;
-                if (!on) la[v.yaxis+'.autorange'] = true;
+                var la = {{}}; la[v.yaxis + '.visible'] = !on;
+                if (!on) la[v.yaxis + '.autorange'] = true;
                 Plotly.relayout(gd, la);
             }};
-            bar.appendChild(btn);
+            wBtns.appendChild(btn);
         }});
+        wRow.appendChild(wBtns);
+        bar.appendChild(wRow);
     }}
 
+    /* Insert the control bar AFTER the plot div so it never overlaps it */
     if (bar.childNodes.length > 0) {{
-        gd.parentNode.insertBefore(bar, gd);
+        gd.insertAdjacentElement('afterend', bar);
     }}
 }})();
 """
 
     fig.write_html(output_html_path, div_id=_div_id, post_script=_post_script)
+    # Stash so write_combined_html can re-inject these into the merged HTML.
+    fig._plasmopy_div_id = _div_id
+    fig._plasmopy_post_script = _post_script
     return fig
 
 
@@ -1323,7 +1357,17 @@ def write_combined_html(
     "Spores Mildiou" is added below the toggle, opening that URL in a new tab.
     """
     primary_div = primary_fig.to_html(full_html=False, include_plotlyjs=False)
-    secondary_div = secondary_fig.to_html(full_html=False, include_plotlyjs=False)
+
+    # Re-use the div_id and post_script that plot_model_infection_chains stored
+    # on the figure so the control bar (log10 + weather toggles) works here too.
+    _sec_div_id = getattr(secondary_fig, "_plasmopy_div_id", None)
+    _sec_post_script = getattr(secondary_fig, "_plasmopy_post_script", "")
+    if _sec_div_id:
+        secondary_div = secondary_fig.to_html(
+            full_html=False, include_plotlyjs=False, div_id=_sec_div_id
+        )
+    else:
+        secondary_div = secondary_fig.to_html(full_html=False, include_plotlyjs=False)
 
     spore_btn_html = ""
     if spore_counts_graph_url:
@@ -1332,6 +1376,10 @@ def write_combined_html(
             f"onclick=\"window.open('{spore_counts_graph_url}','_blank')\">"
             f"Graphique spores</button>\n"
         )
+
+    _secondary_post_script_tag = (
+        f"  <script>{_sec_post_script}</script>\n" if _sec_post_script else ""
+    )
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -1377,6 +1425,7 @@ def write_combined_html(
   <div id="secondary-view" class="plot-view">
     {secondary_div}
   </div>
+{_secondary_post_script_tag}
   <button id="toggle-btn" class="nav-btn" onclick="toggleView()">{secondary_label}</button>
 {spore_btn_html}  <p style="text-align:center;color:grey;font-size:12px;margin:4px 0 2px;">Double-cliquez pour dézoomer</p>
   <script>
