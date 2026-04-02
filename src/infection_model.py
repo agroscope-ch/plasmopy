@@ -114,10 +114,26 @@ def get_oospore_maturation_date(
         oospore_maturation_date = pd.to_datetime(
             oospore_maturation_date, format=standard_colformats[0]
         ).tz_localize(timezone)
+        _matching_rows = processed_data[
+            processed_data["datetime"] == oospore_maturation_date
+        ]
+        if _matching_rows.empty:
+            _data_start = processed_data["datetime"].iloc[0]
+            _data_end = processed_data["datetime"].iloc[-1]
+            _msg = (
+                f"\nERROR: manually set oospore maturation date ({oospore_maturation_date}) "
+                f"was not found in the available weather data. "
+                f"Weather data spans {_data_start} to {_data_end}. "
+                f"The manually set date likely falls outside this range (e.g. coordinates were recently changed "
+                f"and the new data file starts after the configured date). "
+                f"Please update the oospore maturation date in the config or provide weather data covering that date.\n"
+            )
+            with open(logfile, "a") as logf:
+                logf.write(_msg)
+            print(_msg)
+            return None, None
         oospore_maturation_datetime_rowindex = processed_data.index.get_loc(
-            processed_data[processed_data["datetime"] == oospore_maturation_date].index[
-                0
-            ]
+            _matching_rows.index[0]
         )
         with open(logfile, "a") as logf:
             logf.write(
