@@ -134,7 +134,7 @@ oospore_germination:
   algorithm: 2                           # germination algorithm variant (1 or 2)
   base_temperature: 8                    # [°C] minimum temperature for germination
   base_duration: 8                       # [h] minimum duration of favourable conditions
-  leaf_wetness_threshold: 10             # [min/10-min interval] minimum leaf wetness
+  leaf_wetness_threshold: 1.0            # [ratio 0–1] minimum leaf wetness (1.0 = fully wet during the measurement interval)
   relative_humidity_threshold: 80        # [%] minimum relative humidity
   moisturization_temperature_threshold: 8.0   # [°C] min temperature for soil moisturization
   moisturization_rainfall_threshold: 5.0      # [mm] min cumulative rainfall for moisturization
@@ -162,7 +162,7 @@ primary_infection:
 # Conditions for sporangiophore emergence from infected tissue after incubation.
 # -----------------------------------------------------------------------------
 sporulation:
-  leaf_wetness_threshold: 0     # [min/10-min interval] minimum leaf wetness
+  leaf_wetness_threshold: 0.0   # [ratio 0–1] minimum leaf wetness (0.0 = any wetness is sufficient)
   min_humidity: 92.0            # [%] minimum relative humidity
   min_temperature: 12.0         # [°C] minimum temperature
   min_darkness_hours: 4.0       # [h] minimum continuous darkness hours required
