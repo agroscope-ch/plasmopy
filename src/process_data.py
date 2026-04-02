@@ -7,6 +7,47 @@ import numpy as np
 import pandas as pd
 
 
+def normalize_leaf_wetness(processed_data, measurement_time_interval, logfile):
+    """
+    **Detect the encoding of leaf_wetness values and normalize to a 0–1 ratio.**
+
+    Two encodings are supported:
+
+    * **Binary** – each value is 0 (dry) or 1 (wet).  Values are already in [0, 1]
+      after interpolation so no conversion is needed.
+    * **Minutes-based** – each value is the number of minutes with effective leaf
+      wetness within the measurement interval (range 0 to ``measurement_time_interval``).
+      These are divided by ``measurement_time_interval`` to yield a 0–1 ratio.
+
+    Detection heuristic: if the maximum observed value (ignoring NaN) is greater
+    than 1, the series is treated as minutes-based and normalized.  Binary or
+    already-normalized series have a maximum ≤ 1 and are left unchanged.
+    """
+    if "leaf_wetness" not in processed_data.columns:
+        return processed_data
+
+    lw = processed_data["leaf_wetness"].dropna()
+
+    with open(logfile, "a") as logf:
+        if lw.empty or lw.max() <= 1.0:
+            logf.write(
+                "\nLeaf wetness detected as binary or already normalized (max <= 1): "
+                "no normalization applied.\n"
+            )
+        else:
+            logf.write(
+                f"\nLeaf wetness detected as minutes-based (max = {lw.max():.1f}): "
+                f"normalizing by measurement_time_interval ({measurement_time_interval} min) "
+                "to ratio [0–1].\n"
+            )
+            processed_data = processed_data.copy()
+            processed_data["leaf_wetness"] = (
+                processed_data["leaf_wetness"] / measurement_time_interval
+            )
+
+    return processed_data
+
+
 def map_to_timegrid(data):
     """
     **Create a complete time grid at selected time interval to which measurement
@@ -185,7 +226,13 @@ def process_data(  # noqa: C901
         f"replaced by interpolated values. "
         f"{large_gap_count} missing values in gaps > 6 h left as NaN.\n"
     )
+    logf.close()
 
+    processed_data = normalize_leaf_wetness(
+        processed_data, measurement_interval, logfile
+    )
+
+    logf = open(logfile, "a")
     try:
         processed_data.to_csv(outfile, index=False)
         logf.write(f"\nFormatted data stored in: {outfile}\n")

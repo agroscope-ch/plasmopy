@@ -753,6 +753,7 @@ def main(config: DictConfig):  # noqa: C901
             title="Infection analysis: "
             + (config.input_data.meteo or "automated pull"),
             fallback_date_range=_fallback_range,
+            weather_data_path=output_files.processed_file_meteo,
         )
         plots.plot_spore_driven_model_overview(
             output_files.events_dataframe,
@@ -867,6 +868,7 @@ def main(config: DictConfig):  # noqa: C901
         spore_counts_path=input_spore_file,
         title="Infection analysis: " + (config.input_data.meteo or "automated pull"),
         fallback_date_range=_fallback_range,
+        weather_data_path=output_files.processed_file_meteo,
     )
 
     # Spore-driven model overview: spore counts integrated into the algorithm.

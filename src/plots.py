@@ -108,6 +108,11 @@ def plot_model_infection_chains_pdf(  # noqa: C901
         "secondary_infections",
     ]
     _event_y = {k: i for i, k in enumerate(_event_keys)}
+    # Pre-compute the fraction of the plot area that lies below y=0 on the main
+    # axis so that the secondary axes (sporangia density, spore counts) can be
+    # given matching negative offsets and y=0 aligns visually with germination.
+    _ax_ylim_lo, _ax_ylim_hi = -0.7, len(_event_keys) - 0.2
+    _zero_frac = -_ax_ylim_lo / (_ax_ylim_hi - _ax_ylim_lo)
     _event_labels = {
         "oospore_germination": "Germination",
         "oospore_dispersion": "Dispersion",
@@ -196,7 +201,8 @@ def plot_model_infection_chains_pdf(  # noqa: C901
             color="darkblue",
             alpha=0.55,
         )
-        ax_spor.set_ylim(0, max_density * 1.1)
+        _spor_top = max_density * 1.1
+        ax_spor.set_ylim(-_spor_top * _zero_frac / (1 - _zero_frac), _spor_top)
         ax_spor.set_ylabel("Sporangia density [sp./cm²]", fontsize=7, color="darkblue")
         ax_spor.tick_params(axis="y", labelsize=7, colors="darkblue")
         ax_spor.spines["right"].set_color("darkblue")
@@ -213,6 +219,8 @@ def plot_model_infection_chains_pdf(  # noqa: C901
             color="lightsteelblue",
             alpha=0.5,
         )
+        _sc_top = max(sc_counts) * 1.1 if sc_counts else 1.0
+        ax_sc.set_ylim(-_sc_top * _zero_frac / (1 - _zero_frac), _sc_top)
         ax_sc.set_ylabel("Daily spore counts", fontsize=7, color="steelblue")
         ax_sc.tick_params(axis="y", labelsize=7, colors="steelblue")
         ax_sc.spines["right"].set_color("steelblue")
@@ -279,7 +287,7 @@ def plot_model_infection_chains_pdf(  # noqa: C901
     # ------------------------------------------------------------------ #
     ax.set_yticks(list(_event_y.values()))
     ax.set_yticklabels([_event_labels[k] for k in _event_keys], fontsize=8)
-    ax.set_ylim(-0.7, len(_event_keys) - 0.2)
+    ax.set_ylim(_ax_ylim_lo, _ax_ylim_hi)
     ax.spines["right"].set_visible(False)
 
     # Auto-compute tick interval so labels never overlap (~0.65 in per label at 7pt/70°)
@@ -349,6 +357,7 @@ def plot_model_infection_chains(  # noqa: C901
     spore_counts_path=None,
     title="Infection analysis",
     fallback_date_range=None,
+    weather_data_path=None,
 ):
     """
     Interactive HTML plot reproducing the Rplot.R visualisation.
@@ -423,6 +432,7 @@ def plot_model_infection_chains(  # noqa: C901
 
     fig = go.Figure()
     sc_max = 1.0  # fallback; overwritten if spore data loads successfully
+    spore_trace_idx = -1  # index of the spore-count bar trace (-1 = not added)
 
     if model_parameters is not None:
         spore_path = spore_counts_path or model_parameters["input_data"]["spore_counts"]
@@ -446,6 +456,7 @@ def plot_model_infection_chains(  # noqa: C901
                         yaxis="y2",
                     )
                 )
+                spore_trace_idx = len(fig.data) - 1
             except Exception:
                 pass
 
@@ -546,6 +557,64 @@ def plot_model_infection_chains(  # noqa: C901
             )
         )
 
+    # ------------------------------------------------------------------ #
+    # Weather overlay traces (hidden by default, toggled via JS buttons)  #
+    # ------------------------------------------------------------------ #
+    _WEATHER_VARS = [
+        ("temperature", "mean", "Temp. (\u00b0C)", "tomato", "y4"),
+        ("humidity", "mean", "Humidity (%)", "mediumseagreen", "y5"),
+        ("rainfall", "sum", "Rainfall (mm)", "cornflowerblue", "y6"),
+        ("leaf_wetness", "mean", "Leaf wetness", "goldenrod", "y7"),
+    ]
+    weather_vars_info: list = []
+    _weather_yaxis_layout: dict = {}
+    if weather_data_path:
+        try:
+            _wdf = pd.read_csv(weather_data_path)
+            _wdf["_wdt"] = pd.to_datetime(_wdf["datetime"], errors="coerce", utc=True)
+            _wdf["_wdate"] = _wdf["_wdt"].dt.date
+            for _wcol, _wagg, _wlabel, _wcolor, _wyax in _WEATHER_VARS:
+                if _wcol not in _wdf.columns:
+                    continue
+                _daily = _wdf.groupby("_wdate")[_wcol].agg(_wagg).reset_index()
+                _daily["_wdate"] = pd.to_datetime(_daily["_wdate"]) + pd.Timedelta(
+                    hours=12
+                )
+                fig.add_trace(
+                    go.Bar(
+                        x=_daily["_wdate"],
+                        y=_daily[_wcol],
+                        name=_wlabel,
+                        marker_color=_wcolor,
+                        opacity=0.7,
+                        yaxis=_wyax,
+                        visible=False,
+                        showlegend=False,
+                        width=86400000,
+                    )
+                )
+                _yax_key = _wyax.replace("y", "yaxis", 1)  # "y4" → "yaxis4"
+                weather_vars_info.append(
+                    {
+                        "traceIdx": len(fig.data) - 1,
+                        "label": _wlabel,
+                        "color": _wcolor,
+                        "yaxis": _yax_key,
+                    }
+                )
+                _weather_yaxis_layout[_yax_key] = {
+                    "title": {"text": _wlabel, "font": {"color": _wcolor}},
+                    "overlaying": "y",
+                    "side": "right",
+                    "autoshift": True,
+                    "visible": False,
+                    "showgrid": False,
+                    "tickcolor": _wcolor,
+                    "tickfont": {"color": _wcolor},
+                }
+        except Exception:
+            pass
+
     fig.update_layout(
         paper_bgcolor="white",
         plot_bgcolor="white",
@@ -597,8 +666,10 @@ def plot_model_infection_chains(  # noqa: C901
         },
         bargroupgap=0,
         margin={"b": 250, "t": 20},
+        **_weather_yaxis_layout,
     )
     import datetime as _dt
+    import json as _json
 
     _chain_all_dt: list = []
     for col in dt_cols:
@@ -617,7 +688,92 @@ def plot_model_infection_chains(  # noqa: C901
             pd.Timestamp(_chain_last + _dt.timedelta(days=1)),
         ],
     )
-    fig.write_html(output_html_path)
+
+    # Build post-render JS that injects the control bar above the plot
+    _div_id = "plasmopy-analysis-plot"
+    _weather_json = _json.dumps(weather_vars_info, ensure_ascii=True)
+    _post_script = f"""
+(function() {{
+    var gd = document.getElementById('{_div_id}');
+    if (!gd) return;
+    var sporeTraceIdx = {spore_trace_idx};
+    var weatherVars = {_weather_json};
+
+    var bar = document.createElement('div');
+    bar.style.cssText = 'padding:5px 8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;'
+        + 'border-bottom:1px solid #e0e0e0;background:#f8f8f8;font-family:sans-serif;';
+
+    if (sporeTraceIdx >= 0) {{
+        var spLbl = document.createElement('span');
+        spLbl.textContent = 'Spores:';
+        spLbl.style.cssText = 'font-size:12px;color:#555;';
+        bar.appendChild(spLbl);
+
+        var mkBtn = function(txt, active) {{
+            var b = document.createElement('button');
+            b.textContent = txt;
+            b.dataset.active = active ? '1' : '0';
+            b.style.cssText = 'padding:3px 9px;border-radius:3px;border:1px solid #4a90d9;cursor:pointer;font-size:12px;';
+            b.style.background = active ? '#4a90d9' : 'white';
+            b.style.color    = active ? 'white'   : '#4a90d9';
+            return b;
+        }};
+        var linBtn = mkBtn('Linear', true);
+        var logBtn = mkBtn('Log\u2081\u2080', false);
+        linBtn.onclick = function() {{
+            if (linBtn.dataset.active === '1') return;
+            linBtn.dataset.active = '1'; linBtn.style.background = '#4a90d9'; linBtn.style.color = 'white';
+            logBtn.dataset.active  = '0'; logBtn.style.background  = 'white';   logBtn.style.color = '#4a90d9';
+            Plotly.relayout(gd, {{'yaxis2.type': 'linear', 'yaxis2.autorange': true}});
+        }};
+        logBtn.onclick = function() {{
+            if (logBtn.dataset.active === '1') return;
+            logBtn.dataset.active = '1'; logBtn.style.background = '#4a90d9'; logBtn.style.color = 'white';
+            linBtn.dataset.active  = '0'; linBtn.style.background  = 'white';   linBtn.style.color = '#4a90d9';
+            Plotly.relayout(gd, {{'yaxis2.type': 'log', 'yaxis2.autorange': true}});
+        }};
+        bar.appendChild(linBtn);
+        bar.appendChild(logBtn);
+    }}
+
+    if (weatherVars.length > 0) {{
+        if (sporeTraceIdx >= 0) {{
+            var sep = document.createElement('span');
+            sep.style.cssText = 'display:inline-block;width:1px;height:18px;background:#ccc;margin:0 2px;';
+            bar.appendChild(sep);
+        }}
+        var wLbl = document.createElement('span');
+        wLbl.textContent = 'M\u00e9t\u00e9o:';
+        wLbl.style.cssText = 'font-size:12px;color:#555;';
+        bar.appendChild(wLbl);
+
+        weatherVars.forEach(function(v) {{
+            var btn = document.createElement('button');
+            btn.textContent = v.label;
+            btn.dataset.active = '0';
+            btn.style.cssText = 'padding:3px 9px;border-radius:3px;border:1px solid '+v.color
+                + ';background:white;color:'+v.color+';cursor:pointer;font-size:12px;';
+            btn.onclick = function() {{
+                var on = btn.dataset.active === '1';
+                btn.dataset.active = on ? '0' : '1';
+                btn.style.background = on ? 'white' : v.color;
+                btn.style.color      = on ? v.color : 'white';
+                Plotly.restyle(gd, {{visible: !on}}, [v.traceIdx]);
+                var la = {{}}; la[v.yaxis+'.visible'] = !on;
+                if (!on) la[v.yaxis+'.autorange'] = true;
+                Plotly.relayout(gd, la);
+            }};
+            bar.appendChild(btn);
+        }});
+    }}
+
+    if (bar.childNodes.length > 0) {{
+        gd.parentNode.insertBefore(bar, gd);
+    }}
+}})();
+"""
+
+    fig.write_html(output_html_path, div_id=_div_id, post_script=_post_script)
     return fig
 
 
