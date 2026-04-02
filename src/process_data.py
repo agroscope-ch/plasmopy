@@ -170,7 +170,9 @@ def process_data(  # noqa: C901
     large_gap_count = int(large_gap_mask.values.sum())
 
     # Interpolate (fills all NaN, including large-gap positions temporarily).
-    processed_data = processed_data.interpolate(method="linear")
+    processed_data = processed_data.infer_objects(copy=False).interpolate(
+        method="linear"
+    )
 
     # Restore NaN for positions that belong to gaps exceeding the 6-hour threshold.
     for col in processed_data.columns[1:]:
