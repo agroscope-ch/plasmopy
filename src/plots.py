@@ -1372,9 +1372,9 @@ def write_combined_html(
     spore_btn_html = ""
     if spore_counts_graph_url:
         spore_btn_html = (
-            f'  <button class="nav-btn" '
-            f"onclick=\"window.open('{spore_counts_graph_url}','_blank')\">"
-            f"Graphique spores</button>\n"
+            f'  <a class="nav-btn" '
+            f'href="{spore_counts_graph_url}" target="_blank" rel="noopener noreferrer">'
+            f"Graphique spores</a>\n"
         )
 
     _secondary_post_script_tag = (
@@ -1405,6 +1405,7 @@ def write_combined_html(
       cursor: pointer;
       font-size: 14px;
       text-align: center;
+      text-decoration: none;
     }}
     .nav-btn:hover {{ background: #1a5276; }}
     .modebar-container {{
