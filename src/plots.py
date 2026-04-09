@@ -1371,9 +1371,10 @@ def write_combined_html(
 
     spore_btn_html = ""
     if spore_counts_graph_url:
+        # Navigate in the same tab so iOS WKWebView (Mail, WhatsApp, iMessage…)
+        # does not silently block the navigation the way it does with target="_blank".
         spore_btn_html = (
-            f'  <a class="nav-btn" '
-            f'href="{spore_counts_graph_url}" target="_blank" rel="noopener noreferrer">'
+            f'  <a class="nav-btn" href="{spore_counts_graph_url}">'
             f"Graphique spores</a>\n"
         )
 
