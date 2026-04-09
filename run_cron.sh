@@ -15,9 +15,9 @@ LOGFILE="$LOGDIR/cron.log"
 INTERVAL=$((3 * 3600))   # 3 hours in seconds
 OFFSET=$((30 * 60))     # 30-minute offset past each 3-hour boundary (e.g. 00:30, 03:30 …)
 
-FTP_HOST="dy3bg.ftp.infomaniak.com/sites/arialight.ch"
-FTP_USER="dy3bg_jeromekasparian"
-FTP_PASS="4TW100fs_Infomaniak"
+FTP_HOST=""
+FTP_USER=""
+FTP_PASS=""
 
 mkdir -p "$LOGDIR"
 
