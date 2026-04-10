@@ -15,9 +15,15 @@ LOGFILE="$LOGDIR/cron.log"
 INTERVAL=$((3 * 3600))   # 3 hours in seconds
 OFFSET=$((30 * 60))     # 30-minute offset past each 3-hour boundary (e.g. 00:30, 03:30 …)
 
+SECRETS_FILE="$PLASMOPY_DIR/config/secrets.yaml"
 FTP_HOST=""
 FTP_USER=""
 FTP_PASS=""
+if [ -f "$SECRETS_FILE" ]; then
+    FTP_HOST=$(python3 -c "import yaml,sys; d=yaml.safe_load(open('$SECRETS_FILE')); print(d.get('ftp',{}).get('host',''))")
+    FTP_USER=$(python3 -c "import yaml,sys; d=yaml.safe_load(open('$SECRETS_FILE')); print(d.get('ftp',{}).get('user',''))")
+    FTP_PASS=$(python3 -c "import yaml,sys; d=yaml.safe_load(open('$SECRETS_FILE')); print(d.get('ftp',{}).get('pass',''))")
+fi
 
 mkdir -p "$LOGDIR"
 
