@@ -154,7 +154,7 @@ When spore count data is loaded (from a file or API), only records whose date fa
 │   ├── infection_functions         # store the algorithms for each infection stage
 │   ├── plots.py                    # all plotting functions (PDF, HTML, risk heatmap, combined view)
 │   ├── utils.py                    # utility functions (output filenames, sun times, daily stats)
-│   ├── support_decision_tool.py    # spore count analysis and API fetch for the spore-driven model
+│   ├── decision_support_tool.py    # spore count analysis and API fetch for the spore-driven model
 │   └── automated_weather_pull.py   # background weather data fetch and merge from Meteoblue API
 └── tests                           # store tests
     ├── __init__.py                 # make tests a Python module

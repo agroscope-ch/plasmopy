@@ -23,9 +23,9 @@ plot_spore_driven_model_overview
 
 plot_risk_heatmap
     Plotly interactive HTML (smartphone-optimised) — three independent rows:
-      Modèle   – mechanistic model infection strength per day (°C·h)
-      Mildiou  – spore trap count per day
-      Risque   – ceiling of the geometric mean of the Modèle and Mildiou
+      Weather      – mechanistic model infection strength per day (°C·h)
+      Spore Counts – spore trap count per day
+      Risk         – ceiling of the geometric mean of the Weather and Spore Counts
                  category indices; display-only, NOT used in the algorithm
     Colour thresholds come from config.risk_heatmap so they can be tuned
     without touching code.
@@ -1049,16 +1049,16 @@ def plot_risk_heatmap(  # noqa: C901
 
     The three rows are INDEPENDENT — spore counts are never fed into the
     mechanistic model here; this is a purely visual / informative tool:
-      Modèle  – daily infection strength from the mechanistic model (°C·h)
-      Mildiou – daily spore trap count
-      Risque  – ceiling of the geometric mean of the Modèle and Mildiou
+      Weather      – daily infection strength from the mechanistic model (°C·h)
+      Spore Counts – daily spore trap count
+      Risk         – ceiling of the geometric mean of the Weather and Spore Counts
                 category indices (1–4); display-only, not used algorithmically
 
     Colour-category thresholds are read from config.risk_heatmap so they
     can be adjusted without touching code:
       model_thresholds:   lower boundaries of light-pink / salmon / red bands (°C·h)
-      mildiou_thresholds: same for the Mildiou row (counts)
-      Risque:             no separate thresholds — derived from the two category indices
+      spore_count_thresholds: same for the Spore-count row (counts)
+      Risk:               no separate thresholds — derived from the two category indices
     """
     import datetime as _dt
 
@@ -1069,7 +1069,7 @@ def plot_risk_heatmap(  # noqa: C901
     if model_parameters is not None:
         _hm = dict(model_parameters.get("risk_heatmap", {}) or {})
     _mt = list(_hm.get("model_thresholds", [50, 100, 200]))
-    _st = list(_hm.get("mildiou_thresholds", [10, 20, 30]))
+    _st = list(_hm.get("spore_count_thresholds", [10, 20, 30]))
 
     # ------------------------------------------------------------------ #
     # Load events dataframe                                               #
@@ -1084,25 +1084,47 @@ def plot_risk_heatmap(  # noqa: C901
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # ---- Filter out spore-count shortcut infections ---- #
+    # Shortcuts are events where germination is absent but the model jumped
+    # directly to dispersion or sporulation because spore counts met the
+    # threshold.  These must not appear in the weather-only "Weather" row.
+    for _scol in ("oospore_germination", "oospore_dispersion", "sporulations"):
+        if _scol in df.columns:
+            df[_scol] = pd.to_datetime(df[_scol], errors="coerce")
+    _has_germ = "oospore_germination" in df.columns
+    _has_disp = "oospore_dispersion" in df.columns
+    _has_spor = "sporulations" in df.columns
+    if _has_germ and (_has_disp or _has_spor):
+        _shortcut = df["oospore_germination"].isna() & (
+            (df["oospore_dispersion"].notna() if _has_disp else False)
+            | (df["sporulations"].notna() if _has_spor else False)
+        )
+        df = df[~_shortcut]
+
     model_strength_by_day: dict = {}
+    infection_days: set = set()  # calendar dates with a successful infection
     if "oospore_infection" in df.columns:
         for _, row in df.iterrows():
             dt = row.get("oospore_infection")
             s = row.get("oospore_infection_strength")
-            if pd.notna(dt) and pd.notna(s):
-                d = dt.date()
-                model_strength_by_day[d] = max(
-                    model_strength_by_day.get(d, 0.0), float(s)
-                )
+            if pd.notna(dt):
+                infection_days.add(dt.date())
+                if pd.notna(s):
+                    d = dt.date()
+                    model_strength_by_day[d] = max(
+                        model_strength_by_day.get(d, 0.0), float(s)
+                    )
     if "secondary_infections" in df.columns:
         for _, row in df.iterrows():
             dt = row.get("secondary_infections")
             s = row.get("secondary_infection_strengths")
-            if pd.notna(dt) and pd.notna(s):
-                d = dt.date()
-                model_strength_by_day[d] = max(
-                    model_strength_by_day.get(d, 0.0), float(s)
-                )
+            if pd.notna(dt):
+                infection_days.add(dt.date())
+                if pd.notna(s):
+                    d = dt.date()
+                    model_strength_by_day[d] = max(
+                        model_strength_by_day.get(d, 0.0), float(s)
+                    )
 
     # ------------------------------------------------------------------ #
     # Load and aggregate daily spore counts                               #
@@ -1162,6 +1184,12 @@ def plot_risk_heatmap(  # noqa: C901
     def _model_cat(d):
         s = model_strength_by_day.get(d, 0.0)
         if s < _mt[0]:
+            # Degree-hours accumulate across multiple days before reaching
+            # the infection threshold, so the completing day's strength can
+            # be below _mt[0].  Bump to category 2 when a successful
+            # weather-driven infection actually occurred on this day.
+            if d in infection_days:
+                return 2
             return 1
         elif s < _mt[1]:
             return 2
@@ -1182,15 +1210,18 @@ def plot_risk_heatmap(  # noqa: C901
         return 4
 
     def _risk_cat(d):
-        # RISQUE is the ceiling of the geometric mean of the two category
-        # indices.  Operating on categories (1–4) rather than raw values avoids
-        # the "zero collapse" problem: a measured-zero spore count maps to
-        # category 1 (green), so a high model category still yields a non-zero
-        # combined risk.  Grey (0) is returned only when spore data is absent.
+        # RISK combines the model and spore-count categories:
+        #   • If the model shows no weather-driven risk (mc == 1, green),
+        #     the overall risk is also green regardless of spore counts.
+        #   • If spore data is absent (sc == 0), fall back to the model
+        #     category alone.
+        #   • Otherwise, use the geometric mean of the two categories.
         mc = _model_cat(d)
         sc = _spore_cat(d)
+        if mc <= 1:
+            return 1  # no weather-driven risk → green
         if sc == 0:
-            return 0  # missing spore data → grey
+            return mc  # missing spore data → use model category
         return math.ceil(math.sqrt(mc * sc))
 
     model_cats = [_model_cat(d) for d in dates]
@@ -1208,7 +1239,7 @@ def plot_risk_heatmap(  # noqa: C901
         c = spore_count_by_day.get(d)
         return str(int(c)) if c is not None else "—"
 
-    _risk_labels = {0: "—", 1: "Faible", 2: "Modéré", 3: "Élevé", 4: "Très élevé"}
+    _risk_labels = {0: "—", 1: "Low", 2: "Moderate", 3: "High", 4: "Very high"}
 
     def _fmt_r(d):
         return _risk_labels.get(_risk_cat(d), "—")
@@ -1221,8 +1252,7 @@ def plot_risk_heatmap(  # noqa: C901
         f"<b>{d.strftime('%Y-%m-%d')}</b><br>Spore count: {_fmt_c(d)}" for d in dates
     ]
     hover_risk = [
-        f"<b>{d.strftime('%Y-%m-%d')}</b><br>Niveau de risque: {_fmt_r(d)}"
-        for d in dates
+        f"<b>{d.strftime('%Y-%m-%d')}</b><br>Risk level: {_fmt_r(d)}" for d in dates
     ]
 
     # ------------------------------------------------------------------ #
@@ -1248,7 +1278,7 @@ def plot_risk_heatmap(  # noqa: C901
     fig = go.Figure(
         go.Heatmap(
             x=x_ts,
-            y=["Risk", "Mildiou", "Model"],
+            y=["Risk", "Spore Counts", "Weather"],
             z=z,
             customdata=customdata,
             hovertemplate="%{customdata}<extra></extra>",
@@ -1263,10 +1293,10 @@ def plot_risk_heatmap(  # noqa: C901
 
     for color, label in [
         ("#D4D4D4", "Données manquantes"),
-        ("#90EE90", "Faible"),
-        ("#FFB0C4", "Modéré"),
-        ("#FA8072", "Élevé"),
-        ("#CC0000", "Très élevé"),
+        ("#90EE90", "Low"),
+        ("#FFB0C4", "Moderate"),
+        ("#FA8072", "High"),
+        ("#CC0000", "Very high"),
     ]:
         fig.add_trace(
             go.Scatter(
@@ -1299,8 +1329,8 @@ def plot_risk_heatmap(  # noqa: C901
             "showgrid": False,
             "tickfont": {"size": 13},
             "tickmode": "array",
-            "ticktext": ["<b>RISQUE</b>", "Mildiou", "Modèle"],
-            "tickvals": ["Risk", "Mildiou", "Model"],
+            "ticktext": ["<b>RISK</b>", "Spore Counts", "Weather"],
+            "tickvals": ["Risk", "Spore Counts", "Weather"],
         },
         legend={
             "orientation": "h",
@@ -1312,8 +1342,8 @@ def plot_risk_heatmap(  # noqa: C901
         height=300,
     )
 
-    # White band that visually separates the RISQUE row (index 0) from the
-    # Mildiou row (index 1).  The band is centred on the boundary at y=0.5
+    # White band that visually separates the RISK row (index 0) from the
+    # Spore Counts row (index 1).  The band is centred on the boundary at y=0.5
     # and is wide enough to be clearly visible as a gap.
     fig.add_shape(
         type="rect",
@@ -1353,8 +1383,8 @@ def write_combined_html(
     primary_fig,
     secondary_fig,
     output_path,
-    primary_label="Aide à la décision",
-    secondary_label="Modèle détaillé",
+    primary_label="Decision support",
+    secondary_label="Detailed model",
     spore_counts_graph_url=None,
 ):
     """
@@ -1362,7 +1392,7 @@ def write_combined_html(
     view and a toggle button at the bottom that switches to *secondary_fig*.
 
     If *spore_counts_graph_url* is provided a second button labelled
-    "Spores Mildiou" is added below the toggle, opening that URL in a new tab.
+    "Spore graph" is added below the toggle, opening that URL in a new tab.
     """
     primary_div = primary_fig.to_html(full_html=False, include_plotlyjs=False)
 
@@ -1383,7 +1413,7 @@ def write_combined_html(
         # does not silently block the navigation the way it does with target="_blank".
         spore_btn_html = (
             f'  <a class="nav-btn" href="{spore_counts_graph_url}">'
-            f"Graphique spores</a>\n"
+            f"Spore graph</a>\n"
         )
 
     _secondary_post_script_tag = (
@@ -1437,7 +1467,7 @@ def write_combined_html(
   </div>
 {_secondary_post_script_tag}
   <button id="toggle-btn" class="nav-btn" onclick="toggleView()">{secondary_label}</button>
-{spore_btn_html}  <p style="text-align:center;color:grey;font-size:12px;margin:4px 0 2px;">Double-cliquez pour dézoomer</p>
+{spore_btn_html}  <p style="text-align:center;color:grey;font-size:12px;margin:4px 0 2px;">Double-click to zoom out</p>
   <script>
     function resizeActivePlots() {{
       document.querySelectorAll('.plot-view.active .js-plotly-plot').forEach(function(el) {{

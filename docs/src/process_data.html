@@ -36,6 +36,47 @@ import numpy as np
 import pandas as pd
 
 
+def normalize_leaf_wetness(processed_data, measurement_time_interval, logfile):
+    &#34;&#34;&#34;
+    **Detect the encoding of leaf_wetness values and normalize to a 0–1 ratio.**
+
+    Two encodings are supported:
+
+    * **Binary** – each value is 0 (dry) or 1 (wet).  Values are already in [0, 1]
+      after interpolation so no conversion is needed.
+    * **Minutes-based** – each value is the number of minutes with effective leaf
+      wetness within the measurement interval (range 0 to ``measurement_time_interval``).
+      These are divided by ``measurement_time_interval`` to yield a 0–1 ratio.
+
+    Detection heuristic: if the maximum observed value (ignoring NaN) is greater
+    than 1, the series is treated as minutes-based and normalized.  Binary or
+    already-normalized series have a maximum ≤ 1 and are left unchanged.
+    &#34;&#34;&#34;
+    if &#34;leaf_wetness&#34; not in processed_data.columns:
+        return processed_data
+
+    lw = processed_data[&#34;leaf_wetness&#34;].dropna()
+
+    with open(logfile, &#34;a&#34;) as logf:
+        if lw.empty or lw.max() &lt;= 1.0:
+            logf.write(
+                &#34;\nLeaf wetness detected as binary or already normalized (max &lt;= 1): &#34;
+                &#34;no normalization applied.\n&#34;
+            )
+        else:
+            logf.write(
+                f&#34;\nLeaf wetness detected as minutes-based (max = {lw.max():.1f}): &#34;
+                f&#34;normalizing by measurement_time_interval ({measurement_time_interval} min) &#34;
+                &#34;to ratio [0–1].\n&#34;
+            )
+            processed_data = processed_data.copy()
+            processed_data[&#34;leaf_wetness&#34;] = (
+                processed_data[&#34;leaf_wetness&#34;] / measurement_time_interval
+            )
+
+    return processed_data
+
+
 def map_to_timegrid(data):
     &#34;&#34;&#34;
     **Create a complete time grid at selected time interval to which measurement
@@ -101,7 +142,7 @@ def process_data(  # noqa: C901
         # datetime column must always be placed as first column in dataset, as here it is hardcoded to the first index 0.
         processed_data[standard_colnames[0]] = pd.to_datetime(
             processed_data[standard_colnames[0]], format=standard_colformats[0]
-        ).dt.tz_localize(timezone)
+        ).dt.tz_localize(timezone, ambiguous=&#34;infer&#34;, nonexistent=&#34;shift_forward&#34;)
     except ValueError:
         logf.write(
             &#34;\nFORMAT DATA ERROR: could not parse datetime column as datetime format.\n&#34;
@@ -199,7 +240,9 @@ def process_data(  # noqa: C901
     large_gap_count = int(large_gap_mask.values.sum())
 
     # Interpolate (fills all NaN, including large-gap positions temporarily).
-    processed_data = processed_data.interpolate(method=&#34;linear&#34;)
+    processed_data = processed_data.infer_objects(copy=False).interpolate(
+        method=&#34;linear&#34;
+    )
 
     # Restore NaN for positions that belong to gaps exceeding the 6-hour threshold.
     for col in processed_data.columns[1:]:
@@ -212,7 +255,13 @@ def process_data(  # noqa: C901
         f&#34;replaced by interpolated values. &#34;
         f&#34;{large_gap_count} missing values in gaps &gt; 6 h left as NaN.\n&#34;
     )
+    logf.close()
 
+    processed_data = normalize_leaf_wetness(
+        processed_data, measurement_interval, logfile
+    )
+
+    logf = open(logfile, &#34;a&#34;)
     try:
         processed_data.to_csv(outfile, index=False)
         logf.write(f&#34;\nFormatted data stored in: {outfile}\n&#34;)
@@ -250,6 +299,69 @@ due to missing data.</strong></p></div>
     data will be mapped onto, in order to avoid missing rows and uneven time intervals
     due to missing data.**
     &#34;&#34;&#34;</code></pre>
+</details>
+</dd>
+<dt id="src.process_data.normalize_leaf_wetness"><code class="name flex">
+<span>def <span class="ident">normalize_leaf_wetness</span></span>(<span>processed_data, measurement_time_interval, logfile)</span>
+</code></dt>
+<dd>
+<div class="desc"><p><strong>Detect the encoding of leaf_wetness values and normalize to a 0–1 ratio.</strong></p>
+<p>Two encodings are supported:</p>
+<ul>
+<li><strong>Binary</strong> – each value is 0 (dry) or 1 (wet).
+Values are already in [0, 1]
+after interpolation so no conversion is needed.</li>
+<li><strong>Minutes-based</strong> – each value is the number of minutes with effective leaf
+wetness within the measurement interval (range 0 to <code>measurement_time_interval</code>).
+These are divided by <code>measurement_time_interval</code> to yield a 0–1 ratio.</li>
+</ul>
+<p>Detection heuristic: if the maximum observed value (ignoring NaN) is greater
+than 1, the series is treated as minutes-based and normalized.
+Binary or
+already-normalized series have a maximum ≤ 1 and are left unchanged.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def normalize_leaf_wetness(processed_data, measurement_time_interval, logfile):
+    &#34;&#34;&#34;
+    **Detect the encoding of leaf_wetness values and normalize to a 0–1 ratio.**
+
+    Two encodings are supported:
+
+    * **Binary** – each value is 0 (dry) or 1 (wet).  Values are already in [0, 1]
+      after interpolation so no conversion is needed.
+    * **Minutes-based** – each value is the number of minutes with effective leaf
+      wetness within the measurement interval (range 0 to ``measurement_time_interval``).
+      These are divided by ``measurement_time_interval`` to yield a 0–1 ratio.
+
+    Detection heuristic: if the maximum observed value (ignoring NaN) is greater
+    than 1, the series is treated as minutes-based and normalized.  Binary or
+    already-normalized series have a maximum ≤ 1 and are left unchanged.
+    &#34;&#34;&#34;
+    if &#34;leaf_wetness&#34; not in processed_data.columns:
+        return processed_data
+
+    lw = processed_data[&#34;leaf_wetness&#34;].dropna()
+
+    with open(logfile, &#34;a&#34;) as logf:
+        if lw.empty or lw.max() &lt;= 1.0:
+            logf.write(
+                &#34;\nLeaf wetness detected as binary or already normalized (max &lt;= 1): &#34;
+                &#34;no normalization applied.\n&#34;
+            )
+        else:
+            logf.write(
+                f&#34;\nLeaf wetness detected as minutes-based (max = {lw.max():.1f}): &#34;
+                f&#34;normalizing by measurement_time_interval ({measurement_time_interval} min) &#34;
+                &#34;to ratio [0–1].\n&#34;
+            )
+            processed_data = processed_data.copy()
+            processed_data[&#34;leaf_wetness&#34;] = (
+                processed_data[&#34;leaf_wetness&#34;] / measurement_time_interval
+            )
+
+    return processed_data</code></pre>
 </details>
 </dd>
 <dt id="src.process_data.process_data"><code class="name flex">
@@ -337,7 +449,7 @@ store the processed data in a '.csv' file.</p></div>
         # datetime column must always be placed as first column in dataset, as here it is hardcoded to the first index 0.
         processed_data[standard_colnames[0]] = pd.to_datetime(
             processed_data[standard_colnames[0]], format=standard_colformats[0]
-        ).dt.tz_localize(timezone)
+        ).dt.tz_localize(timezone, ambiguous=&#34;infer&#34;, nonexistent=&#34;shift_forward&#34;)
     except ValueError:
         logf.write(
             &#34;\nFORMAT DATA ERROR: could not parse datetime column as datetime format.\n&#34;
@@ -435,7 +547,9 @@ store the processed data in a '.csv' file.</p></div>
     large_gap_count = int(large_gap_mask.values.sum())
 
     # Interpolate (fills all NaN, including large-gap positions temporarily).
-    processed_data = processed_data.interpolate(method=&#34;linear&#34;)
+    processed_data = processed_data.infer_objects(copy=False).interpolate(
+        method=&#34;linear&#34;
+    )
 
     # Restore NaN for positions that belong to gaps exceeding the 6-hour threshold.
     for col in processed_data.columns[1:]:
@@ -448,7 +562,13 @@ store the processed data in a '.csv' file.</p></div>
         f&#34;replaced by interpolated values. &#34;
         f&#34;{large_gap_count} missing values in gaps &gt; 6 h left as NaN.\n&#34;
     )
+    logf.close()
 
+    processed_data = normalize_leaf_wetness(
+        processed_data, measurement_interval, logfile
+    )
+
+    logf = open(logfile, &#34;a&#34;)
     try:
         processed_data.to_csv(outfile, index=False)
         logf.write(f&#34;\nFormatted data stored in: {outfile}\n&#34;)
@@ -481,6 +601,7 @@ store the processed data in a '.csv' file.</p></div>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
 <li><code><a title="src.process_data.map_to_timegrid" href="#src.process_data.map_to_timegrid">map_to_timegrid</a></code></li>
+<li><code><a title="src.process_data.normalize_leaf_wetness" href="#src.process_data.normalize_leaf_wetness">normalize_leaf_wetness</a></code></li>
 <li><code><a title="src.process_data.process_data" href="#src.process_data.process_data">process_data</a></code></li>
 </ul>
 </li>

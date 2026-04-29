@@ -69,8 +69,8 @@ All outputs are written to `data/output/{run_name}/`:
 | `*.heatmap.html` | Standalone risk heatmap |
 
 The **combined HTML** (`*.html`) is the primary mobile output. It contains:
-- **Aide à la décision** — smartphone risk heatmap with three rows: *Modèle* (infection strength), *Mildiou* (spore counts), *RISQUE* (visual product of the two);
-- **Modèle détaillé** — full infection chain analysis (toggled by a button).
+- **Decision support** — smartphone risk heatmap with three rows: *Weather* (infection strength), *Spore Counts* (spore counts), *RISK* (visual product of the two);
+- **Detailed model** — full infection chain analysis (toggled by a button).
 
 Future forecast dates (beyond today) are shown with reduced opacity in the heatmap and analysis plots.
 
@@ -203,16 +203,16 @@ The heatmap (`*.heatmap.html`, also the primary view in `*.combined.html`) shows
 
 | Row | Source | Role |
 |-----|--------|------|
-| **Modèle** | Daily infection strength [°C·h] | From the mechanistic model |
-| **Mildiou** | Daily spore counts | From trap data |
-| **RISQUE** | Product of the two above | Visual only — not used in the model |
+| **Weather** | Daily infection strength [°C·h] | From the mechanistic model |
+| **Spore Counts** | Daily spore counts | From trap data |
+| **RISK** | Product of the two above | Visual only — not used in the model |
 
 Colour thresholds for each row are configurable:
 
 ```yaml
 risk_heatmap:
   model_thresholds:   [50, 100, 200]   # [°C·h]   lower bounds for pink / salmon / red
-  mildiou_thresholds: [20,  50,  100]  # [counts]  lower bounds for pink / salmon / red
+  spore_count_thresholds: [20,  50,  100]  # [counts]  lower bounds for pink / salmon / red
 ```
 
 Grey tiles indicate missing spore data. Transparent tiles indicate forecast (future) dates.

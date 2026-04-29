@@ -45,12 +45,12 @@ This plot is the visual output of the spore_driven_model
 algorithm: spore counts are actively fed into the model to trigger shortcuts.</p>
 <p>plot_risk_heatmap
 Plotly interactive HTML (smartphone-optimised) — three independent rows:
-Modèle
+Weather
 – mechanistic model infection strength per day (°C·h)
-Mildiou
-– spore trap count per day
-Risque
-– display-only product of the two; NOT used in the algorithm
+Spore Counts – spore trap count per day
+Risk
+– ceiling of the geometric mean of the Weather and Spore Counts
+category indices; display-only, NOT used in the algorithm
 Colour thresholds come from config.risk_heatmap so they can be tuned
 without touching code.</p>
 <p>write_combined_html
@@ -85,9 +85,10 @@ plot_spore_driven_model_overview
 
 plot_risk_heatmap
     Plotly interactive HTML (smartphone-optimised) — three independent rows:
-      Modèle   – mechanistic model infection strength per day (°C·h)
-      Mildiou  – spore trap count per day
-      Risque   – display-only product of the two; NOT used in the algorithm
+      Weather      – mechanistic model infection strength per day (°C·h)
+      Spore Counts – spore trap count per day
+      Risk         – ceiling of the geometric mean of the Weather and Spore Counts
+                 category indices; display-only, NOT used in the algorithm
     Colour thresholds come from config.risk_heatmap so they can be tuned
     without touching code.
 
@@ -95,6 +96,8 @@ write_combined_html
     Combines plot_risk_heatmap (primary view) and plot_model_infection_chains
     (secondary view) into a single mobile-friendly HTML with a toggle button.
 &#34;&#34;&#34;
+
+import math
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -146,7 +149,9 @@ def plot_model_infection_chains_pdf(  # noqa: C901
     ]
     for col in _dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
+            df[col] = pd.to_datetime(
+                df[col], errors=&#34;coerce&#34;, utc=True, format=&#34;ISO8601&#34;
+            )
     if &#34;sporangia_densities&#34; in df.columns:
         df[&#34;sporangia_densities&#34;] = pd.to_numeric(
             df[&#34;sporangia_densities&#34;], errors=&#34;coerce&#34;
@@ -167,6 +172,11 @@ def plot_model_infection_chains_pdf(  # noqa: C901
         &#34;secondary_infections&#34;,
     ]
     _event_y = {k: i for i, k in enumerate(_event_keys)}
+    # Pre-compute the fraction of the plot area that lies below y=0 on the main
+    # axis so that the secondary axes (sporangia density, spore counts) can be
+    # given matching negative offsets and y=0 aligns visually with germination.
+    _ax_ylim_lo, _ax_ylim_hi = -0.7, len(_event_keys) - 0.2
+    _zero_frac = -_ax_ylim_lo / (_ax_ylim_hi - _ax_ylim_lo)
     _event_labels = {
         &#34;oospore_germination&#34;: &#34;Germination&#34;,
         &#34;oospore_dispersion&#34;: &#34;Dispersion&#34;,
@@ -255,7 +265,8 @@ def plot_model_infection_chains_pdf(  # noqa: C901
             color=&#34;darkblue&#34;,
             alpha=0.55,
         )
-        ax_spor.set_ylim(0, max_density * 1.1)
+        _spor_top = max_density * 1.1
+        ax_spor.set_ylim(-_spor_top * _zero_frac / (1 - _zero_frac), _spor_top)
         ax_spor.set_ylabel(&#34;Sporangia density [sp./cm²]&#34;, fontsize=7, color=&#34;darkblue&#34;)
         ax_spor.tick_params(axis=&#34;y&#34;, labelsize=7, colors=&#34;darkblue&#34;)
         ax_spor.spines[&#34;right&#34;].set_color(&#34;darkblue&#34;)
@@ -272,6 +283,8 @@ def plot_model_infection_chains_pdf(  # noqa: C901
             color=&#34;lightsteelblue&#34;,
             alpha=0.5,
         )
+        _sc_top = max(sc_counts) * 1.1 if sc_counts else 1.0
+        ax_sc.set_ylim(-_sc_top * _zero_frac / (1 - _zero_frac), _sc_top)
         ax_sc.set_ylabel(&#34;Daily spore counts&#34;, fontsize=7, color=&#34;steelblue&#34;)
         ax_sc.tick_params(axis=&#34;y&#34;, labelsize=7, colors=&#34;steelblue&#34;)
         ax_sc.spines[&#34;right&#34;].set_color(&#34;steelblue&#34;)
@@ -338,7 +351,7 @@ def plot_model_infection_chains_pdf(  # noqa: C901
     # ------------------------------------------------------------------ #
     ax.set_yticks(list(_event_y.values()))
     ax.set_yticklabels([_event_labels[k] for k in _event_keys], fontsize=8)
-    ax.set_ylim(-0.7, len(_event_keys) - 0.2)
+    ax.set_ylim(_ax_ylim_lo, _ax_ylim_hi)
     ax.spines[&#34;right&#34;].set_visible(False)
 
     # Auto-compute tick interval so labels never overlap (~0.65 in per label at 7pt/70°)
@@ -408,6 +421,7 @@ def plot_model_infection_chains(  # noqa: C901
     spore_counts_path=None,
     title=&#34;Infection analysis&#34;,
     fallback_date_range=None,
+    weather_data_path=None,
 ):
     &#34;&#34;&#34;
     Interactive HTML plot reproducing the Rplot.R visualisation.
@@ -433,7 +447,9 @@ def plot_model_infection_chains(  # noqa: C901
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
+            df[col] = pd.to_datetime(
+                df[col], errors=&#34;coerce&#34;, utc=True, format=&#34;ISO8601&#34;
+            )
 
     if &#34;sporangia_densities&#34; in df.columns:
         df[&#34;sporangia_densities&#34;] = pd.to_numeric(
@@ -482,6 +498,7 @@ def plot_model_infection_chains(  # noqa: C901
 
     fig = go.Figure()
     sc_max = 1.0  # fallback; overwritten if spore data loads successfully
+    spore_trace_idx = -1  # index of the spore-count bar trace (-1 = not added)
 
     if model_parameters is not None:
         spore_path = spore_counts_path or model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
@@ -505,6 +522,7 @@ def plot_model_infection_chains(  # noqa: C901
                         yaxis=&#34;y2&#34;,
                     )
                 )
+                spore_trace_idx = len(fig.data) - 1
             except Exception:
                 pass
 
@@ -605,6 +623,64 @@ def plot_model_infection_chains(  # noqa: C901
             )
         )
 
+    # ------------------------------------------------------------------ #
+    # Weather overlay traces (hidden by default, toggled via JS buttons)  #
+    # ------------------------------------------------------------------ #
+    _WEATHER_VARS = [
+        (&#34;temperature&#34;, &#34;mean&#34;, &#34;Temp. (\u00b0C)&#34;, &#34;tomato&#34;, &#34;y4&#34;),
+        (&#34;humidity&#34;, &#34;mean&#34;, &#34;Humidity (%)&#34;, &#34;mediumseagreen&#34;, &#34;y5&#34;),
+        (&#34;rainfall&#34;, &#34;sum&#34;, &#34;Rainfall (mm)&#34;, &#34;cornflowerblue&#34;, &#34;y6&#34;),
+        (&#34;leaf_wetness&#34;, &#34;mean&#34;, &#34;Leaf wetness&#34;, &#34;goldenrod&#34;, &#34;y7&#34;),
+    ]
+    weather_vars_info: list = []
+    _weather_yaxis_layout: dict = {}
+    if weather_data_path:
+        try:
+            _wdf = pd.read_csv(weather_data_path)
+            _wdf[&#34;_wdt&#34;] = pd.to_datetime(_wdf[&#34;datetime&#34;], errors=&#34;coerce&#34;, utc=True)
+            _wdf[&#34;_wdate&#34;] = _wdf[&#34;_wdt&#34;].dt.date
+            for _wcol, _wagg, _wlabel, _wcolor, _wyax in _WEATHER_VARS:
+                if _wcol not in _wdf.columns:
+                    continue
+                _daily = _wdf.groupby(&#34;_wdate&#34;)[_wcol].agg(_wagg).reset_index()
+                _daily[&#34;_wdate&#34;] = pd.to_datetime(_daily[&#34;_wdate&#34;]) + pd.Timedelta(
+                    hours=12
+                )
+                fig.add_trace(
+                    go.Bar(
+                        x=_daily[&#34;_wdate&#34;],
+                        y=_daily[_wcol],
+                        name=_wlabel,
+                        marker_color=_wcolor,
+                        opacity=0.7,
+                        yaxis=_wyax,
+                        visible=False,
+                        showlegend=False,
+                        width=86400000,
+                    )
+                )
+                _yax_key = _wyax.replace(&#34;y&#34;, &#34;yaxis&#34;, 1)  # &#34;y4&#34; → &#34;yaxis4&#34;
+                weather_vars_info.append(
+                    {
+                        &#34;traceIdx&#34;: len(fig.data) - 1,
+                        &#34;label&#34;: _wlabel,
+                        &#34;color&#34;: _wcolor,
+                        &#34;yaxis&#34;: _yax_key,
+                    }
+                )
+                _weather_yaxis_layout[_yax_key] = {
+                    &#34;title&#34;: {&#34;text&#34;: _wlabel, &#34;font&#34;: {&#34;color&#34;: _wcolor}},
+                    &#34;overlaying&#34;: &#34;y&#34;,
+                    &#34;side&#34;: &#34;right&#34;,
+                    &#34;autoshift&#34;: True,
+                    &#34;visible&#34;: False,
+                    &#34;showgrid&#34;: False,
+                    &#34;tickcolor&#34;: _wcolor,
+                    &#34;tickfont&#34;: {&#34;color&#34;: _wcolor},
+                }
+        except Exception:
+            pass
+
     fig.update_layout(
         paper_bgcolor=&#34;white&#34;,
         plot_bgcolor=&#34;white&#34;,
@@ -656,8 +732,10 @@ def plot_model_infection_chains(  # noqa: C901
         },
         bargroupgap=0,
         margin={&#34;b&#34;: 250, &#34;t&#34;: 20},
+        **_weather_yaxis_layout,
     )
     import datetime as _dt
+    import json as _json
 
     _chain_all_dt: list = []
     for col in dt_cols:
@@ -676,7 +754,126 @@ def plot_model_infection_chains(  # noqa: C901
             pd.Timestamp(_chain_last + _dt.timedelta(days=1)),
         ],
     )
-    fig.write_html(output_html_path)
+
+    # Build post-render JS that injects the control bar above the plot
+    _div_id = &#34;plasmopy-analysis-plot&#34;
+    _weather_json = _json.dumps(weather_vars_info, ensure_ascii=True)
+    _post_script = f&#34;&#34;&#34;
+(function() {{
+    var gd = document.getElementById(&#39;{_div_id}&#39;);
+    if (!gd) return;
+    var sporeTraceIdx = {spore_trace_idx};
+    var weatherVars = {_weather_json};
+
+    /* Outer container — sits below the plot, never overlaps it */
+    var bar = document.createElement(&#39;div&#39;);
+    bar.style.cssText = [
+        &#39;box-sizing:border-box&#39;,
+        &#39;width:100%&#39;,
+        &#39;padding:10px 12px 12px&#39;,
+        &#39;border-top:2px solid #d8d8d8&#39;,
+        &#39;background:#f8f8f8&#39;,
+        &#39;font-family:sans-serif&#39;,
+        &#39;font-size:13px&#39;
+    ].join(&#39;;&#39;) + &#39;;&#39;;
+
+    var ROW_STYLE   = &#39;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;&#39;;
+    var LABEL_STYLE = &#39;font-weight:600;color:#444;min-width:80px;flex-shrink:0;&#39;;
+    /* Buttons are large enough for comfortable touch targets (min 40 px tall) */
+    var mkBtn = function(txt, borderColor, active) {{
+        var b = document.createElement(&#39;button&#39;);
+        b.textContent = txt;
+        b.dataset.active = active ? &#39;1&#39; : &#39;0&#39;;
+        b.style.cssText = [
+            &#39;padding:9px 14px&#39;,
+            &#39;min-height:40px&#39;,
+            &#39;flex:1 1 auto&#39;,
+            &#39;border-radius:4px&#39;,
+            &#39;border:1px solid &#39; + borderColor,
+            &#39;cursor:pointer&#39;,
+            &#39;font-size:13px&#39;,
+            &#39;line-height:1&#39;,
+            &#39;transition:background 0.15s,color 0.15s&#39;
+        ].join(&#39;;&#39;) + &#39;;&#39;;
+        b.style.background = active ? borderColor : &#39;white&#39;;
+        b.style.color      = active ? &#39;white&#39;      : borderColor;
+        return b;
+    }};
+
+    /* ── Row 1: spore-axis scale ── */
+    if (sporeTraceIdx &gt;= 0) {{
+        var spRow = document.createElement(&#39;div&#39;);
+        spRow.style.cssText = ROW_STYLE;
+
+        var spLbl = document.createElement(&#39;span&#39;);
+        spLbl.textContent = &#39;Spores axis:&#39;;
+        spLbl.style.cssText = LABEL_STYLE;
+        spRow.appendChild(spLbl);
+
+        var linBtn = mkBtn(&#39;Linear&#39;, &#39;#4a90d9&#39;, true);
+        var logBtn = mkBtn(&#39;Log\u2081\u2080&#39;, &#39;#4a90d9&#39;, false);
+        linBtn.onclick = function() {{
+            if (linBtn.dataset.active === &#39;1&#39;) return;
+            linBtn.dataset.active = &#39;1&#39;; linBtn.style.background = &#39;#4a90d9&#39;; linBtn.style.color = &#39;white&#39;;
+            logBtn.dataset.active  = &#39;0&#39;; logBtn.style.background  = &#39;white&#39;;   logBtn.style.color = &#39;#4a90d9&#39;;
+            Plotly.relayout(gd, {{&#39;yaxis2.type&#39;: &#39;linear&#39;, &#39;yaxis2.autorange&#39;: true}});
+        }};
+        logBtn.onclick = function() {{
+            if (logBtn.dataset.active === &#39;1&#39;) return;
+            logBtn.dataset.active = &#39;1&#39;; logBtn.style.background = &#39;#4a90d9&#39;; logBtn.style.color = &#39;white&#39;;
+            linBtn.dataset.active  = &#39;0&#39;; linBtn.style.background  = &#39;white&#39;;   linBtn.style.color = &#39;#4a90d9&#39;;
+            Plotly.relayout(gd, {{&#39;yaxis2.type&#39;: &#39;log&#39;, &#39;yaxis2.autorange&#39;: true}});
+        }};
+        spRow.appendChild(linBtn);
+        spRow.appendChild(logBtn);
+        bar.appendChild(spRow);
+    }}
+
+    /* ── Row 2: weather overlays ── */
+    if (weatherVars.length &gt; 0) {{
+        var wRow = document.createElement(&#39;div&#39;);
+        wRow.style.cssText = ROW_STYLE + &#39;margin-bottom:0;&#39;;
+
+        var wLbl = document.createElement(&#39;span&#39;);
+        wLbl.textContent = &#39;M\u00e9t\u00e9o:&#39;;
+        wLbl.style.cssText = LABEL_STYLE;
+        wRow.appendChild(wLbl);
+
+        /* Weather buttons fill the remaining width, wrapping to a second line
+           on narrow screens (each gets at least ~120 px before wrapping). */
+        var wBtns = document.createElement(&#39;div&#39;);
+        wBtns.style.cssText = &#39;display:flex;flex-wrap:wrap;gap:8px;flex:1 1 auto;&#39;;
+
+        weatherVars.forEach(function(v) {{
+            var btn = mkBtn(v.label, v.color, false);
+            btn.style.flex = &#39;1 1 120px&#39;;
+            btn.onclick = function() {{
+                var on = btn.dataset.active === &#39;1&#39;;
+                btn.dataset.active = on ? &#39;0&#39; : &#39;1&#39;;
+                btn.style.background = on ? &#39;white&#39; : v.color;
+                btn.style.color      = on ? v.color : &#39;white&#39;;
+                Plotly.restyle(gd, {{visible: !on}}, [v.traceIdx]);
+                var la = {{}}; la[v.yaxis + &#39;.visible&#39;] = !on;
+                if (!on) la[v.yaxis + &#39;.autorange&#39;] = true;
+                Plotly.relayout(gd, la);
+            }};
+            wBtns.appendChild(btn);
+        }});
+        wRow.appendChild(wBtns);
+        bar.appendChild(wRow);
+    }}
+
+    /* Insert the control bar AFTER the plot div so it never overlaps it */
+    if (bar.childNodes.length &gt; 0) {{
+        gd.insertAdjacentElement(&#39;afterend&#39;, bar);
+    }}
+}})();
+&#34;&#34;&#34;
+
+    fig.write_html(output_html_path, div_id=_div_id, post_script=_post_script)
+    # Stash so write_combined_html can re-inject these into the merged HTML.
+    fig._plasmopy_div_id = _div_id
+    fig._plasmopy_post_script = _post_script
     return fig
 
 
@@ -720,7 +917,9 @@ def plot_spore_driven_model_overview(  # noqa: C901
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
+            df[col] = pd.to_datetime(
+                df[col], errors=&#34;coerce&#34;, utc=True, format=&#34;ISO8601&#34;
+            )
 
     sc_x, sc_y = [], []
     sc_days: set = set()
@@ -912,16 +1111,16 @@ def plot_risk_heatmap(  # noqa: C901
 
     The three rows are INDEPENDENT — spore counts are never fed into the
     mechanistic model here; this is a purely visual / informative tool:
-      Modèle  – daily infection strength from the mechanistic model (°C·h)
-      Mildiou – daily spore trap count
-      Risque  – display-only product of the two (strength × count); not
-                used algorithmically in any way
+      Weather      – daily infection strength from the mechanistic model (°C·h)
+      Spore Counts – daily spore trap count
+      Risk         – ceiling of the geometric mean of the Weather and Spore Counts
+                category indices (1–4); display-only, not used algorithmically
 
     Colour-category thresholds are read from config.risk_heatmap so they
     can be adjusted without touching code:
       model_thresholds:   lower boundaries of light-pink / salmon / red bands (°C·h)
-      mildiou_thresholds: same for the Mildiou row (counts)
-      Risque thresholds:  auto-derived as pair-wise products of the above
+      spore_count_thresholds: same for the Spore-count row (counts)
+      Risk:               no separate thresholds — derived from the two category indices
     &#34;&#34;&#34;
     import datetime as _dt
 
@@ -932,8 +1131,7 @@ def plot_risk_heatmap(  # noqa: C901
     if model_parameters is not None:
         _hm = dict(model_parameters.get(&#34;risk_heatmap&#34;, {}) or {})
     _mt = list(_hm.get(&#34;model_thresholds&#34;, [50, 100, 200]))
-    _st = list(_hm.get(&#34;mildiou_thresholds&#34;, [10, 20, 30]))
-    _rt = [_mt[i] * _st[i] for i in range(3)]  # pair-wise products for Risque
+    _st = list(_hm.get(&#34;spore_count_thresholds&#34;, [10, 20, 30]))
 
     # ------------------------------------------------------------------ #
     # Load events dataframe                                               #
@@ -941,30 +1139,54 @@ def plot_risk_heatmap(  # noqa: C901
     df = pd.read_csv(events_dataframe_path)
     for col in (&#34;oospore_infection&#34;, &#34;secondary_infections&#34;):
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
+            df[col] = pd.to_datetime(
+                df[col], errors=&#34;coerce&#34;, utc=True, format=&#34;ISO8601&#34;
+            )
     for col in (&#34;oospore_infection_strength&#34;, &#34;secondary_infection_strengths&#34;):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors=&#34;coerce&#34;)
 
+    # ---- Filter out spore-count shortcut infections ---- #
+    # Shortcuts are events where germination is absent but the model jumped
+    # directly to dispersion or sporulation because spore counts met the
+    # threshold.  These must not appear in the weather-only &#34;Weather&#34; row.
+    for _scol in (&#34;oospore_germination&#34;, &#34;oospore_dispersion&#34;, &#34;sporulations&#34;):
+        if _scol in df.columns:
+            df[_scol] = pd.to_datetime(df[_scol], errors=&#34;coerce&#34;)
+    _has_germ = &#34;oospore_germination&#34; in df.columns
+    _has_disp = &#34;oospore_dispersion&#34; in df.columns
+    _has_spor = &#34;sporulations&#34; in df.columns
+    if _has_germ and (_has_disp or _has_spor):
+        _shortcut = df[&#34;oospore_germination&#34;].isna() &amp; (
+            (df[&#34;oospore_dispersion&#34;].notna() if _has_disp else False)
+            | (df[&#34;sporulations&#34;].notna() if _has_spor else False)
+        )
+        df = df[~_shortcut]
+
     model_strength_by_day: dict = {}
+    infection_days: set = set()  # calendar dates with a successful infection
     if &#34;oospore_infection&#34; in df.columns:
         for _, row in df.iterrows():
             dt = row.get(&#34;oospore_infection&#34;)
             s = row.get(&#34;oospore_infection_strength&#34;)
-            if pd.notna(dt) and pd.notna(s):
-                d = dt.date()
-                model_strength_by_day[d] = max(
-                    model_strength_by_day.get(d, 0.0), float(s)
-                )
+            if pd.notna(dt):
+                infection_days.add(dt.date())
+                if pd.notna(s):
+                    d = dt.date()
+                    model_strength_by_day[d] = max(
+                        model_strength_by_day.get(d, 0.0), float(s)
+                    )
     if &#34;secondary_infections&#34; in df.columns:
         for _, row in df.iterrows():
             dt = row.get(&#34;secondary_infections&#34;)
             s = row.get(&#34;secondary_infection_strengths&#34;)
-            if pd.notna(dt) and pd.notna(s):
-                d = dt.date()
-                model_strength_by_day[d] = max(
-                    model_strength_by_day.get(d, 0.0), float(s)
-                )
+            if pd.notna(dt):
+                infection_days.add(dt.date())
+                if pd.notna(s):
+                    d = dt.date()
+                    model_strength_by_day[d] = max(
+                        model_strength_by_day.get(d, 0.0), float(s)
+                    )
 
     # ------------------------------------------------------------------ #
     # Load and aggregate daily spore counts                               #
@@ -1024,6 +1246,12 @@ def plot_risk_heatmap(  # noqa: C901
     def _model_cat(d):
         s = model_strength_by_day.get(d, 0.0)
         if s &lt; _mt[0]:
+            # Degree-hours accumulate across multiple days before reaching
+            # the infection threshold, so the completing day&#39;s strength can
+            # be below _mt[0].  Bump to category 2 when a successful
+            # weather-driven infection actually occurred on this day.
+            if d in infection_days:
+                return 2
             return 1
         elif s &lt; _mt[1]:
             return 2
@@ -1044,17 +1272,19 @@ def plot_risk_heatmap(  # noqa: C901
         return 4
 
     def _risk_cat(d):
-        c = spore_count_by_day.get(d)
-        if c is None:
-            return 0
-        product = model_strength_by_day.get(d, 0.0) * c
-        if product &lt; _rt[0]:
-            return 1
-        elif product &lt; _rt[1]:
-            return 2
-        elif product &lt; _rt[2]:
-            return 3
-        return 4
+        # RISK combines the model and spore-count categories:
+        #   • If the model shows no weather-driven risk (mc == 1, green),
+        #     the overall risk is also green regardless of spore counts.
+        #   • If spore data is absent (sc == 0), fall back to the model
+        #     category alone.
+        #   • Otherwise, use the geometric mean of the two categories.
+        mc = _model_cat(d)
+        sc = _spore_cat(d)
+        if mc &lt;= 1:
+            return 1  # no weather-driven risk → green
+        if sc == 0:
+            return mc  # missing spore data → use model category
+        return math.ceil(math.sqrt(mc * sc))
 
     model_cats = [_model_cat(d) for d in dates]
     spore_cats = [_spore_cat(d) for d in dates]
@@ -1071,11 +1301,10 @@ def plot_risk_heatmap(  # noqa: C901
         c = spore_count_by_day.get(d)
         return str(int(c)) if c is not None else &#34;—&#34;
 
+    _risk_labels = {0: &#34;—&#34;, 1: &#34;Low&#34;, 2: &#34;Moderate&#34;, 3: &#34;High&#34;, 4: &#34;Very high&#34;}
+
     def _fmt_r(d):
-        c = spore_count_by_day.get(d)
-        if c is None:
-            return &#34;—&#34;
-        return f&#34;{model_strength_by_day.get(d, 0.0) * c:.1f}&#34;
+        return _risk_labels.get(_risk_cat(d), &#34;—&#34;)
 
     hover_model = [
         f&#34;&lt;b&gt;{d.strftime(&#39;%Y-%m-%d&#39;)}&lt;/b&gt;&lt;br&gt;Infection strength: {_fmt_s(d)}&#34;
@@ -1085,7 +1314,8 @@ def plot_risk_heatmap(  # noqa: C901
         f&#34;&lt;b&gt;{d.strftime(&#39;%Y-%m-%d&#39;)}&lt;/b&gt;&lt;br&gt;Spore count: {_fmt_c(d)}&#34; for d in dates
     ]
     hover_risk = [
-        f&#34;&lt;b&gt;{d.strftime(&#39;%Y-%m-%d&#39;)}&lt;/b&gt;&lt;br&gt;Risk index: {_fmt_r(d)}&#34; for d in dates
+        f&#34;&lt;b&gt;{d.strftime(&#39;%Y-%m-%d&#39;)}&lt;/b&gt;&lt;br&gt;Risk level: {_fmt_r(d)}&#34;
+        for d in dates
     ]
 
     # ------------------------------------------------------------------ #
@@ -1111,7 +1341,7 @@ def plot_risk_heatmap(  # noqa: C901
     fig = go.Figure(
         go.Heatmap(
             x=x_ts,
-            y=[&#34;Risk&#34;, &#34;Mildiou&#34;, &#34;Model&#34;],
+            y=[&#34;Risk&#34;, &#34;Spore Counts&#34;, &#34;Weather&#34;],
             z=z,
             customdata=customdata,
             hovertemplate=&#34;%{customdata}&lt;extra&gt;&lt;/extra&gt;&#34;,
@@ -1126,10 +1356,10 @@ def plot_risk_heatmap(  # noqa: C901
 
     for color, label in [
         (&#34;#D4D4D4&#34;, &#34;Données manquantes&#34;),
-        (&#34;#90EE90&#34;, &#34;Faible&#34;),
-        (&#34;#FFB0C4&#34;, &#34;Modéré&#34;),
-        (&#34;#FA8072&#34;, &#34;Élevé&#34;),
-        (&#34;#CC0000&#34;, &#34;Très élevé&#34;),
+        (&#34;#90EE90&#34;, &#34;Low&#34;),
+        (&#34;#FFB0C4&#34;, &#34;Moderate&#34;),
+        (&#34;#FA8072&#34;, &#34;High&#34;),
+        (&#34;#CC0000&#34;, &#34;Very high&#34;),
     ]:
         fig.add_trace(
             go.Scatter(
@@ -1162,8 +1392,8 @@ def plot_risk_heatmap(  # noqa: C901
             &#34;showgrid&#34;: False,
             &#34;tickfont&#34;: {&#34;size&#34;: 13},
             &#34;tickmode&#34;: &#34;array&#34;,
-            &#34;ticktext&#34;: [&#34;&lt;b&gt;RISQUE&lt;/b&gt;&#34;, &#34;Mildiou&#34;, &#34;Modèle&#34;],
-            &#34;tickvals&#34;: [&#34;Risk&#34;, &#34;Mildiou&#34;, &#34;Model&#34;],
+            &#34;ticktext&#34;: [&#34;&lt;b&gt;RISK&lt;/b&gt;&#34;, &#34;Spore Counts&#34;, &#34;Weather&#34;],
+            &#34;tickvals&#34;: [&#34;Risk&#34;, &#34;Spore Counts&#34;, &#34;Weather&#34;],
         },
         legend={
             &#34;orientation&#34;: &#34;h&#34;,
@@ -1172,17 +1402,20 @@ def plot_risk_heatmap(  # noqa: C901
             &#34;xanchor&#34;: &#34;center&#34;,
             &#34;x&#34;: 0.5,
         },
-        height=280,
+        height=300,
     )
 
+    # White band that visually separates the RISK row (index 0) from the
+    # Spore Counts row (index 1).  The band is centred on the boundary at y=0.5
+    # and is wide enough to be clearly visible as a gap.
     fig.add_shape(
         type=&#34;rect&#34;,
         xref=&#34;paper&#34;,
         yref=&#34;y&#34;,
         x0=0,
         x1=1,
-        y0=0.48,
-        y1=0.52,
+        y0=0.38,
+        y1=0.62,
         fillcolor=&#34;white&#34;,
         line={&#34;width&#34;: 0},
         layer=&#34;above&#34;,
@@ -1213,8 +1446,8 @@ def write_combined_html(
     primary_fig,
     secondary_fig,
     output_path,
-    primary_label=&#34;Aide à la décision&#34;,
-    secondary_label=&#34;Modèle détaillé&#34;,
+    primary_label=&#34;Decision support&#34;,
+    secondary_label=&#34;Detailed model&#34;,
     spore_counts_graph_url=None,
 ):
     &#34;&#34;&#34;
@@ -1222,18 +1455,33 @@ def write_combined_html(
     view and a toggle button at the bottom that switches to *secondary_fig*.
 
     If *spore_counts_graph_url* is provided a second button labelled
-    &#34;Spores Mildiou&#34; is added below the toggle, opening that URL in a new tab.
+    &#34;Spore graph&#34; is added below the toggle, opening that URL in a new tab.
     &#34;&#34;&#34;
     primary_div = primary_fig.to_html(full_html=False, include_plotlyjs=False)
-    secondary_div = secondary_fig.to_html(full_html=False, include_plotlyjs=False)
+
+    # Re-use the div_id and post_script that plot_model_infection_chains stored
+    # on the figure so the control bar (log10 + weather toggles) works here too.
+    _sec_div_id = getattr(secondary_fig, &#34;_plasmopy_div_id&#34;, None)
+    _sec_post_script = getattr(secondary_fig, &#34;_plasmopy_post_script&#34;, &#34;&#34;)
+    if _sec_div_id:
+        secondary_div = secondary_fig.to_html(
+            full_html=False, include_plotlyjs=False, div_id=_sec_div_id
+        )
+    else:
+        secondary_div = secondary_fig.to_html(full_html=False, include_plotlyjs=False)
 
     spore_btn_html = &#34;&#34;
     if spore_counts_graph_url:
+        # Navigate in the same tab so iOS WKWebView (Mail, WhatsApp, iMessage…)
+        # does not silently block the navigation the way it does with target=&#34;_blank&#34;.
         spore_btn_html = (
-            f&#39;  &lt;button class=&#34;nav-btn&#34; &#39;
-            f&#34;onclick=\&#34;window.open(&#39;{spore_counts_graph_url}&#39;,&#39;_blank&#39;)\&#34;&gt;&#34;
-            f&#34;Graphique spores&lt;/button&gt;\n&#34;
+            f&#39;  &lt;a class=&#34;nav-btn&#34; href=&#34;{spore_counts_graph_url}&#34;&gt;&#39;
+            f&#34;Spore graph&lt;/a&gt;\n&#34;
         )
+
+    _secondary_post_script_tag = (
+        f&#34;  &lt;script&gt;{_sec_post_script}&lt;/script&gt;\n&#34; if _sec_post_script else &#34;&#34;
+    )
 
     html = f&#34;&#34;&#34;&lt;!DOCTYPE html&gt;
 &lt;html&gt;
@@ -1259,6 +1507,7 @@ def write_combined_html(
       cursor: pointer;
       font-size: 14px;
       text-align: center;
+      text-decoration: none;
     }}
     .nav-btn:hover {{ background: #1a5276; }}
     .modebar-container {{
@@ -1279,8 +1528,9 @@ def write_combined_html(
   &lt;div id=&#34;secondary-view&#34; class=&#34;plot-view&#34;&gt;
     {secondary_div}
   &lt;/div&gt;
+{_secondary_post_script_tag}
   &lt;button id=&#34;toggle-btn&#34; class=&#34;nav-btn&#34; onclick=&#34;toggleView()&#34;&gt;{secondary_label}&lt;/button&gt;
-{spore_btn_html}  &lt;p style=&#34;text-align:center;color:grey;font-size:12px;margin:4px 0 2px;&#34;&gt;Double-cliquez pour dézoomer&lt;/p&gt;
+{spore_btn_html}  &lt;p style=&#34;text-align:center;color:grey;font-size:12px;margin:4px 0 2px;&#34;&gt;Double-click to zoom out&lt;/p&gt;
   &lt;script&gt;
     function resizeActivePlots() {{
       document.querySelectorAll(&#39;.plot-view.active .js-plotly-plot&#39;).forEach(function(el) {{
@@ -1320,7 +1570,7 @@ def write_combined_html(
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="src.plots.plot_model_infection_chains"><code class="name flex">
-<span>def <span class="ident">plot_model_infection_chains</span></span>(<span>events_dataframe_path, output_html_path, model_parameters=None, spore_counts_path=None, title='Infection analysis', fallback_date_range=None)</span>
+<span>def <span class="ident">plot_model_infection_chains</span></span>(<span>events_dataframe_path, output_html_path, model_parameters=None, spore_counts_path=None, title='Infection analysis', fallback_date_range=None, weather_data_path=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Interactive HTML plot reproducing the Rplot.R visualisation.</p>
@@ -1343,6 +1593,7 @@ def write_combined_html(
     spore_counts_path=None,
     title=&#34;Infection analysis&#34;,
     fallback_date_range=None,
+    weather_data_path=None,
 ):
     &#34;&#34;&#34;
     Interactive HTML plot reproducing the Rplot.R visualisation.
@@ -1368,7 +1619,9 @@ def write_combined_html(
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
+            df[col] = pd.to_datetime(
+                df[col], errors=&#34;coerce&#34;, utc=True, format=&#34;ISO8601&#34;
+            )
 
     if &#34;sporangia_densities&#34; in df.columns:
         df[&#34;sporangia_densities&#34;] = pd.to_numeric(
@@ -1417,6 +1670,7 @@ def write_combined_html(
 
     fig = go.Figure()
     sc_max = 1.0  # fallback; overwritten if spore data loads successfully
+    spore_trace_idx = -1  # index of the spore-count bar trace (-1 = not added)
 
     if model_parameters is not None:
         spore_path = spore_counts_path or model_parameters[&#34;input_data&#34;][&#34;spore_counts&#34;]
@@ -1440,6 +1694,7 @@ def write_combined_html(
                         yaxis=&#34;y2&#34;,
                     )
                 )
+                spore_trace_idx = len(fig.data) - 1
             except Exception:
                 pass
 
@@ -1540,6 +1795,64 @@ def write_combined_html(
             )
         )
 
+    # ------------------------------------------------------------------ #
+    # Weather overlay traces (hidden by default, toggled via JS buttons)  #
+    # ------------------------------------------------------------------ #
+    _WEATHER_VARS = [
+        (&#34;temperature&#34;, &#34;mean&#34;, &#34;Temp. (\u00b0C)&#34;, &#34;tomato&#34;, &#34;y4&#34;),
+        (&#34;humidity&#34;, &#34;mean&#34;, &#34;Humidity (%)&#34;, &#34;mediumseagreen&#34;, &#34;y5&#34;),
+        (&#34;rainfall&#34;, &#34;sum&#34;, &#34;Rainfall (mm)&#34;, &#34;cornflowerblue&#34;, &#34;y6&#34;),
+        (&#34;leaf_wetness&#34;, &#34;mean&#34;, &#34;Leaf wetness&#34;, &#34;goldenrod&#34;, &#34;y7&#34;),
+    ]
+    weather_vars_info: list = []
+    _weather_yaxis_layout: dict = {}
+    if weather_data_path:
+        try:
+            _wdf = pd.read_csv(weather_data_path)
+            _wdf[&#34;_wdt&#34;] = pd.to_datetime(_wdf[&#34;datetime&#34;], errors=&#34;coerce&#34;, utc=True)
+            _wdf[&#34;_wdate&#34;] = _wdf[&#34;_wdt&#34;].dt.date
+            for _wcol, _wagg, _wlabel, _wcolor, _wyax in _WEATHER_VARS:
+                if _wcol not in _wdf.columns:
+                    continue
+                _daily = _wdf.groupby(&#34;_wdate&#34;)[_wcol].agg(_wagg).reset_index()
+                _daily[&#34;_wdate&#34;] = pd.to_datetime(_daily[&#34;_wdate&#34;]) + pd.Timedelta(
+                    hours=12
+                )
+                fig.add_trace(
+                    go.Bar(
+                        x=_daily[&#34;_wdate&#34;],
+                        y=_daily[_wcol],
+                        name=_wlabel,
+                        marker_color=_wcolor,
+                        opacity=0.7,
+                        yaxis=_wyax,
+                        visible=False,
+                        showlegend=False,
+                        width=86400000,
+                    )
+                )
+                _yax_key = _wyax.replace(&#34;y&#34;, &#34;yaxis&#34;, 1)  # &#34;y4&#34; → &#34;yaxis4&#34;
+                weather_vars_info.append(
+                    {
+                        &#34;traceIdx&#34;: len(fig.data) - 1,
+                        &#34;label&#34;: _wlabel,
+                        &#34;color&#34;: _wcolor,
+                        &#34;yaxis&#34;: _yax_key,
+                    }
+                )
+                _weather_yaxis_layout[_yax_key] = {
+                    &#34;title&#34;: {&#34;text&#34;: _wlabel, &#34;font&#34;: {&#34;color&#34;: _wcolor}},
+                    &#34;overlaying&#34;: &#34;y&#34;,
+                    &#34;side&#34;: &#34;right&#34;,
+                    &#34;autoshift&#34;: True,
+                    &#34;visible&#34;: False,
+                    &#34;showgrid&#34;: False,
+                    &#34;tickcolor&#34;: _wcolor,
+                    &#34;tickfont&#34;: {&#34;color&#34;: _wcolor},
+                }
+        except Exception:
+            pass
+
     fig.update_layout(
         paper_bgcolor=&#34;white&#34;,
         plot_bgcolor=&#34;white&#34;,
@@ -1591,8 +1904,10 @@ def write_combined_html(
         },
         bargroupgap=0,
         margin={&#34;b&#34;: 250, &#34;t&#34;: 20},
+        **_weather_yaxis_layout,
     )
     import datetime as _dt
+    import json as _json
 
     _chain_all_dt: list = []
     for col in dt_cols:
@@ -1611,7 +1926,126 @@ def write_combined_html(
             pd.Timestamp(_chain_last + _dt.timedelta(days=1)),
         ],
     )
-    fig.write_html(output_html_path)
+
+    # Build post-render JS that injects the control bar above the plot
+    _div_id = &#34;plasmopy-analysis-plot&#34;
+    _weather_json = _json.dumps(weather_vars_info, ensure_ascii=True)
+    _post_script = f&#34;&#34;&#34;
+(function() {{
+    var gd = document.getElementById(&#39;{_div_id}&#39;);
+    if (!gd) return;
+    var sporeTraceIdx = {spore_trace_idx};
+    var weatherVars = {_weather_json};
+
+    /* Outer container — sits below the plot, never overlaps it */
+    var bar = document.createElement(&#39;div&#39;);
+    bar.style.cssText = [
+        &#39;box-sizing:border-box&#39;,
+        &#39;width:100%&#39;,
+        &#39;padding:10px 12px 12px&#39;,
+        &#39;border-top:2px solid #d8d8d8&#39;,
+        &#39;background:#f8f8f8&#39;,
+        &#39;font-family:sans-serif&#39;,
+        &#39;font-size:13px&#39;
+    ].join(&#39;;&#39;) + &#39;;&#39;;
+
+    var ROW_STYLE   = &#39;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;&#39;;
+    var LABEL_STYLE = &#39;font-weight:600;color:#444;min-width:80px;flex-shrink:0;&#39;;
+    /* Buttons are large enough for comfortable touch targets (min 40 px tall) */
+    var mkBtn = function(txt, borderColor, active) {{
+        var b = document.createElement(&#39;button&#39;);
+        b.textContent = txt;
+        b.dataset.active = active ? &#39;1&#39; : &#39;0&#39;;
+        b.style.cssText = [
+            &#39;padding:9px 14px&#39;,
+            &#39;min-height:40px&#39;,
+            &#39;flex:1 1 auto&#39;,
+            &#39;border-radius:4px&#39;,
+            &#39;border:1px solid &#39; + borderColor,
+            &#39;cursor:pointer&#39;,
+            &#39;font-size:13px&#39;,
+            &#39;line-height:1&#39;,
+            &#39;transition:background 0.15s,color 0.15s&#39;
+        ].join(&#39;;&#39;) + &#39;;&#39;;
+        b.style.background = active ? borderColor : &#39;white&#39;;
+        b.style.color      = active ? &#39;white&#39;      : borderColor;
+        return b;
+    }};
+
+    /* ── Row 1: spore-axis scale ── */
+    if (sporeTraceIdx &gt;= 0) {{
+        var spRow = document.createElement(&#39;div&#39;);
+        spRow.style.cssText = ROW_STYLE;
+
+        var spLbl = document.createElement(&#39;span&#39;);
+        spLbl.textContent = &#39;Spores axis:&#39;;
+        spLbl.style.cssText = LABEL_STYLE;
+        spRow.appendChild(spLbl);
+
+        var linBtn = mkBtn(&#39;Linear&#39;, &#39;#4a90d9&#39;, true);
+        var logBtn = mkBtn(&#39;Log\u2081\u2080&#39;, &#39;#4a90d9&#39;, false);
+        linBtn.onclick = function() {{
+            if (linBtn.dataset.active === &#39;1&#39;) return;
+            linBtn.dataset.active = &#39;1&#39;; linBtn.style.background = &#39;#4a90d9&#39;; linBtn.style.color = &#39;white&#39;;
+            logBtn.dataset.active  = &#39;0&#39;; logBtn.style.background  = &#39;white&#39;;   logBtn.style.color = &#39;#4a90d9&#39;;
+            Plotly.relayout(gd, {{&#39;yaxis2.type&#39;: &#39;linear&#39;, &#39;yaxis2.autorange&#39;: true}});
+        }};
+        logBtn.onclick = function() {{
+            if (logBtn.dataset.active === &#39;1&#39;) return;
+            logBtn.dataset.active = &#39;1&#39;; logBtn.style.background = &#39;#4a90d9&#39;; logBtn.style.color = &#39;white&#39;;
+            linBtn.dataset.active  = &#39;0&#39;; linBtn.style.background  = &#39;white&#39;;   linBtn.style.color = &#39;#4a90d9&#39;;
+            Plotly.relayout(gd, {{&#39;yaxis2.type&#39;: &#39;log&#39;, &#39;yaxis2.autorange&#39;: true}});
+        }};
+        spRow.appendChild(linBtn);
+        spRow.appendChild(logBtn);
+        bar.appendChild(spRow);
+    }}
+
+    /* ── Row 2: weather overlays ── */
+    if (weatherVars.length &gt; 0) {{
+        var wRow = document.createElement(&#39;div&#39;);
+        wRow.style.cssText = ROW_STYLE + &#39;margin-bottom:0;&#39;;
+
+        var wLbl = document.createElement(&#39;span&#39;);
+        wLbl.textContent = &#39;M\u00e9t\u00e9o:&#39;;
+        wLbl.style.cssText = LABEL_STYLE;
+        wRow.appendChild(wLbl);
+
+        /* Weather buttons fill the remaining width, wrapping to a second line
+           on narrow screens (each gets at least ~120 px before wrapping). */
+        var wBtns = document.createElement(&#39;div&#39;);
+        wBtns.style.cssText = &#39;display:flex;flex-wrap:wrap;gap:8px;flex:1 1 auto;&#39;;
+
+        weatherVars.forEach(function(v) {{
+            var btn = mkBtn(v.label, v.color, false);
+            btn.style.flex = &#39;1 1 120px&#39;;
+            btn.onclick = function() {{
+                var on = btn.dataset.active === &#39;1&#39;;
+                btn.dataset.active = on ? &#39;0&#39; : &#39;1&#39;;
+                btn.style.background = on ? &#39;white&#39; : v.color;
+                btn.style.color      = on ? v.color : &#39;white&#39;;
+                Plotly.restyle(gd, {{visible: !on}}, [v.traceIdx]);
+                var la = {{}}; la[v.yaxis + &#39;.visible&#39;] = !on;
+                if (!on) la[v.yaxis + &#39;.autorange&#39;] = true;
+                Plotly.relayout(gd, la);
+            }};
+            wBtns.appendChild(btn);
+        }});
+        wRow.appendChild(wBtns);
+        bar.appendChild(wRow);
+    }}
+
+    /* Insert the control bar AFTER the plot div so it never overlaps it */
+    if (bar.childNodes.length &gt; 0) {{
+        gd.insertAdjacentElement(&#39;afterend&#39;, bar);
+    }}
+}})();
+&#34;&#34;&#34;
+
+    fig.write_html(output_html_path, div_id=_div_id, post_script=_post_script)
+    # Stash so write_combined_html can re-inject these into the merged HTML.
+    fig._plasmopy_div_id = _div_id
+    fig._plasmopy_post_script = _post_script
     return fig</code></pre>
 </details>
 </dd>
@@ -1673,7 +2107,9 @@ the full timeseries remains readable even for long seasons.</p></div>
     ]
     for col in _dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
+            df[col] = pd.to_datetime(
+                df[col], errors=&#34;coerce&#34;, utc=True, format=&#34;ISO8601&#34;
+            )
     if &#34;sporangia_densities&#34; in df.columns:
         df[&#34;sporangia_densities&#34;] = pd.to_numeric(
             df[&#34;sporangia_densities&#34;], errors=&#34;coerce&#34;
@@ -1694,6 +2130,11 @@ the full timeseries remains readable even for long seasons.</p></div>
         &#34;secondary_infections&#34;,
     ]
     _event_y = {k: i for i, k in enumerate(_event_keys)}
+    # Pre-compute the fraction of the plot area that lies below y=0 on the main
+    # axis so that the secondary axes (sporangia density, spore counts) can be
+    # given matching negative offsets and y=0 aligns visually with germination.
+    _ax_ylim_lo, _ax_ylim_hi = -0.7, len(_event_keys) - 0.2
+    _zero_frac = -_ax_ylim_lo / (_ax_ylim_hi - _ax_ylim_lo)
     _event_labels = {
         &#34;oospore_germination&#34;: &#34;Germination&#34;,
         &#34;oospore_dispersion&#34;: &#34;Dispersion&#34;,
@@ -1782,7 +2223,8 @@ the full timeseries remains readable even for long seasons.</p></div>
             color=&#34;darkblue&#34;,
             alpha=0.55,
         )
-        ax_spor.set_ylim(0, max_density * 1.1)
+        _spor_top = max_density * 1.1
+        ax_spor.set_ylim(-_spor_top * _zero_frac / (1 - _zero_frac), _spor_top)
         ax_spor.set_ylabel(&#34;Sporangia density [sp./cm²]&#34;, fontsize=7, color=&#34;darkblue&#34;)
         ax_spor.tick_params(axis=&#34;y&#34;, labelsize=7, colors=&#34;darkblue&#34;)
         ax_spor.spines[&#34;right&#34;].set_color(&#34;darkblue&#34;)
@@ -1799,6 +2241,8 @@ the full timeseries remains readable even for long seasons.</p></div>
             color=&#34;lightsteelblue&#34;,
             alpha=0.5,
         )
+        _sc_top = max(sc_counts) * 1.1 if sc_counts else 1.0
+        ax_sc.set_ylim(-_sc_top * _zero_frac / (1 - _zero_frac), _sc_top)
         ax_sc.set_ylabel(&#34;Daily spore counts&#34;, fontsize=7, color=&#34;steelblue&#34;)
         ax_sc.tick_params(axis=&#34;y&#34;, labelsize=7, colors=&#34;steelblue&#34;)
         ax_sc.spines[&#34;right&#34;].set_color(&#34;steelblue&#34;)
@@ -1865,7 +2309,7 @@ the full timeseries remains readable even for long seasons.</p></div>
     # ------------------------------------------------------------------ #
     ax.set_yticks(list(_event_y.values()))
     ax.set_yticklabels([_event_labels[k] for k in _event_keys], fontsize=8)
-    ax.set_ylim(-0.7, len(_event_keys) - 0.2)
+    ax.set_ylim(_ax_ylim_lo, _ax_ylim_hi)
     ax.spines[&#34;right&#34;].set_visible(False)
 
     # Auto-compute tick interval so labels never overlap (~0.65 in per label at 7pt/70°)
@@ -1930,19 +2374,19 @@ the full timeseries remains readable even for long seasons.</p></div>
 <div class="desc"><p>Smartphone-optimised three-row heatmap saved to <em>output_html_path</em>.</p>
 <p>The three rows are INDEPENDENT — spore counts are never fed into the
 mechanistic model here; this is a purely visual / informative tool:
-Modèle
+Weather
 – daily infection strength from the mechanistic model (°C·h)
-Mildiou – daily spore trap count
-Risque
-– display-only product of the two (strength × count); not
-used algorithmically in any way</p>
+Spore Counts – daily spore trap count
+Risk
+– ceiling of the geometric mean of the Weather and Spore Counts
+category indices (1–4); display-only, not used algorithmically</p>
 <p>Colour-category thresholds are read from config.risk_heatmap so they
 can be adjusted without touching code:
 model_thresholds:
 lower boundaries of light-pink / salmon / red bands (°C·h)
-mildiou_thresholds: same for the Mildiou row (counts)
-Risque thresholds:
-auto-derived as pair-wise products of the above</p></div>
+spore_count_thresholds: same for the Spore-count row (counts)
+Risk:
+no separate thresholds — derived from the two category indices</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -1960,16 +2404,16 @@ auto-derived as pair-wise products of the above</p></div>
 
     The three rows are INDEPENDENT — spore counts are never fed into the
     mechanistic model here; this is a purely visual / informative tool:
-      Modèle  – daily infection strength from the mechanistic model (°C·h)
-      Mildiou – daily spore trap count
-      Risque  – display-only product of the two (strength × count); not
-                used algorithmically in any way
+      Weather      – daily infection strength from the mechanistic model (°C·h)
+      Spore Counts – daily spore trap count
+      Risk         – ceiling of the geometric mean of the Weather and Spore Counts
+                category indices (1–4); display-only, not used algorithmically
 
     Colour-category thresholds are read from config.risk_heatmap so they
     can be adjusted without touching code:
       model_thresholds:   lower boundaries of light-pink / salmon / red bands (°C·h)
-      mildiou_thresholds: same for the Mildiou row (counts)
-      Risque thresholds:  auto-derived as pair-wise products of the above
+      spore_count_thresholds: same for the Spore-count row (counts)
+      Risk:               no separate thresholds — derived from the two category indices
     &#34;&#34;&#34;
     import datetime as _dt
 
@@ -1980,8 +2424,7 @@ auto-derived as pair-wise products of the above</p></div>
     if model_parameters is not None:
         _hm = dict(model_parameters.get(&#34;risk_heatmap&#34;, {}) or {})
     _mt = list(_hm.get(&#34;model_thresholds&#34;, [50, 100, 200]))
-    _st = list(_hm.get(&#34;mildiou_thresholds&#34;, [10, 20, 30]))
-    _rt = [_mt[i] * _st[i] for i in range(3)]  # pair-wise products for Risque
+    _st = list(_hm.get(&#34;spore_count_thresholds&#34;, [10, 20, 30]))
 
     # ------------------------------------------------------------------ #
     # Load events dataframe                                               #
@@ -1989,30 +2432,54 @@ auto-derived as pair-wise products of the above</p></div>
     df = pd.read_csv(events_dataframe_path)
     for col in (&#34;oospore_infection&#34;, &#34;secondary_infections&#34;):
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
+            df[col] = pd.to_datetime(
+                df[col], errors=&#34;coerce&#34;, utc=True, format=&#34;ISO8601&#34;
+            )
     for col in (&#34;oospore_infection_strength&#34;, &#34;secondary_infection_strengths&#34;):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors=&#34;coerce&#34;)
 
+    # ---- Filter out spore-count shortcut infections ---- #
+    # Shortcuts are events where germination is absent but the model jumped
+    # directly to dispersion or sporulation because spore counts met the
+    # threshold.  These must not appear in the weather-only &#34;Weather&#34; row.
+    for _scol in (&#34;oospore_germination&#34;, &#34;oospore_dispersion&#34;, &#34;sporulations&#34;):
+        if _scol in df.columns:
+            df[_scol] = pd.to_datetime(df[_scol], errors=&#34;coerce&#34;)
+    _has_germ = &#34;oospore_germination&#34; in df.columns
+    _has_disp = &#34;oospore_dispersion&#34; in df.columns
+    _has_spor = &#34;sporulations&#34; in df.columns
+    if _has_germ and (_has_disp or _has_spor):
+        _shortcut = df[&#34;oospore_germination&#34;].isna() &amp; (
+            (df[&#34;oospore_dispersion&#34;].notna() if _has_disp else False)
+            | (df[&#34;sporulations&#34;].notna() if _has_spor else False)
+        )
+        df = df[~_shortcut]
+
     model_strength_by_day: dict = {}
+    infection_days: set = set()  # calendar dates with a successful infection
     if &#34;oospore_infection&#34; in df.columns:
         for _, row in df.iterrows():
             dt = row.get(&#34;oospore_infection&#34;)
             s = row.get(&#34;oospore_infection_strength&#34;)
-            if pd.notna(dt) and pd.notna(s):
-                d = dt.date()
-                model_strength_by_day[d] = max(
-                    model_strength_by_day.get(d, 0.0), float(s)
-                )
+            if pd.notna(dt):
+                infection_days.add(dt.date())
+                if pd.notna(s):
+                    d = dt.date()
+                    model_strength_by_day[d] = max(
+                        model_strength_by_day.get(d, 0.0), float(s)
+                    )
     if &#34;secondary_infections&#34; in df.columns:
         for _, row in df.iterrows():
             dt = row.get(&#34;secondary_infections&#34;)
             s = row.get(&#34;secondary_infection_strengths&#34;)
-            if pd.notna(dt) and pd.notna(s):
-                d = dt.date()
-                model_strength_by_day[d] = max(
-                    model_strength_by_day.get(d, 0.0), float(s)
-                )
+            if pd.notna(dt):
+                infection_days.add(dt.date())
+                if pd.notna(s):
+                    d = dt.date()
+                    model_strength_by_day[d] = max(
+                        model_strength_by_day.get(d, 0.0), float(s)
+                    )
 
     # ------------------------------------------------------------------ #
     # Load and aggregate daily spore counts                               #
@@ -2072,6 +2539,12 @@ auto-derived as pair-wise products of the above</p></div>
     def _model_cat(d):
         s = model_strength_by_day.get(d, 0.0)
         if s &lt; _mt[0]:
+            # Degree-hours accumulate across multiple days before reaching
+            # the infection threshold, so the completing day&#39;s strength can
+            # be below _mt[0].  Bump to category 2 when a successful
+            # weather-driven infection actually occurred on this day.
+            if d in infection_days:
+                return 2
             return 1
         elif s &lt; _mt[1]:
             return 2
@@ -2092,17 +2565,19 @@ auto-derived as pair-wise products of the above</p></div>
         return 4
 
     def _risk_cat(d):
-        c = spore_count_by_day.get(d)
-        if c is None:
-            return 0
-        product = model_strength_by_day.get(d, 0.0) * c
-        if product &lt; _rt[0]:
-            return 1
-        elif product &lt; _rt[1]:
-            return 2
-        elif product &lt; _rt[2]:
-            return 3
-        return 4
+        # RISK combines the model and spore-count categories:
+        #   • If the model shows no weather-driven risk (mc == 1, green),
+        #     the overall risk is also green regardless of spore counts.
+        #   • If spore data is absent (sc == 0), fall back to the model
+        #     category alone.
+        #   • Otherwise, use the geometric mean of the two categories.
+        mc = _model_cat(d)
+        sc = _spore_cat(d)
+        if mc &lt;= 1:
+            return 1  # no weather-driven risk → green
+        if sc == 0:
+            return mc  # missing spore data → use model category
+        return math.ceil(math.sqrt(mc * sc))
 
     model_cats = [_model_cat(d) for d in dates]
     spore_cats = [_spore_cat(d) for d in dates]
@@ -2119,11 +2594,10 @@ auto-derived as pair-wise products of the above</p></div>
         c = spore_count_by_day.get(d)
         return str(int(c)) if c is not None else &#34;—&#34;
 
+    _risk_labels = {0: &#34;—&#34;, 1: &#34;Low&#34;, 2: &#34;Moderate&#34;, 3: &#34;High&#34;, 4: &#34;Very high&#34;}
+
     def _fmt_r(d):
-        c = spore_count_by_day.get(d)
-        if c is None:
-            return &#34;—&#34;
-        return f&#34;{model_strength_by_day.get(d, 0.0) * c:.1f}&#34;
+        return _risk_labels.get(_risk_cat(d), &#34;—&#34;)
 
     hover_model = [
         f&#34;&lt;b&gt;{d.strftime(&#39;%Y-%m-%d&#39;)}&lt;/b&gt;&lt;br&gt;Infection strength: {_fmt_s(d)}&#34;
@@ -2133,7 +2607,8 @@ auto-derived as pair-wise products of the above</p></div>
         f&#34;&lt;b&gt;{d.strftime(&#39;%Y-%m-%d&#39;)}&lt;/b&gt;&lt;br&gt;Spore count: {_fmt_c(d)}&#34; for d in dates
     ]
     hover_risk = [
-        f&#34;&lt;b&gt;{d.strftime(&#39;%Y-%m-%d&#39;)}&lt;/b&gt;&lt;br&gt;Risk index: {_fmt_r(d)}&#34; for d in dates
+        f&#34;&lt;b&gt;{d.strftime(&#39;%Y-%m-%d&#39;)}&lt;/b&gt;&lt;br&gt;Risk level: {_fmt_r(d)}&#34;
+        for d in dates
     ]
 
     # ------------------------------------------------------------------ #
@@ -2159,7 +2634,7 @@ auto-derived as pair-wise products of the above</p></div>
     fig = go.Figure(
         go.Heatmap(
             x=x_ts,
-            y=[&#34;Risk&#34;, &#34;Mildiou&#34;, &#34;Model&#34;],
+            y=[&#34;Risk&#34;, &#34;Spore Counts&#34;, &#34;Weather&#34;],
             z=z,
             customdata=customdata,
             hovertemplate=&#34;%{customdata}&lt;extra&gt;&lt;/extra&gt;&#34;,
@@ -2174,10 +2649,10 @@ auto-derived as pair-wise products of the above</p></div>
 
     for color, label in [
         (&#34;#D4D4D4&#34;, &#34;Données manquantes&#34;),
-        (&#34;#90EE90&#34;, &#34;Faible&#34;),
-        (&#34;#FFB0C4&#34;, &#34;Modéré&#34;),
-        (&#34;#FA8072&#34;, &#34;Élevé&#34;),
-        (&#34;#CC0000&#34;, &#34;Très élevé&#34;),
+        (&#34;#90EE90&#34;, &#34;Low&#34;),
+        (&#34;#FFB0C4&#34;, &#34;Moderate&#34;),
+        (&#34;#FA8072&#34;, &#34;High&#34;),
+        (&#34;#CC0000&#34;, &#34;Very high&#34;),
     ]:
         fig.add_trace(
             go.Scatter(
@@ -2210,8 +2685,8 @@ auto-derived as pair-wise products of the above</p></div>
             &#34;showgrid&#34;: False,
             &#34;tickfont&#34;: {&#34;size&#34;: 13},
             &#34;tickmode&#34;: &#34;array&#34;,
-            &#34;ticktext&#34;: [&#34;&lt;b&gt;RISQUE&lt;/b&gt;&#34;, &#34;Mildiou&#34;, &#34;Modèle&#34;],
-            &#34;tickvals&#34;: [&#34;Risk&#34;, &#34;Mildiou&#34;, &#34;Model&#34;],
+            &#34;ticktext&#34;: [&#34;&lt;b&gt;RISK&lt;/b&gt;&#34;, &#34;Spore Counts&#34;, &#34;Weather&#34;],
+            &#34;tickvals&#34;: [&#34;Risk&#34;, &#34;Spore Counts&#34;, &#34;Weather&#34;],
         },
         legend={
             &#34;orientation&#34;: &#34;h&#34;,
@@ -2220,17 +2695,20 @@ auto-derived as pair-wise products of the above</p></div>
             &#34;xanchor&#34;: &#34;center&#34;,
             &#34;x&#34;: 0.5,
         },
-        height=280,
+        height=300,
     )
 
+    # White band that visually separates the RISK row (index 0) from the
+    # Spore Counts row (index 1).  The band is centred on the boundary at y=0.5
+    # and is wide enough to be clearly visible as a gap.
     fig.add_shape(
         type=&#34;rect&#34;,
         xref=&#34;paper&#34;,
         yref=&#34;y&#34;,
         x0=0,
         x1=1,
-        y0=0.48,
-        y1=0.52,
+        y0=0.38,
+        y1=0.62,
         fillcolor=&#34;white&#34;,
         line={&#34;width&#34;: 0},
         layer=&#34;above&#34;,
@@ -2309,7 +2787,9 @@ Grey
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors=&#34;coerce&#34;, utc=True)
+            df[col] = pd.to_datetime(
+                df[col], errors=&#34;coerce&#34;, utc=True, format=&#34;ISO8601&#34;
+            )
 
     sc_x, sc_y = [], []
     sc_days: set = set()
@@ -2484,13 +2964,13 @@ Grey
 </details>
 </dd>
 <dt id="src.plots.write_combined_html"><code class="name flex">
-<span>def <span class="ident">write_combined_html</span></span>(<span>primary_fig, secondary_fig, output_path, primary_label='Aide à la décision', secondary_label='Modèle détaillé', spore_counts_graph_url=None)</span>
+<span>def <span class="ident">write_combined_html</span></span>(<span>primary_fig, secondary_fig, output_path, primary_label='Decision support', secondary_label='Detailed model', spore_counts_graph_url=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Write a single mobile-friendly HTML file with <em>primary_fig</em> as the default
 view and a toggle button at the bottom that switches to <em>secondary_fig</em>.</p>
 <p>If <em>spore_counts_graph_url</em> is provided a second button labelled
-"Spores Mildiou" is added below the toggle, opening that URL in a new tab.</p></div>
+"Spore graph" is added below the toggle, opening that URL in a new tab.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -2499,8 +2979,8 @@ view and a toggle button at the bottom that switches to <em>secondary_fig</em>.<
     primary_fig,
     secondary_fig,
     output_path,
-    primary_label=&#34;Aide à la décision&#34;,
-    secondary_label=&#34;Modèle détaillé&#34;,
+    primary_label=&#34;Decision support&#34;,
+    secondary_label=&#34;Detailed model&#34;,
     spore_counts_graph_url=None,
 ):
     &#34;&#34;&#34;
@@ -2508,18 +2988,33 @@ view and a toggle button at the bottom that switches to <em>secondary_fig</em>.<
     view and a toggle button at the bottom that switches to *secondary_fig*.
 
     If *spore_counts_graph_url* is provided a second button labelled
-    &#34;Spores Mildiou&#34; is added below the toggle, opening that URL in a new tab.
+    &#34;Spore graph&#34; is added below the toggle, opening that URL in a new tab.
     &#34;&#34;&#34;
     primary_div = primary_fig.to_html(full_html=False, include_plotlyjs=False)
-    secondary_div = secondary_fig.to_html(full_html=False, include_plotlyjs=False)
+
+    # Re-use the div_id and post_script that plot_model_infection_chains stored
+    # on the figure so the control bar (log10 + weather toggles) works here too.
+    _sec_div_id = getattr(secondary_fig, &#34;_plasmopy_div_id&#34;, None)
+    _sec_post_script = getattr(secondary_fig, &#34;_plasmopy_post_script&#34;, &#34;&#34;)
+    if _sec_div_id:
+        secondary_div = secondary_fig.to_html(
+            full_html=False, include_plotlyjs=False, div_id=_sec_div_id
+        )
+    else:
+        secondary_div = secondary_fig.to_html(full_html=False, include_plotlyjs=False)
 
     spore_btn_html = &#34;&#34;
     if spore_counts_graph_url:
+        # Navigate in the same tab so iOS WKWebView (Mail, WhatsApp, iMessage…)
+        # does not silently block the navigation the way it does with target=&#34;_blank&#34;.
         spore_btn_html = (
-            f&#39;  &lt;button class=&#34;nav-btn&#34; &#39;
-            f&#34;onclick=\&#34;window.open(&#39;{spore_counts_graph_url}&#39;,&#39;_blank&#39;)\&#34;&gt;&#34;
-            f&#34;Graphique spores&lt;/button&gt;\n&#34;
+            f&#39;  &lt;a class=&#34;nav-btn&#34; href=&#34;{spore_counts_graph_url}&#34;&gt;&#39;
+            f&#34;Spore graph&lt;/a&gt;\n&#34;
         )
+
+    _secondary_post_script_tag = (
+        f&#34;  &lt;script&gt;{_sec_post_script}&lt;/script&gt;\n&#34; if _sec_post_script else &#34;&#34;
+    )
 
     html = f&#34;&#34;&#34;&lt;!DOCTYPE html&gt;
 &lt;html&gt;
@@ -2545,6 +3040,7 @@ view and a toggle button at the bottom that switches to <em>secondary_fig</em>.<
       cursor: pointer;
       font-size: 14px;
       text-align: center;
+      text-decoration: none;
     }}
     .nav-btn:hover {{ background: #1a5276; }}
     .modebar-container {{
@@ -2565,8 +3061,9 @@ view and a toggle button at the bottom that switches to <em>secondary_fig</em>.<
   &lt;div id=&#34;secondary-view&#34; class=&#34;plot-view&#34;&gt;
     {secondary_div}
   &lt;/div&gt;
+{_secondary_post_script_tag}
   &lt;button id=&#34;toggle-btn&#34; class=&#34;nav-btn&#34; onclick=&#34;toggleView()&#34;&gt;{secondary_label}&lt;/button&gt;
-{spore_btn_html}  &lt;p style=&#34;text-align:center;color:grey;font-size:12px;margin:4px 0 2px;&#34;&gt;Double-cliquez pour dézoomer&lt;/p&gt;
+{spore_btn_html}  &lt;p style=&#34;text-align:center;color:grey;font-size:12px;margin:4px 0 2px;&#34;&gt;Double-click to zoom out&lt;/p&gt;
   &lt;script&gt;
     function resizeActivePlots() {{
       document.querySelectorAll(&#39;.plot-view.active .js-plotly-plot&#39;).forEach(function(el) {{

@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 
 import automated_weather_pull
+import decision_support_tool
 import hydra
 import infection_event
 import infection_model
@@ -17,7 +18,6 @@ import load_data
 import pandas as pd
 import plots
 import process_data
-import support_decision_tool
 import utils
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
@@ -293,7 +293,7 @@ def main(config: DictConfig):  # noqa: C901
                 tmpfile = f"data/input/automated_spore_{_spore_url_stem}.csv"
                 Path(tmpfile).parent.mkdir(parents=True, exist_ok=True)
                 try:
-                    csvtext = support_decision_tool.fetch_spore_counts(
+                    csvtext = decision_support_tool.fetch_spore_counts(
                         api_query, logfile
                     )
                     if csvtext:
@@ -324,7 +324,7 @@ def main(config: DictConfig):  # noqa: C901
         )
         _season_dates = processed_data["datetime"].dt.date
         _season_window = (_season_dates.min(), _season_dates.max())
-        spore_counts_result = support_decision_tool.check_spore_counts(
+        spore_counts_result = decision_support_tool.check_spore_counts(
             input_spore_file,
             logfile,
             spore_count_threshold=_sdm.get("spore_count_threshold", 40),
@@ -608,16 +608,12 @@ def main(config: DictConfig):  # noqa: C901
     if spore_counts_result is not None:
         # One entry per triggering datetime, each activating only one
         # condition so run_infection_model takes the correct branch.
+        # Dispersion shortcuts are processed FIRST because they can
+        # produce oospore infections.  Sporulation shortcuts (percent-
+        # increase condition) are only valid when a prior oospore/primary
+        # infection already exists (from either the normal model or a
+        # dispersion shortcut).
         _sc_to_inject = []
-        for _sc_dt in spore_counts_result.get("sporulation_datetimes", []):
-            _sc_to_inject.append(
-                {
-                    **spore_counts_result,
-                    "skip_to_sporulation": True,
-                    "skip_to_dispersion": False,
-                    "sporulation_datetime": _sc_dt,
-                }
-            )
         for _sc_dt in spore_counts_result.get("dispersion_datetimes", []):
             _sc_to_inject.append(
                 {
@@ -625,6 +621,15 @@ def main(config: DictConfig):  # noqa: C901
                     "skip_to_sporulation": False,
                     "skip_to_dispersion": True,
                     "dispersion_datetime": _sc_dt,
+                }
+            )
+        for _sc_dt in spore_counts_result.get("sporulation_datetimes", []):
+            _sc_to_inject.append(
+                {
+                    **spore_counts_result,
+                    "skip_to_sporulation": True,
+                    "skip_to_dispersion": False,
+                    "sporulation_datetime": _sc_dt,
                 }
             )
 
@@ -639,6 +644,29 @@ def main(config: DictConfig):  # noqa: C901
             _sc_dt = pd.to_datetime(_anchor_raw)
             if processed_data["datetime"].dt.tz is not None and _sc_dt.tzinfo is None:
                 _sc_dt = _sc_dt.tz_localize(timezone)
+
+            # ---------------------------------------------------------- #
+            # GUARD: sporulation shortcuts (percent-increase condition)   #
+            # require that at least one prior oospore/primary infection   #
+            # event already exists — from the normal model run or from a  #
+            # dispersion shortcut.  Without a preceding infection there   #
+            # is no infected tissue from which sporulation can originate. #
+            # ---------------------------------------------------------- #
+            if _sc_result.get("skip_to_sporulation"):
+                _prior_infections = [
+                    pd.to_datetime(ev["oospore_infection"])
+                    for ev in infection_events
+                    if ev.get("oospore_infection") is not None
+                ]
+                _has_prior = any(pi <= _sc_dt for pi in _prior_infections)
+                if not _has_prior:
+                    with open(logfile, "a") as _logf:
+                        _logf.write(
+                            f"\nSporulation shortcut at {_sc_dt} skipped: "
+                            f"no prior oospore/primary infection event found.\n"
+                        )
+                    continue
+
             _closest = (processed_data["datetime"] - _sc_dt).abs().argmin()
             _sc_rowindex = processed_data.index.get_loc(processed_data.index[_closest])
 
