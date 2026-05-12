@@ -121,8 +121,8 @@ def main(config: DictConfig):  # noqa: C901
     elif config.input_data.get("automated_weather_pull", False):
         # Flat file is given AND weather pull is enabled.
         # Build a combined file (flat stem + API coordinates) so the original
-        # flat file is never modified.  The combined file is always re-seeded
-        # from the flat file at startup, then API data is merged on top.
+        # flat file is never modified.  The combined file is seeded from the
+        # flat file on the first run; subsequent runs merge API data on top.
         import shutil
 
         _api_q = config.input_data.get("weather_api_query", "") or ""
@@ -136,10 +136,27 @@ def main(config: DictConfig):  # noqa: C901
                 _combined_name = f"{_flat_path.stem}_lat{_lat}_lon{_lon}.csv"
         _combined_path = str(_flat_path.parent / _combined_name)
         Path(_combined_path).parent.mkdir(parents=True, exist_ok=True)
-        if _flat_path.exists():
-            shutil.copy2(str(_flat_path), _combined_path)
-        elif not Path(_combined_path).exists():
-            open(_combined_path, "w").close()
+        if not Path(_combined_path).exists():
+            # First run: seed the combined file from the flat file so the
+            # historical data is present before API data is appended.
+            if _flat_path.exists():
+                shutil.copy2(str(_flat_path), _combined_path)
+            else:
+                open(_combined_path, "w").close()
+        elif _flat_path.exists() and (
+            _flat_path.stat().st_mtime > Path(_combined_path).stat().st_mtime
+        ):
+            # Flat file was modified after the combined file was last written,
+            # meaning the user supplied updated historical data.  Merge it in
+            # rather than overwriting, so accumulated API forecast rows are kept.
+            with open(str(_flat_path), "r") as _fh:
+                _flat_csv = _fh.read()
+            automated_weather_pull.merge_weather_data(
+                _combined_path, _flat_csv, logfile
+            )
+        # If neither condition is true the combined file already exists and the
+        # flat file has not changed: leave it untouched so the API data that was
+        # merged on previous runs is preserved.
         meteo_file_path = _combined_path
 
     if config.input_data.get("automated_weather_pull", False):
