@@ -577,10 +577,19 @@ def plot_model_infection_chains(  # noqa: C901
             _wdf = pd.read_csv(weather_data_path)
             _wdf["_wdt"] = pd.to_datetime(_wdf["datetime"], errors="coerce", utc=True)
             _wdf["_wdate"] = _wdf["_wdt"].dt.date
+            _measurement_interval_min = (
+                float(model_parameters["run_settings"]["measurement_time_interval"])
+                if model_parameters is not None
+                else 10.0
+            )
             for _wcol, _wagg, _wlabel, _wcolor, _wyax in _WEATHER_VARS:
                 if _wcol not in _wdf.columns:
                     continue
                 _daily = _wdf.groupby("_wdate")[_wcol].agg(_wagg).reset_index()
+                if _wcol == "rainfall":
+                    # Values are in mm/hr; multiply sum by interval duration in
+                    # hours to get the actual mm of rain fallen each day.
+                    _daily[_wcol] = _daily[_wcol] * (_measurement_interval_min / 60.0)
                 _daily["_wdate"] = pd.to_datetime(_daily["_wdate"]) + pd.Timedelta(
                     hours=12
                 )

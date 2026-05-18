@@ -274,17 +274,10 @@ def oospore_dispersion(
         + 1,  # we need to add +1 for Python's range function to actually loop through the last index in the for loop
         algorithmic_time_steps,
     ):
-        # The oospore_dispersion_rainfall_threshold is provided in mm per hours, however
-        # for the comparison to be meaningful, we need to adjust the threshold relatively
-        # to the rainfall values per measurement interval. So we divide the hour-threshold by 60 minutes,
-        # and we multiply it by the minutes span of the measurement interval.
-        adjusted_oospore_dispersion_rainfall_threshold = (
-            oospore_dispersion_rainfall_threshold * measurement_time_interval / 60
-        )
-        if (
-            processed_data["rainfall"][i]
-            >= adjusted_oospore_dispersion_rainfall_threshold
-        ):
+        # The oospore_dispersion_rainfall_threshold is provided in mm/h (intensity).
+        # Rainfall values in processed_data are also stored as mm/h intensity, so the
+        # comparison is direct — no interval conversion is needed or correct here.
+        if processed_data["rainfall"][i] >= oospore_dispersion_rainfall_threshold:
             oospore_dispersion_datetime = processed_data["datetime"][i]
             oospore_dispersion_datetime_rowindex = i
             break
