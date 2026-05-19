@@ -142,7 +142,7 @@ def launch_sporulation(
         if sporulation_datetime is not None:
             sporulation_datetimes.append(sporulation_datetime)
             sporulation_datetime_rowindexes.append(sporulation_datetime_rowindex)
-            if fast_mode:
+            if fast_mode is True:
                 break
 
     return sporulation_datetimes, sporulation_datetime_rowindexes

@@ -107,7 +107,7 @@ def secondary_infection(  # noqa: C901
                     secondary_infection_datetime_rowindexes.append(
                         secondary_infection_datetime_rowindex
                     )
-                    if fast_mode:
+                    if fast_mode is True:
                         break
 
     return (
@@ -156,7 +156,7 @@ def launch_secondary_infections(
             secondary_infections_datetimes_rowindexes.extend(
                 local_secondary_infection_datetime_rowindexes
             )
-            if fast_mode:
+            if fast_mode is True:
                 break
 
     return secondary_infections_datetimes, secondary_infections_datetimes_rowindexes
