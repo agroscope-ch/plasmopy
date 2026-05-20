@@ -228,9 +228,13 @@ def process_data(  # noqa: C901
     )
     logf.close()
 
-    processed_data = normalize_leaf_wetness(
-        processed_data, measurement_interval, logfile
+    _lw_norm_divisor = (
+        max(standard_colformats[4])
+        if len(standard_colformats) > 4
+        and isinstance(standard_colformats[4], (list, tuple))
+        else measurement_interval
     )
+    processed_data = normalize_leaf_wetness(processed_data, _lw_norm_divisor, logfile)
 
     logf = open(logfile, "a")
     try:
