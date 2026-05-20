@@ -139,6 +139,9 @@ def launch_secondary_infections(
     Launch secondary infection events from all succesful sporulation events.
 
     """
+    # One sublist per sporulation so each secondary infection stays paired with
+    # the sporulation that produced it. This prevents CSV row expansion from
+    # misaligning secondary infections with the wrong (later) sporulation.
     secondary_infections_datetimes = []
     secondary_infections_datetimes_rowindexes = []
 
@@ -158,12 +161,11 @@ def launch_secondary_infections(
             fast_mode,
             algorithmic_time_steps,
         )
-        if local_secondary_infection_datetimes:  # Check if list is not empty
-            secondary_infections_datetimes.extend(local_secondary_infection_datetimes)
-            secondary_infections_datetimes_rowindexes.extend(
-                local_secondary_infection_datetime_rowindexes
-            )
-            if fast_mode is True:
-                break
+        secondary_infections_datetimes.append(local_secondary_infection_datetimes)
+        secondary_infections_datetimes_rowindexes.append(
+            local_secondary_infection_datetime_rowindexes
+        )
+        if fast_mode is True and local_secondary_infection_datetimes:
+            break
 
     return secondary_infections_datetimes, secondary_infections_datetimes_rowindexes

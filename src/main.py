@@ -571,11 +571,19 @@ def main(config: DictConfig):  # noqa: C901
             with open(output_files.infection_datetimes, "a") as f:
                 _ev = infection_prediction.infection_events
                 if _ev["oospore_infection"] is not None:
-                    _sec_infs = _ev.get("secondary_infections") or []
+                    _sec_infs = [
+                        si
+                        for sl in (_ev.get("secondary_infections") or [])
+                        for si in sl
+                    ]
                     _sporuls = _ev.get("sporulations") or []
                     _spor_dens = _ev.get("sporangia_densities") or []
                     _oosp_strength = _ev.get("oospore_infection_strength")
-                    _sec_strengths = _ev.get("secondary_infection_strengths") or []
+                    _sec_strengths = [
+                        s
+                        for sl in (_ev.get("secondary_infection_strengths") or [])
+                        for s in sl
+                    ]
                     _n_rows = max(1, len(_sec_infs), len(_sporuls))
                     for _ri in range(_n_rows):
                         f.write(
@@ -708,13 +716,19 @@ def main(config: DictConfig):  # noqa: C901
             with open(output_files.infection_datetimes, "a") as f:
                 _sc_ev = _sc_event.infection_events
                 if _sc_ev["oospore_infection"] is not None:
-                    _sc_sec = _sc_ev.get("secondary_infections") or []
+                    _sc_sec = [
+                        si
+                        for sl in (_sc_ev.get("secondary_infections") or [])
+                        for si in sl
+                    ]
                     _sc_spor = _sc_ev.get("sporulations") or []
                     _sc_dens = _sc_ev.get("sporangia_densities") or []
                     _sc_oosp_strength = _sc_ev.get("oospore_infection_strength")
-                    _sc_sec_strengths = (
-                        _sc_ev.get("secondary_infection_strengths") or []
-                    )
+                    _sc_sec_strengths = [
+                        s
+                        for sl in (_sc_ev.get("secondary_infection_strengths") or [])
+                        for s in sl
+                    ]
                     _sc_rows = max(1, len(_sc_sec), len(_sc_spor))
                     for _sc_ri in range(_sc_rows):
                         f.write(
@@ -861,15 +875,9 @@ def main(config: DictConfig):  # noqa: C901
         pickle.dump(config, pickle_file)
 
     ### WRITE CSV "DATAFRAME" OF ALL INFECTION EVENTS DATETIMES
-    # List-valued keys are parallel to sporulation events; expand to one row
-    # per sporulation so all events appear in analysis plots.
-    _PER_SPOR_KEYS = {
-        "sporulations",
-        "sporangia_densities",
-        "spore_lifespan_days",
-        "secondary_infections",
-        "secondary_infection_strengths",
-    }
+    # secondary_infections and secondary_infection_strengths are list-of-lists:
+    # one sublist per sporulation. Expand to one row per (sporulation, secondary
+    # infection) pair so every event appears with its correct paired sporulation.
     with open(output_files.events_dataframe, "w") as f:
         event_columns = list(infection_events[0].keys())
         event_columns.insert(0, "id")
@@ -879,23 +887,58 @@ def main(config: DictConfig):  # noqa: C901
         for event_id, event in enumerate(infection_events):
             start_time = infection_predictions[event_id].start_event_datetime
             chain_id = infection_predictions[event_id].id
-            sporulations = event.get("sporulations")
-            n_rows = (
-                len(sporulations)
-                if isinstance(sporulations, list) and sporulations
-                else 1
-            )
-            for spor_idx in range(n_rows):
-                row = [str(chain_id), str(start_time)]
-                for key, item in event.items():
-                    if key in _PER_SPOR_KEYS:
-                        if isinstance(item, list) and spor_idx < len(item):
-                            row.append(str(item[spor_idx]))
+            sporulations = event.get("sporulations") or []
+            sporangia = event.get("sporangia_densities") or []
+            lifespan = event.get("spore_lifespan_days") or []
+            sec_infs_nested = event.get("secondary_infections") or []
+            sec_str_nested = event.get("secondary_infection_strengths") or []
+            n_spors = len(sporulations) if sporulations else 1
+            for spor_idx in range(n_spors):
+                spor_sec = (
+                    sec_infs_nested[spor_idx] if spor_idx < len(sec_infs_nested) else []
+                )
+                spor_str = (
+                    sec_str_nested[spor_idx] if spor_idx < len(sec_str_nested) else []
+                )
+                n_secs = len(spor_sec) if spor_sec else 1
+                for sec_idx in range(n_secs):
+                    row = [str(chain_id), str(start_time)]
+                    for key, item in event.items():
+                        if key == "sporulations":
+                            row.append(
+                                str(sporulations[spor_idx])
+                                if spor_idx < len(sporulations)
+                                else "None"
+                            )
+                        elif key == "sporangia_densities":
+                            row.append(
+                                str(sporangia[spor_idx])
+                                if spor_idx < len(sporangia)
+                                else "None"
+                            )
+                        elif key == "spore_lifespan_days":
+                            row.append(
+                                str(lifespan[spor_idx])
+                                if spor_idx < len(lifespan)
+                                else "None"
+                            )
+                        elif key == "secondary_infections":
+                            val = (
+                                spor_sec[sec_idx]
+                                if spor_sec and sec_idx < len(spor_sec)
+                                else None
+                            )
+                            row.append(str(val) if val is not None else "None")
+                        elif key == "secondary_infection_strengths":
+                            val = (
+                                spor_str[sec_idx]
+                                if spor_str and sec_idx < len(spor_str)
+                                else None
+                            )
+                            row.append(str(val) if val is not None else "None")
                         else:
-                            row.append("None")
-                    else:
-                        row.append(str(item))
-                f.write(",".join(row) + "\n")
+                            row.append(str(item))
+                    f.write(",".join(row) + "\n")
 
     # Full weather date range — used by plots to extend the default view to
     # include forecast dates beyond the last infection event or spore count.

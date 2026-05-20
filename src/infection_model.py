@@ -659,12 +659,15 @@ def run_infection_model(  # noqa: C901
         )
 
     secondary_infection_strengths = [
-        utils.compute_daily_infection_strength(
-            processed_data,
-            si_dt.date(),
-            measurement_time_interval,
-        )
-        for si_dt in secondary_infections_datetimes
+        [
+            utils.compute_daily_infection_strength(
+                processed_data,
+                si_dt.date(),
+                measurement_time_interval,
+            )
+            for si_dt in spor_sec_list
+        ]
+        for spor_sec_list in secondary_infections_datetimes
     ]
 
     """ Returning list of infection events' datetimes and properties """
