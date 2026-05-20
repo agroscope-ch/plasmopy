@@ -84,10 +84,12 @@ def sporulation(
         sporulation_temperatures.append(temperature)
         avg_temperature = mean(sporulation_temperatures)
         if (
-            leaf_wetness <= sporulation_leaf_wetness_threshold
-            and avg_humidity < sporulation_min_humidity
-        ) or avg_temperature < sporulation_min_temperature:
-            return sporulation_datetime, sporulation_datetime_rowindex
+            leaf_wetness > sporulation_leaf_wetness_threshold
+            or avg_humidity >= sporulation_min_humidity
+        ) and avg_temperature >= sporulation_min_temperature:
+            continue
+        else:
+            return None, None
 
     sporulation_datetime = processed_data["datetime"][i]
     sporulation_datetime_rowindex = i

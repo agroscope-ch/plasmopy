@@ -87,9 +87,7 @@ def plot_model_infection_chains_pdf(  # noqa: C901
     ]
     for col in _dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(
-                df[col], errors="coerce", utc=True, format="ISO8601"
-            )
+            df[col] = pd.to_datetime(df[col], errors="coerce", format="ISO8601")
     if "sporangia_densities" in df.columns:
         df["sporangia_densities"] = pd.to_numeric(
             df["sporangia_densities"], errors="coerce"
@@ -194,7 +192,11 @@ def plot_model_infection_chains_pdf(  # noqa: C901
     ax_sc.spines["right"].set_position(("outward", 55))
 
     # --- sporangia density bars ---
-    spor_rows = df[df["sporangia_densities"].notna() & df["sporulations"].notna()]
+    spor_rows = df[
+        df["sporangia_densities"].notna()
+        & (df["sporangia_densities"] > 0)
+        & df["sporulations"].notna()
+    ]
     if not spor_rows.empty:
         ax_spor.bar(
             spor_rows["sporulations"].tolist(),
@@ -385,9 +387,7 @@ def plot_model_infection_chains(  # noqa: C901
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(
-                df[col], errors="coerce", utc=True, format="ISO8601"
-            )
+            df[col] = pd.to_datetime(df[col], errors="coerce", format="ISO8601")
 
     if "sporangia_densities" in df.columns:
         df["sporangia_densities"] = pd.to_numeric(
@@ -464,7 +464,11 @@ def plot_model_infection_chains(  # noqa: C901
             except Exception:
                 pass
 
-    spor = df[df["sporangia_densities"].notna() & df["sporulations"].notna()]
+    spor = df[
+        df["sporangia_densities"].notna()
+        & (df["sporangia_densities"] > 0)
+        & df["sporulations"].notna()
+    ]
     if not spor.empty:
         x_bars, y_bars = [], []
         for _, row in spor.iterrows():
@@ -864,9 +868,7 @@ def plot_spore_driven_model_overview(  # noqa: C901
     ]
     for col in dt_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(
-                df[col], errors="coerce", utc=True, format="ISO8601"
-            )
+            df[col] = pd.to_datetime(df[col], errors="coerce", format="ISO8601")
 
     sc_x, sc_y = [], []
     sc_days: set = set()
@@ -1086,9 +1088,7 @@ def plot_risk_heatmap(  # noqa: C901
     df = pd.read_csv(events_dataframe_path)
     for col in ("oospore_infection", "secondary_infections"):
         if col in df.columns:
-            df[col] = pd.to_datetime(
-                df[col], errors="coerce", utc=True, format="ISO8601"
-            )
+            df[col] = pd.to_datetime(df[col], errors="coerce", format="ISO8601")
     for col in ("oospore_infection_strength", "secondary_infection_strengths"):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")

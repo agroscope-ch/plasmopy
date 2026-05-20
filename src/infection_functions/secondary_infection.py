@@ -78,7 +78,10 @@ def secondary_infection(  # noqa: C901
                 no_leaf_wetness_minutes_counter
                 > secondary_infection_leaf_wetness_latency
             ):
-                break
+                no_leaf_wetness_minutes_counter = 0
+                sum_degree_hours = 0
+                sum_degree_hours_minutes_counter = 0
+                continue
         else:
             no_leaf_wetness_minutes_counter = 0
             sum_degree_hours_minutes_counter += (
@@ -100,6 +103,7 @@ def secondary_infection(  # noqa: C901
                     continue
                 mean_hourly_temperature = mean(hourly_temps)
                 sum_degree_hours += mean_hourly_temperature
+                sum_degree_hours_minutes_counter -= 60
                 if sum_degree_hours >= secondary_infection_sum_degree_hours_threshold:
                     secondary_infection_datetime = processed_data["datetime"][i]
                     secondary_infection_datetime_rowindex = i
@@ -107,6 +111,9 @@ def secondary_infection(  # noqa: C901
                     secondary_infection_datetime_rowindexes.append(
                         secondary_infection_datetime_rowindex
                     )
+                    sum_degree_hours = 0
+                    sum_degree_hours_minutes_counter = 0
+                    no_leaf_wetness_minutes_counter = 0
                     if fast_mode is True:
                         break
 

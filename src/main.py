@@ -861,34 +861,41 @@ def main(config: DictConfig):  # noqa: C901
         pickle.dump(config, pickle_file)
 
     ### WRITE CSV "DATAFRAME" OF ALL INFECTION EVENTS DATETIMES
+    # List-valued keys are parallel to sporulation events; expand to one row
+    # per sporulation so all events appear in analysis plots.
+    _PER_SPOR_KEYS = {
+        "sporulations",
+        "sporangia_densities",
+        "spore_lifespan_days",
+        "secondary_infections",
+        "secondary_infection_strengths",
+    }
     with open(output_files.events_dataframe, "w") as f:
         event_columns = list(infection_events[0].keys())
         event_columns.insert(0, "id")
         event_columns.insert(1, "start")
         wr = csv.writer(f, quoting=csv.QUOTE_NONE)
         wr.writerow(event_columns)
-        event_id = 0
-        for event in infection_events:
+        for event_id, event in enumerate(infection_events):
             start_time = infection_predictions[event_id].start_event_datetime
-            id = infection_predictions[event_id].id
-            f.write(str(id) + "," + str(start_time) + ",")
-            event_id += 1
-            n_events = len(event.keys())
-            i = 0
-            for key, item in event.items():  # noqa: B007
-                i += 1
-                if isinstance(item, list):
-                    if item:
-                        if i < n_events:
-                            f.write(str(item[0]) + ",")
+            chain_id = infection_predictions[event_id].id
+            sporulations = event.get("sporulations")
+            n_rows = (
+                len(sporulations)
+                if isinstance(sporulations, list) and sporulations
+                else 1
+            )
+            for spor_idx in range(n_rows):
+                row = [str(chain_id), str(start_time)]
+                for key, item in event.items():
+                    if key in _PER_SPOR_KEYS:
+                        if isinstance(item, list) and spor_idx < len(item):
+                            row.append(str(item[spor_idx]))
                         else:
-                            f.write(str(item[0]))
-                else:
-                    if i < n_events:
-                        f.write(str(item) + ",")
+                            row.append("None")
                     else:
-                        f.write(str(item))
-            f.write("\n")
+                        row.append(str(item))
+                f.write(",".join(row) + "\n")
 
     # Full weather date range — used by plots to extend the default view to
     # include forecast dates beyond the last infection event or spore count.
