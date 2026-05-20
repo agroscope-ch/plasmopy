@@ -223,6 +223,7 @@ def main(config: DictConfig):  # noqa: C901
             api_query_url=api_query,
             logfile=logfile,
             stop_event=data_pull_stop_event,
+            measurement_time_interval=config.run_settings.measurement_time_interval,
         )
         if data_pull_thread is not None:
             data_pull_thread.start()

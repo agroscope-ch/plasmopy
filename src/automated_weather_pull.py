@@ -15,7 +15,9 @@ import pandas as pd
 import requests
 
 
-def fetch_weather_data_from_api(api_query_url, logfile=None):
+def fetch_weather_data_from_api(
+    api_query_url, logfile=None, measurement_time_interval=10
+):
     """
     Fetch weather data from the specified API query URL.
 
@@ -63,6 +65,20 @@ def fetch_weather_data_from_api(api_query_url, logfile=None):
                     "leaf_wetness": block.get("leafwetnessindex", []),
                 }
             )
+            # Rescale API leaf_wetness to match the flat file's encoding
+            # (minutes wet per measurement_time_interval), so process_data
+            # normalization (÷ config max = measurement_time_interval) yields
+            # correct [0–1] ratios for both sources in the combined file.
+            if "leaf_wetness" in df.columns and df["leaf_wetness"].notna().any():
+                lw_max = df["leaf_wetness"].max()
+                if lw_max > 1:
+                    # Minutes-per-hour encoding → convert to minutes per model interval
+                    df["leaf_wetness"] = df["leaf_wetness"] * (
+                        measurement_time_interval / 60
+                    )
+                else:
+                    # Already a [0–1] ratio → scale to minutes per model interval
+                    df["leaf_wetness"] = df["leaf_wetness"] * measurement_time_interval
             # format datetime field
             df["datetime"] = pd.to_datetime(df["datetime"]).dt.strftime(
                 "%d.%m.%Y %H:%M"
@@ -234,6 +250,7 @@ def start_periodic_data_pull(
     api_query_url,
     logfile=None,
     stop_event=None,
+    measurement_time_interval=10,
 ):
     """
     Start a background thread to fetch and merge weather data once.
@@ -288,7 +305,9 @@ def start_periodic_data_pull(
         msg = f"Pulling weather data from API at {datetime.now()}"
         log_message(msg)
 
-        csv_data = fetch_weather_data_from_api(api_query_url, logfile)
+        csv_data = fetch_weather_data_from_api(
+            api_query_url, logfile, measurement_time_interval
+        )
 
         if csv_data is not None:
             success = merge_weather_data(meteo_file_path, csv_data, logfile)
